@@ -13,8 +13,21 @@ HTML-Seiten.
 ## Die ROM gehört nicht dazu
 
 Die ROM ist urheberrechtlich geschützt und liegt nicht in diesem Repository. Gebraucht wird die
-Datei `tama.b` aus dem MAME-Romset `tama` (12 288 Bytes, CRC32 `5c864cb1`). Sie muss unter
-`tama/tama.b` liegen.
+Datei `tama.b` aus dem MAME-Romset `tama`:
+
+| | |
+|---|---|
+| Größe | 12 288 Bytes |
+| SHA-1 | `4b4979cf92dc9d2fb6d7295a38f209f3da144f72` |
+| CRC32 | `5c864cb1` |
+
+Fehlt die ROM beim Start, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und fragt
+danach: Man lädt `tama.b` (oder MAMEs `tama.zip`) im Browser hoch oder nennt den Pfad, unter dem
+sie auf dem Server liegt. Angenommen wird die Datei nur, wenn die Prüfsumme passt. Gespeichert
+wird sie als `tama.b` neben dem Spielstand. Wer sie selbst hinlegen will: dorthin oder nach
+`tama/tama.b`, oder `--rom` angeben.
+
+![Erster Start ohne ROM](docs/img/optionen.jpg)
 
 ## Starten
 
@@ -23,14 +36,19 @@ python3 server.py            # baut libtama.so bei Bedarf, dann http://127.0.0.1
 ```
 
 Benötigt `gcc`, `make` und `python3`. Strg+C beendet und speichert den Spielstand in
-`tama_state.json`. Mit Docker: `docker compose up -d --build`. Die Compose-Datei veröffentlicht
+`tama_state.json`. Mit Docker: `docker compose up -d --build`; Spielstand, ROM und
+Einstellungen liegen dann im Volume unter `/data`. Die Compose-Datei veröffentlicht
 keinen Port und erwartet ein externes Netz `httpd` für einen Reverse-Proxy; das ist an die
 eigene Umgebung anzupassen. Die Oberfläche hat keine Anmeldung und gehört nicht ungeschützt ins
 Internet.
 
 Das Tier lebt im Server-Prozess und läuft weiter, wenn kein Browser offen ist. Das Tempo lässt
-sich bis etwa 2600-fach hochdrehen. Optional schickt der Server abends einen Tagesbericht per
-E-Mail (`.env.example`).
+sich bis etwa 2600-fach hochdrehen.
+
+Optional schickt der Server abends einen Tagesbericht per E-Mail. Der Mailserver wird auf der
+Seite „Optionen“ (`/settings`) eingetragen und in `settings.json` neben dem Spielstand
+gespeichert, das Passwort unverschlüsselt. Umgebungsvariablen (`.env.example`) dienen als
+Vorgabe.
 
 ## Der Care-Bot
 
@@ -139,7 +157,7 @@ carebot.py       der Care-Bot
 growth.py        Wachstumsregeln und Planung für ein Ziel
 report.py        Tagesbericht per E-Mail
 server.py        Emulator-Schleife und HTTP-Server
-web/             Oberfläche und die Unterseite /bot
+web/             Oberfläche, die Unterseite /bot und die Optionen /settings
 lab/             die Experimente, aus denen die Tabellen stammen
 ```
 

@@ -5,10 +5,15 @@
 
 The pet lives in this process: it keeps running while no browser is open and
 its state is saved to tama_state.json (every minute and on exit).
+
+The ROM is not part of this project. Without one the server only shows the
+settings page, which asks for the file.
 """
 import argparse
 import base64
 import collections
+import hashlib
+import io
 import json
 import os
 import signal
@@ -16,6 +21,8 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +32,7 @@ if not os.path.exists(LIB):
 
 import growth  # noqa: E402
 from carebot import CareBot  # noqa: E402
-from report import DailyReport  # noqa: E402
+from report import DailyReport, smtp_from_env  # noqa: E402
 from tama import BTN_A, BTN_B, BTN_C, LCD_H, LCD_W, TICK_HZ, Tama  # noqa: E402
 
 CHUNK = 1024                    # ticks per emulation slice (1/32 s)
@@ -33,18 +40,133 @@ FRAME = 1 / 30                  # seconds between screen updates
 SPEEDS = (1, 2, 5, 20, 0)       # 0 = as fast as possible
 MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C}
-PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html"}
+PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
+         "/settings": "settings.html"}
+
+# tama.b of the MAME set "tama": the ROM all RAM addresses here were found in
+ROM_SIZE = 12288
+ROM_SHA1 = "4b4979cf92dc9d2fb6d7295a38f209f3da144f72"
+ROM_CRC32 = "5c864cb1"
+MAX_UPLOAD = 4 << 20
+SMTP_SECURITY = ("starttls", "ssl", "none")
+
+
+class Refused(Exception):
+    """A request that cannot be carried out; the message is shown in the UI."""
+
+
+def rom_hashes(data):
+    return {"size": len(data), "sha1": hashlib.sha1(data).hexdigest(),
+            "crc32": "%08x" % zlib.crc32(data)}
+
+
+def unpack_rom(data):
+    """The ROM itself, also when it comes inside MAME's tama.zip."""
+    if data[:2] == b"PK":
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                for info in z.infolist():
+                    if info.file_size == ROM_SIZE:
+                        rom = z.read(info)
+                        if hashlib.sha1(rom).hexdigest() == ROM_SHA1:
+                            return rom
+        except zipfile.BadZipFile:
+            pass
+        raise Refused("In der ZIP-Datei ist keine passende tama.b.")
+    return data
+
+
+class App:
+    """Settings, the ROM and, once there is a ROM, the running pet."""
+
+    def __init__(self, rom_paths, state_path):
+        self.rom_paths = rom_paths      # looked up in this order; uploads go to the first
+        self.state_path = state_path
+        self.settings_path = os.path.join(os.path.dirname(state_path), "settings.json")
+        self.lock = threading.Lock()
+        self.engine = None
+        self.rom = None                 # hashes of the ROM in use
+        self.smtp = smtp_from_env()     # the environment gives the defaults
+        try:
+            with open(self.settings_path) as f:
+                self.smtp.update(json.load(f).get("smtp", {}))
+        except FileNotFoundError:
+            pass
+        self.start()
+
+    def start(self):
+        """Bring the pet to life if there is a ROM."""
+        for path in self.rom_paths:
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    self.rom = dict(rom_hashes(f.read()), path=path)
+                self.engine = Engine(path, self.state_path, self.smtp)
+                threading.Thread(target=self.engine.loop, daemon=True).start()
+                return
+
+    def settings(self):
+        smtp = dict(self.smtp, password=bool(self.smtp["password"]))    # never sent back
+        return {"rom": self.rom,
+                "expected": {"size": ROM_SIZE, "sha1": ROM_SHA1, "crc32": ROM_CRC32},
+                "smtp": smtp}
+
+    def set_smtp(self, data):
+        with self.lock:
+            smtp = dict(self.smtp)
+            for key in smtp:
+                if key in data:
+                    smtp[key] = int(data[key]) if key == "port" else str(data[key]).strip()
+            if smtp["security"] not in SMTP_SECURITY or not 0 < smtp["port"] < 65536:
+                raise Refused("Port oder Verschlüsselung ist ungültig.")
+            self.smtp = smtp
+            tmp = self.settings_path + ".tmp"
+            with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+                json.dump({"smtp": smtp}, f)
+            os.replace(tmp, self.settings_path)
+            if self.engine:
+                with self.engine.lock:
+                    self.engine.report.configure(smtp)
+
+    def set_rom(self, data=None, path=None):
+        with self.lock:
+            if self.engine:
+                raise Refused("Es ist schon eine ROM vorhanden.")
+            if path is not None:
+                try:
+                    if os.path.getsize(path) > MAX_UPLOAD:
+                        raise Refused("Die Datei ist zu groß für eine Tamagotchi-ROM.")
+                    with open(path, "rb") as f:
+                        data = f.read()
+                except OSError:
+                    raise Refused("Die Datei lässt sich auf dem Server nicht lesen.")
+            data = unpack_rom(data)
+            got = rom_hashes(data)
+            if got["sha1"] != ROM_SHA1:
+                if path is not None:    # say nothing about other files on the server
+                    raise Refused("Die Datei dort ist nicht die erwartete ROM.")
+                raise Refused("Das ist nicht die erwartete ROM (%d Bytes, SHA-1 %s)."
+                              % (got["size"], got["sha1"]))
+            target = self.rom_paths[0]
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as f:
+                f.write(data)
+            self.start()
+
+    def stop(self):
+        if self.engine:
+            self.engine.running = False
+            self.engine.save_state()
 
 
 class Engine:
-    def __init__(self, rom_path, state_path):
+    def __init__(self, rom_path, state_path, smtp):
         self.state_path = state_path
         self.lock = threading.Lock()
         self.changed = threading.Condition()
         self.tama = Tama(rom_path, LIB)
         self.log = collections.deque(maxlen=60)
         self.log_id = 0
-        self.report = DailyReport(self.add_log)
+        self.report = DailyReport(self.add_log, smtp)
         self.bot = CareBot(self.tama, self.add_log)
         self.slices = 0
         self.bot_enabled = True
@@ -140,7 +262,7 @@ class Engine:
     def test_mail(self):
         with self.lock:
             if not self.report.enabled:
-                self.add_log("Tagesbericht nicht eingerichtet (SMTP_HOST und MAIL_TO fehlen)")
+                self.add_log("Tagesbericht nicht eingerichtet (Mailserver und Empfänger fehlen)")
             else:
                 self.report.send(self.bot.status())
 
@@ -223,25 +345,38 @@ class Engine:
 
 
 class Handler(BaseHTTPRequestHandler):
-    engine = None
+    app = None
     protocol_version = "HTTP/1.1"
+
+    @property
+    def engine(self):
+        return self.app.engine
 
     def log_message(self, fmt, *args):
         pass
 
-    def send_body(self, code, body, ctype):
+    def send_body(self, code, body, ctype, headers=()):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in headers:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
+    def send_json(self, data, code=200):
+        self.send_body(code, json.dumps(data).encode(), "application/json")
+
     def do_GET(self):
-        if self.path in PAGES:
+        if self.path == "/api/settings":
+            self.send_json(self.app.settings())
+        elif self.path in PAGES:
+            if not self.engine and self.path != "/settings":    # no ROM yet: ask for it
+                return self.send_body(302, b"", "text/plain", [("Location", "/settings")])
             with open(os.path.join(HERE, "web", PAGES[self.path]), "rb") as f:
                 self.send_body(200, f.read(), "text/html; charset=utf-8")
-        elif self.path == "/events":
+        elif self.path == "/events" and self.engine:
             self.stream()
         else:
             self.send_body(404, b"not found", "text/plain")
@@ -282,8 +417,21 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_body(403, b"forbidden", "text/plain")
         try:
             length = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(length) or b"{}")
-            if self.path == "/api/button":
+            if length > MAX_UPLOAD:
+                raise Refused("Die Datei ist zu groß für eine Tamagotchi-ROM.")
+            body = self.rfile.read(length)
+            is_json = self.headers.get("Content-Type", "").startswith("application/json")
+            if self.path == "/api/rom" and not is_json:
+                self.app.set_rom(data=body)     # the file itself
+                return self.send_json({})
+            data = json.loads(body or b"{}")
+            if self.path == "/api/rom":
+                self.app.set_rom(path=str(data["path"]))
+            elif self.path == "/api/settings":
+                self.app.set_smtp(data["smtp"])
+            elif not self.engine:
+                raise Refused("Es fehlt noch die ROM.")
+            elif self.path == "/api/button":
                 self.engine.button(data["btn"], bool(data["down"]))
             elif self.path == "/api/config":
                 self.engine.configure(data.get("bot"), data.get("discipline"),
@@ -295,9 +443,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.engine.test_mail()
             else:
                 return self.send_body(404, b"not found", "text/plain")
-        except (KeyError, ValueError, TypeError):
-            return self.send_body(400, b"bad request", "text/plain")
-        self.send_body(200, b"{}", "application/json")
+        except Refused as e:
+            return self.send_json({"error": str(e)}, 400)
+        except (KeyError, ValueError, TypeError, AttributeError):
+            return self.send_json({"error": "Ungültige Anfrage."}, 400)
+        self.send_json({})
 
 
 def main():
@@ -305,26 +455,30 @@ def main():
     ap.add_argument("--host", default="127.0.0.1",
                     help="address to listen on (0.0.0.0 for the whole network)")
     ap.add_argument("--port", type=int, default=8137)
-    ap.add_argument("--rom", default=os.path.join(HERE, "tama", "tama.b"))
+    ap.add_argument("--rom", help="ROM file (default: tama.b next to the state file, "
+                                  "else tama/tama.b; asked for in the browser if missing)")
     ap.add_argument("--state", default=os.path.join(HERE, "tama_state.json"))
     args = ap.parse_args()
 
-    engine = Engine(args.rom, args.state)
-    Handler.engine = engine
+    state = os.path.abspath(args.state)
+    roms = [args.rom] if args.rom else [os.path.join(os.path.dirname(state), "tama.b"),
+                                        os.path.join(HERE, "tama", "tama.b")]
+    app = Handler.app = App(roms, state)
     ThreadingHTTPServer.daemon_threads = True
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
-    threading.Thread(target=engine.loop, daemon=True).start()
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     print("Tamagotchi läuft auf http://%s:%d  (Strg+C beendet und speichert)"
           % (args.host, args.port), flush=True)
+    if not app.engine:
+        print("Es fehlt noch die ROM: bitte im Browser angeben.", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        engine.running = False
-        engine.save_state()
-        print("\nSpielstand gespeichert in", args.state)
+        app.stop()
+        if app.engine:
+            print("\nSpielstand gespeichert in", state)
 
 
 if __name__ == "__main__":

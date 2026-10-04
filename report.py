@@ -1,7 +1,8 @@
 """Daily e-mail report, sent when the Tamagotchi falls asleep for the night.
 
-Configured through environment variables (see .env.example). Without
-SMTP_HOST and MAIL_TO the report is simply switched off.
+Configured on the settings page; environment variables (see .env.example)
+are the defaults. Without a mail server and a recipient the report is
+simply switched off.
 """
 import os
 import smtplib
@@ -43,17 +44,22 @@ def lcd_png(pixels, scale=12):
             + chunk(b"IEND", b""))
 
 
+def smtp_from_env(env=os.environ):
+    return {
+        "host": env.get("SMTP_HOST", ""),
+        "port": int(env.get("SMTP_PORT", "587")),
+        "security": env.get("SMTP_SECURITY", "starttls").lower(),   # starttls | ssl | none
+        "user": env.get("SMTP_USER", ""),
+        "password": env.get("SMTP_PASSWORD", ""),
+        "mail_from": env.get("MAIL_FROM", ""),
+        "mail_to": env.get("MAIL_TO", ""),
+    }
+
+
 class DailyReport:
-    def __init__(self, log, env=os.environ):
+    def __init__(self, log, smtp=None):
         self.log = log
-        self.host = env.get("SMTP_HOST", "")
-        self.port = int(env.get("SMTP_PORT", "587"))
-        self.security = env.get("SMTP_SECURITY", "starttls").lower()  # starttls | ssl | none
-        self.user = env.get("SMTP_USER", "")
-        self.password = env.get("SMTP_PASSWORD", "")
-        self.mail_to = env.get("MAIL_TO", "")
-        self.mail_from = env.get("MAIL_FROM", "") or self.user or self.mail_to
-        self.enabled = bool(self.host and self.mail_to)
+        self.configure(smtp or smtp_from_env())
 
         self.asleep = False         # debounced
         self.flip_since = None      # tick since which the raw value disagrees
@@ -61,6 +67,16 @@ class DailyReport:
         self.picture = None         # last frame of the pet awake on its home screen
         self.last_sent = 0.0
         self.reset_counters()
+
+    def configure(self, smtp):
+        self.host = smtp["host"]
+        self.port = smtp["port"]
+        self.security = smtp["security"]
+        self.user = smtp["user"]
+        self.password = smtp["password"]
+        self.mail_to = smtp["mail_to"]
+        self.mail_from = smtp["mail_from"] or self.user or self.mail_to
+        self.enabled = bool(self.host and self.mail_to)
 
     def reset_counters(self):
         self.stats = {"hunger": 0, "happy": 0, "cleaned": 0, "healed": 0,
