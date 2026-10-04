@@ -1,0 +1,24 @@
+# No published ports: the web UI is only reachable inside the "httpd" network
+# as http://tamagotchi:8137 (reverse proxy + Authelia in front).
+services:
+  tamagotchi:
+    build: .
+    image: tamagotchi:latest
+    container_name: tamagotchi
+    restart: unless-stopped
+    env_file:
+      - path: .env        # SMTP settings for the daily report, see .env.example
+        required: false
+    environment:
+      TZ: Europe/Berlin   # the Care-Bot sets the pet's clock from this
+    volumes:
+      - tamagotchi-data:/data
+    networks:
+      - httpd
+
+volumes:
+  tamagotchi-data:
+
+networks:
+  httpd:
+    external: true

@@ -1,0 +1,20 @@
+# The ROM is copyrighted and must be supplied by the user
+tama/
+tama.zip
+
+# Build output, state and secrets
+libtama.so
+__pycache__/
+tama_state.json*
+.env
+
+# Experiment output
+lab/*.so
+lab/*.pkl
+lab/*.sav
+lab/*.out
+
+# Private notes
+DOKUMENTATION.md
+Tamagrowth_chart.webp
+artikel/

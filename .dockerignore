@@ -1,0 +1,9 @@
+libtama.so
+tama.zip
+tama_state.json*
+__pycache__
+.env
+lab
+docs
+artikel
+.git

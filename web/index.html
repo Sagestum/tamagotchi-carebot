@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tamagotchi</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --shell-a: #ffd23f;
+    --shell-b: #f29f05;
+    --shell-edge: #b86e00;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --lcd-off: rgba(32, 40, 28, 0.07);
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+      --shell-a: #f2c230;
+      --shell-b: #d98704;
+      --shell-edge: #7d4c00;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* The device */
+  .shell {
+    width: min(100%, 400px);
+    margin: 0 auto;
+    aspect-ratio: 5 / 6;
+    border-radius: 50% 50% 48% 48% / 56% 56% 44% 44%;
+    background: radial-gradient(120% 90% at 35% 20%, var(--shell-a), var(--shell-b));
+    box-shadow: inset 0 -10px 24px rgba(0, 0, 0, 0.18), inset 0 6px 14px rgba(255, 255, 255, 0.45),
+      0 2px 0 var(--shell-edge), 0 18px 34px rgba(0, 0, 0, 0.22);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6%;
+    padding: 12% 11% 9%;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .screen {
+    width: 100%;
+    background: var(--lcd);
+    border-radius: 14px;
+    padding: 7px 10px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 5px rgba(0, 0, 0, 0.16);
+  }
+  .icons {
+    display: flex;
+    justify-content: space-around;
+    color: var(--lcd-on);
+  }
+  .icons svg {
+    width: 15%;
+    max-width: 30px;
+    opacity: 0.1;
+    transition: opacity 0.08s;
+  }
+  .icons svg.on { opacity: 1; }
+  canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    margin: 4px 0;
+  }
+  .buttons {
+    display: flex;
+    gap: 9%;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .buttons button {
+    width: 15%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 0;
+    background: radial-gradient(circle at 35% 30%, #fff8ea, #d9cfbd);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3), 0 6px 10px rgba(0, 0, 0, 0.2);
+    color: #6d6558;
+    font: 600 13px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .buttons button:nth-child(2) { margin-top: 5%; }
+  .buttons button.down {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  .hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin: 18px 0 0;
+  }
+  kbd {
+    font: 12px ui-monospace, monospace;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 4px;
+    background: var(--panel);
+  }
+
+  /* The side panel */
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row[hidden] { display: none; }
+  .row span:first-child { color: var(--muted); }
+  a { color: var(--accent); }
+  .hearts { letter-spacing: 2px; color: var(--accent); font-size: 17px; }
+  .hearts i { font-style: normal; opacity: 0.22; }
+  .flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .flag {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .flag.warn { border-color: var(--accent); color: var(--accent); }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch b {
+    position: absolute; inset: 0;
+    border-radius: 99px;
+    background: var(--line);
+    transition: background 0.15s;
+  }
+  .switch b::after {
+    content: "";
+    position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+  }
+  .switch input:checked + b { background: var(--ok); }
+  .switch input:checked + b::after { transform: translateX(18px); }
+  .switch input:focus-visible + b { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    padding: 3px 9px;
+    cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--ink); color: var(--panel); }
+  #log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 190px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  #log li { display: flex; gap: 10px; padding: 2px 0; }
+  #log time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .plain {
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .plain.danger { border-color: var(--accent); color: var(--accent); }
+  #offline {
+    display: none;
+    grid-column: 1 / -1;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 14px;
+  }
+  #offline.show { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <div id="offline">Keine Verbindung zum Server – das Tamagotchi ist angehalten, bis <code>server.py</code> wieder läuft.</div>
+
+  <div>
+    <div class="shell">
+      <div class="screen">
+        <div class="icons" id="iconsTop"></div>
+        <canvas id="lcd" width="640" height="320" aria-label="Tamagotchi-Display"></canvas>
+        <div class="icons" id="iconsBottom"></div>
+      </div>
+      <div class="buttons">
+        <button data-btn="A" aria-label="Taste A: auswählen">A</button>
+        <button data-btn="B" aria-label="Taste B: bestätigen">B</button>
+        <button data-btn="C" aria-label="Taste C: abbrechen">C</button>
+      </div>
+    </div>
+    <p class="hint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Care-Bot</h2>
+      <div class="row">
+        <span>Kümmert sich automatisch</span>
+        <label class="switch"><input type="checkbox" id="bot"><b></b></label>
+      </div>
+      <div class="row">
+        <span>Darf schimpfen</span>
+        <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
+      </div>
+      <div class="row">
+        <span>Ziel</span>
+        <span><b id="goal">keins</b> · <a href="/bot">Wachstum und Ziel</a></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Zustand</h2>
+      <div class="row"><span>Hunger</span><span class="hearts" id="hunger"></span></div>
+      <div class="row"><span>Glück</span><span class="hearts" id="happy"></span></div>
+      <div class="row"><span>Charakter</span><span id="stage">–</span></div>
+      <div class="row"><span>Gewicht</span><span id="weight">–</span></div>
+      <div class="row"><span>Uhr im Gerät</span><span id="clock">–</span></div>
+      <div class="row" id="gameRow" hidden><span>Spielrunde (steht vorher fest)</span><span id="game"></span></div>
+      <div class="flags" id="flags"></div>
+    </section>
+
+    <section>
+      <h2>Gerät</h2>
+      <div class="row">
+        <span>Tempo</span>
+        <div class="seg" id="speed">
+          <button data-speed="1">1×</button><button data-speed="2">2×</button><button data-speed="5">5×</button><button data-speed="20">20×</button><button data-speed="0">max</button>
+        </div>
+      </div>
+      <div class="row">
+        <span>Pause</span>
+        <label class="switch"><input type="checkbox" id="paused"><b></b></label>
+      </div>
+      <div class="row">
+        <span>Ton (nur bei 1×)</span>
+        <label class="switch"><input type="checkbox" id="sound"><b></b></label>
+      </div>
+      <div class="row">
+        <span>Tagesbericht per E-Mail</span>
+        <button class="plain" id="testmail">Jetzt senden</button>
+      </div>
+      <div class="row">
+        <span>Von vorn beginnen</span>
+        <button class="plain" id="reset">Neues Ei</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Protokoll</h2>
+      <ul id="log"></ul>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+/* Menu icons, in LCD order: four above the pet, four below */
+const ICONS = [
+  ['Füttern', '<path d="M7 3v7a2 2 0 0 0 4 0V3M9 3v18M16 3c-2 2-2 7 0 9v9"/>'],
+  ['Licht', '<path d="M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11zM10 20h4"/>'],
+  ['Spielen', '<circle cx="17" cy="7" r="3"/><path d="M4 20l9-9"/>'],
+  ['Medizin', '<path d="M14 4l6 6M17 7l-9 9-3 1 1-3 9-9M9 11l4 4M5 19l-2 2"/>'],
+  ['Saubermachen', '<path d="M5 4h4v7h10a6 6 0 0 1-6 6H9a4 4 0 0 1-4-4zM9 17v3h6v-3"/>'],
+  ['Status', '<path d="M4 17a8 8 0 0 1 16 0zM12 17l4-6"/>'],
+  ['Schimpfen', '<path d="M4 5h16v10H10l-4 4v-4H4zM12 7.5v4M12 13v.5"/>'],
+  ['Ruft nach dir', '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>'],
+];
+ICONS.forEach(([title, path], i) => {
+  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+    stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`;
+  (i < 4 ? $('iconsTop') : $('iconsBottom')).insertAdjacentHTML('beforeend', svg);
+});
+const iconEls = [...document.querySelectorAll('.icons svg')];
+
+/* LCD */
+const canvas = $('lcd');
+const ctx = canvas.getContext('2d');
+const css = getComputedStyle(document.documentElement);
+const LCD_ON = css.getPropertyValue('--lcd-on');
+const LCD_OFF = css.getPropertyValue('--lcd-off');
+let lastLcd = '';
+function drawLcd(hex) {
+  if (hex === lastLcd) return;
+  lastLcd = hex;
+  const cell = canvas.width / 32, gap = cell * 0.09;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < 16; y++) {
+    const row = parseInt(hex.substr(y * 8, 8), 16);
+    for (let x = 0; x < 32; x++) {
+      ctx.fillStyle = (row >>> (31 - x)) & 1 ? LCD_ON : LCD_OFF;
+      ctx.fillRect(x * cell + gap, y * cell + gap, cell - 2 * gap, cell - 2 * gap);
+    }
+  }
+}
+drawLcd('0'.repeat(128));
+
+/* Sound: the buzzer is a square wave that the ROM switches on and off */
+let audio = null, osc = null, gain = null;
+$('sound').addEventListener('change', (e) => {
+  if (e.target.checked && !audio) {
+    audio = new AudioContext();
+    osc = audio.createOscillator();
+    gain = audio.createGain();
+    osc.type = 'square';
+    gain.gain.value = 0;
+    osc.connect(gain).connect(audio.destination);
+    osc.start();
+  }
+  if (audio) e.target.checked ? audio.resume() : audio.suspend();
+});
+function playSound(events) {
+  if (!audio || !$('sound').checked) return;
+  const base = audio.currentTime + 0.08;
+  for (const [msAgo, freq] of events) {
+    const at = Math.max(audio.currentTime, base - msAgo / 1000);
+    if (freq > 0) osc.frequency.setValueAtTime(freq, at);
+    gain.gain.setValueAtTime(freq > 0 ? 0.05 : 0, at);
+  }
+}
+
+/* Commands */
+function post(path, body) {
+  return fetch(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body || {}),
+  }).catch(() => {});
+}
+
+const held = new Set();
+function setButton(name, down) {
+  if (down === held.has(name)) return;
+  down ? held.add(name) : held.delete(name);
+  document.querySelector(`[data-btn="${name}"]`).classList.toggle('down', down);
+  post('/api/button', {btn: name, down});
+}
+document.querySelectorAll('[data-btn]').forEach((el) => {
+  const name = el.dataset.btn;
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); setButton(name, true); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
+    el.addEventListener(ev, () => setButton(name, false));
+  }
+  el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
+});
+const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C'};
+window.addEventListener('keydown', (e) => {
+  const name = KEYS[e.key];
+  if (!name || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  setButton(name, true);
+});
+window.addEventListener('keyup', (e) => { if (KEYS[e.key]) setButton(KEYS[e.key], false); });
+window.addEventListener('blur', () => [...held].forEach((name) => setButton(name, false)));
+
+$('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
+$('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
+$('paused').addEventListener('change', (e) => post('/api/config', {paused: e.target.checked}));
+$('speed').addEventListener('click', (e) => {
+  if (e.target.dataset.speed) post('/api/config', {speed: Number(e.target.dataset.speed)});
+});
+
+$('testmail').addEventListener('click', () => post('/api/test-mail'));
+
+let resetArmed = null;
+$('reset').addEventListener('click', () => {
+  const btn = $('reset');
+  if (resetArmed) {
+    clearTimeout(resetArmed);
+    resetArmed = null;
+    btn.textContent = 'Neues Ei';
+    btn.classList.remove('danger');
+    post('/api/reset');
+    return;
+  }
+  btn.textContent = 'Wirklich? Das Tier geht verloren';
+  btn.classList.add('danger');
+  resetArmed = setTimeout(() => {
+    resetArmed = null;
+    btn.textContent = 'Neues Ei';
+    btn.classList.remove('danger');
+  }, 4000);
+});
+
+/* Live state */
+const CHARACTERS = ['Ei', 'Babytchi (Baby)', 'Marutchi (Kind)', 'Tamatchi (Teenager)', 'Kuchitamatchi (Teenager)',
+  'Mametchi', 'Ginjirotchi', 'Maskutchi', 'Kuchipatchi', 'Nyorotchi', 'Tarakotchi', 'Oyajitchi'];
+function stageName(n) {
+  return CHARACTERS[n] || 'Erwachsen';
+}
+function hearts(n) {
+  return '♥'.repeat(n) + '<i>' + '♥'.repeat(4 - n) + '</i>';
+}
+function render(msg) {
+  drawLcd(msg.lcd);
+  iconEls.forEach((el, i) => el.classList.toggle('on', (msg.icons >> i) & 1));
+
+  const st = msg.status;
+  const alive = st.stage > 0 && !st.dead;
+  $('hunger').innerHTML = alive ? hearts(st.hunger) : '–';
+  $('happy').innerHTML = alive ? hearts(st.happy) : '–';
+  $('stage').textContent = st.dead ? 'Gestorben' : stageName(st.stage);
+  $('weight').textContent = alive ? st.weight + ' oz' : '–';
+  $('clock').textContent = alive ? st.clock : '–';
+  $('gameRow').hidden = st.game === null || !alive;
+  $('game').textContent = st.game ? 'wird gewonnen' : 'wird verloren';
+  const flags = [];
+  if (st.dead) flags.push(['Gestorben', true]);
+  if (alive && st.poop) flags.push([st.poop + '× Häufchen', true]);
+  if (alive && st.sick) flags.push(['Krank', true]);
+  if (alive && st.attention) flags.push(['Ruft nach dir', true]);
+  if (alive && st.asleep) flags.push(['Schläft', false]);
+  if (alive && !st.light) flags.push(['Licht aus', false]);
+  $('flags').innerHTML = flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('');
+
+  $('bot').checked = msg.bot;
+  $('discipline').checked = msg.discipline;
+  $('discipline').disabled = !!msg.goal;      // with a goal the bot decides that itself
+  $('goal').textContent = msg.goal ? stageName(msg.goal) : 'keins';
+  $('paused').checked = msg.paused;
+  document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));
+
+  if (msg.log) {
+    const list = $('log');
+    list.textContent = '';
+    for (const [when, text] of msg.log.slice().reverse()) {
+      const li = document.createElement('li');
+      const time = document.createElement('time');
+      time.textContent = when;
+      li.append(time, text);
+      list.append(li);
+    }
+  }
+  if (msg.sound.length) playSound(msg.sound);
+}
+
+const events = new EventSource('/events');
+events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
+events.onerror = () => $('offline').classList.add('show');
+</script>
+</body>
+</html>

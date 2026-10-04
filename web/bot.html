@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tamagotchi – Care-Bot</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 14px 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  a { color: var(--accent); }
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  p { margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row > span:first-child { color: var(--muted); }
+  .row > :last-child { text-align: right; }
+  .row.off { opacity: 0.45; }
+  .row.tall { display: block; padding: 5px 0; }
+  .row.tall > span { display: block; text-align: left; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch b {
+    position: absolute; inset: 0;
+    border-radius: 99px;
+    background: var(--line);
+    transition: background 0.15s;
+  }
+  .switch b::after {
+    content: "";
+    position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+  }
+  .switch input:checked + b { background: var(--ok); }
+  .switch input:checked + b::after { transform: translateX(18px); }
+  .switch input:focus-visible + b { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .plain {
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .plain:disabled { opacity: 0.45; cursor: default; }
+  .bars { letter-spacing: 2px; color: var(--accent); }
+  .bars i { font-style: normal; opacity: 0.22; }
+
+  /* The growth chart */
+  #chart { display: block; width: 100%; height: auto; }
+  #chart text {
+    font: 12px system-ui, -apple-system, "Segoe UI", sans-serif;
+    fill: var(--ink);
+    text-anchor: middle;
+  }
+  #chart .edge { fill: none; stroke: var(--line); stroke-width: 2; }
+  #chart .edge.gone { stroke: var(--muted); }
+  #chart .edge.forecast { stroke: var(--ink); stroke-dasharray: 5 5; }
+  #chart .edge.plan { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .node .lcd { fill: var(--lcd); stroke: var(--line); stroke-width: 1.5; }
+  #chart .node .px { fill: var(--lcd-on); }
+  #chart .node.out { opacity: 0.3; }
+  #chart .node.pick { cursor: pointer; }
+  #chart .node.pick:hover .lcd, #chart .node.pick:focus-visible .lcd { stroke: var(--ink); }
+  #chart .node:focus { outline: none; }
+  #chart .node.here .lcd { stroke: var(--ink); stroke-width: 3.5; }
+  #chart .node.goal .lcd { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .node.here text, #chart .node.goal text { font-weight: 600; }
+  #chart .tag { font-size: 10px; fill: var(--panel); font-weight: 600; }
+  #chart .tagbg.here { fill: var(--ink); }
+  #chart .tagbg.goal { fill: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 26px; height: 8px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 8px 4px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; border-top: 0; }
+  .scroll { overflow-x: auto; }
+  #log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 190px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  #log li { display: flex; gap: 10px; padding: 2px 0; }
+  #log time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #offline {
+    display: none;
+    grid-column: 1 / -1;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 14px;
+  }
+  #offline.show { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Care-Bot</h1>
+    <a href="/">← zurück zum Tamagotchi</a>
+  </header>
+  <div id="offline">Keine Verbindung zum Server – bitte die Seite neu laden.</div>
+
+  <div style="display:grid;gap:14px">
+    <section>
+      <h2>Wachstum und Ziel</h2>
+      <svg id="chart" viewBox="0 0 480 500" role="group" aria-label="Wachstumsbaum"></svg>
+      <div class="legend note">
+        <span><svg><line x1="0" y1="4" x2="26" y2="4" stroke="var(--accent)" stroke-width="3.5"/></svg>Weg zum Ziel</span>
+        <span><svg><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink)" stroke-width="2" stroke-dasharray="5 5"/></svg>so käme es ohne weitere Fehler</span>
+        <span>blass = nicht mehr erreichbar</span>
+      </div>
+      <p class="note" style="margin:8px 0 0">Einen Erwachsenen antippen, um ihn als Ziel zu wählen.</p>
+    </section>
+
+    <section>
+      <h2>So entscheidet das Tamagotchi</h2>
+      <p>Es zählen nur zwei Dinge, beide ab der Kind-Stufe und fürs ganze Leben:</p>
+      <p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Langeweile bleibt 15 Minuten unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an.<br>
+         <b>Verpasste Schimpf-Rufe</b> – es ruft, obwohl nichts fehlt, und wird 15 Minuten lang nicht geschimpft.</p>
+      <div class="scroll">
+      <table>
+        <tr><th>Verwandlung</th><th>Pflegefehler</th><th>verpasste Schimpf-Rufe</th><th>wird zu</th></tr>
+        <tr><td rowspan="2">Marutchi</td><td>0–2</td><td>egal</td><td>Tamatchi</td></tr>
+        <tr><td>ab 3</td><td>egal</td><td>Kuchitamatchi</td></tr>
+        <tr><td rowspan="6">Tamatchi</td><td rowspan="3">0–2</td><td>0</td><td>Mametchi</td></tr>
+        <tr><td>1</td><td>Ginjirotchi</td></tr>
+        <tr><td>ab 2</td><td>Maskutchi</td></tr>
+        <tr><td rowspan="3">ab 3</td><td>0–1</td><td>Kuchipatchi</td></tr>
+        <tr><td>2–3</td><td>Nyorotchi</td></tr>
+        <tr><td>ab 4</td><td>Tarakotchi</td></tr>
+        <tr><td rowspan="3">Kuchitamatchi</td><td rowspan="3">egal</td><td>0–1</td><td>Kuchipatchi</td></tr>
+        <tr><td>2</td><td>Nyorotchi</td></tr>
+        <tr><td>ab 3</td><td>Tarakotchi</td></tr>
+      </table>
+      </div>
+      <p class="note" style="margin-top:8px">Hatte das Kind schon 3 oder mehr Schimpf-Rufe verpasst, gelten für den Teenager andere Grenzen:
+        Tamatchi wird dann mit bis zu 3 Pflegefehlern Maskutchi (und nur dieser Maskutchi später Oyajitchi), sonst Nyorotchi
+        oder ab 8 verpassten Rufen Tarakotchi; Kuchitamatchi wird Nyorotchi oder ab 6 verpassten Rufen Tarakotchi.
+        Die Disziplin-Anzeige im Status-Bild selbst spielt keine Rolle.</p>
+    </section>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Care-Bot</h2>
+      <div class="row">
+        <span>Kümmert sich automatisch</span>
+        <label class="switch"><input type="checkbox" id="bot"><b></b></label>
+      </div>
+      <div class="row">
+        <span>Ziel</span>
+        <span><b id="goalName">–</b> <button class="plain" id="noGoal">Kein Ziel</button></span>
+      </div>
+      <div class="row" id="disciplineRow">
+        <span>Darf schimpfen (nur ohne Ziel)</span>
+        <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
+      </div>
+      <p class="note" id="goalText" style="margin:10px 0 0"></p>
+    </section>
+
+    <section>
+      <h2>Stand</h2>
+      <div class="row"><span>Charakter</span><span id="stage">–</span></div>
+      <div class="row"><span>Pflegefehler</span><span id="mistakes">–</span></div>
+      <div class="row"><span>Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
+      <div class="row"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
+      <div class="row tall"><span>Ohne weitere Fehler</span><span id="forecast">–</span></div>
+      <div class="row tall"><span>Plan des Bots</span><span id="plan">–</span></div>
+    </section>
+
+    <section>
+      <h2>Protokoll</h2>
+      <ul id="log"></ul>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const SVG = 'http://www.w3.org/2000/svg';
+
+/* Characters by the number in RAM 0x5D; pictures taken from the emulated LCD */
+const SPRITES = /*SPRITES*/{
+  1: ["011110", "101101", "111111", "110011", "111111", "011110"],
+  2: ["0011111100", "0100000010", "1001001001", "1000000001", "1000110001", "1000000001", "1000000001", "0100000010", "0011111100"],
+  3: ["000111111000", "001000000100", "010010010010", "010000000010", "010001100010", "110000000111", "010000000010", "010000000010", "001011110100", "001010001000", "000100000000"],
+  4: ["01001111111000", "10110100000100", "10000010001010", "01110000000001", "10000000000001", "10110000000001", "01010000000001", "00001000000001", "00001000000001", "00000100000010", "00000011111100"],
+  5: ["0011000001100", "0111100011110", "0111111111110", "0100000000010", "0100100010010", "1000000000001", "1000011100001", "0100000000010", "1001000001010", "0110000001110", "0100000000010", "0010000000100", "0001011101000", "0001010010000", "0000100000000"],
+  6: ["000111111100", "001111111110", "010111111101", "010111111001", "010011110001", "010001100001", "010000000001", "100000000001", "010010010001", "010001110001", "001000000010", "000101110100", "000101001000", "000010000000"],
+  7: ["000011110000000", "000011111111000", "000111111111100", "001111111111110", "001111111110010", "001111100010110", "001100000010011", "001000000001111", "010000000000100", "010000000000100", "001000000001000", "110100000010000", "100011111101100", "010000000000010", "111000000000111"],
+  8: ["0000111111", "0001000010", "0010010000", "0100000000", "0100000000", "0100000000", "0100000000", "1000101001", "1000101001", "1000010001", "0100000010", "0001110100", "0001010100", "0010001000"],
+  9: ["00000111110000", "00001000001000", "01110100010100", "10000000000010", "01110000000010", "10000000000010", "01110000000010", "00010000000010", "00001000000100", "00000111111000", "00000001100000", "00000011000001", "00000110011001", "00000011100110"],
+  10: ["000001111111000", "000010000011100", "000100100101110", "011111110000110", "010000010000010", "011111110000010", "010000100000010", "011111100000010", "010000000000100", "010000000000100", "001000000001000", "110100000010000", "100011111101100", "010000000000010", "111000000000111"],
+  11: ["00111111111000", "01000000000110", "01001111110001", "01010010001001", "00100001110110", "00100000000001", "01111100110001", "10000000000010", "11110000000010", "01000000000010", "01011111000010", "10110000100101", "01010100011010", "11111111111111"],
+}/*END*/;
+const CHARS = {
+  1: ['Babytchi', 'Braucht ständig Pflege. Hier zählt noch nichts.'],
+  2: ['Marutchi', 'Ab jetzt wird gezählt.'],
+  3: ['Tamatchi', 'Der gesunde Teenager: alle sechs Erwachsenen sind möglich.'],
+  4: ['Kuchitamatchi', 'Der schlecht gepflegte Teenager: nur die unteren drei sind möglich.'],
+  5: ['Mametchi', 'Gesund, lebt lange, macht keinen Ärger. Wurde im Test 20 Tage alt.'],
+  6: ['Ginjirotchi', 'Der Durchschnitt. Wurde im Test 16 Tage alt.'],
+  7: ['Maskutchi', 'Steht spät auf, geht spät ins Bett und ist eigensinnig. Wurde im Test 16 Tage alt.'],
+  8: ['Kuchipatchi', 'Die Hauptfigur. Wurde im Test 8 Tage alt.'],
+  9: ['Nyorotchi', 'Kränklich und stirbt jung: im Test schon gut einen Tag nach der Verwandlung, mit 5 Tagen.'],
+  10: ['Tarakotchi', 'Eigensinnig und braucht viel Pflege. Wurde im Test 7 Tage alt.'],
+  11: ['Oyajitchi', 'Die Geheimfigur. Entsteht nur aus einem Maskutchi, der schon als Kind unerzogen war. Wurde im Test 24 Tage alt.'],
+};
+const POS = {
+  1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
+  5: [345, 45], 6: [345, 127], 7: [345, 209], 8: [345, 291], 9: [345, 373], 10: [345, 455],
+  11: [440, 209],
+};
+const EDGES = [[1, 2], [2, 3], [2, 4], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10],
+               [4, 8], [4, 9], [4, 10], [7, 11]];
+const BOX = 50;
+
+function post(path, body) {
+  return fetch(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body || {}),
+  }).catch(() => {});
+}
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVG, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.append(node);
+  return node;
+}
+function name(id) { return CHARS[id] ? CHARS[id][0] : 'Ei'; }
+
+/* Characters the pet has certainly been before the current one */
+function before(stage) {
+  if (stage >= 11) return [1, 2, 3, 7];
+  if (stage >= 5 && stage <= 7) return [1, 2, 3];
+  if (stage >= 8) return [1, 2];
+  return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];
+}
+
+function drawChart(msg) {
+  const st = msg.status, g = msg.growth;
+  const chart = $('chart');
+  chart.textContent = '';
+  const alive = !!g && st.stage > 0;
+  const gone = alive ? before(st.stage) : [];
+  const on = (list) => {      // edges along a list of characters, starting at the current one
+    const set = new Set();
+    let from = Math.max(st.stage, 1);
+    if (list && list.length && st.stage < 2) list = [2, ...list];   // always by way of Marutchi
+    for (const to of list || []) { set.add(from + '-' + to); from = to; }
+    return set;
+  };
+  const plan = alive ? on(g.plan) : new Set();
+  const forecast = alive ? on(g.forecast) : new Set();
+  const passed = new Set();
+  [...gone, st.stage].forEach((to, i, all) => { if (i) passed.add(all[i - 1] + '-' + to); });
+
+  // lines first, the wanted ones on top
+  const rank = (e) => plan.has(e) && msg.goal ? 3 : forecast.has(e) ? 2 : passed.has(e) ? 1 : 0;
+  for (const [a, b] of EDGES.slice().sort((x, y) => rank(x.join('-')) - rank(y.join('-')))) {
+    const key = a + '-' + b, [x1, y1] = POS[a], [x2, y2] = POS[b];
+    const mid = (x1 + x2) / 2;
+    const cls = ['edge', 'gone', 'forecast', 'plan'][rank(key)];
+    el('path', {class: cls === 'edge' ? cls : 'edge ' + cls,
+                d: `M${x1 + BOX / 2} ${y1}C${mid} ${y1} ${mid} ${y2} ${x2 - BOX / 2} ${y2}`}, chart);
+  }
+
+  for (const id in POS) {
+    const n = Number(id), [x, y] = POS[id];
+    const pick = n >= 5;
+    const reach = !alive || n === st.stage || gone.includes(n) ||
+      g.forecast.includes(n) || (g.plan || []).includes(n) ||
+      (n >= 5 ? g.reachable.includes(n) : st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2));
+    const cls = ['node'];
+    if (!reach) cls.push('out');
+    if (pick) cls.push('pick');
+    if (alive && n === st.stage) cls.push('here');
+    if (n === msg.goal) cls.push('goal');
+    const node = el('g', {class: cls.join(' ')}, chart);
+    el('title', {}, node).textContent = CHARS[id][0] + ': ' + CHARS[id][1];
+    el('rect', {class: 'lcd', x: x - BOX / 2, y: y - BOX / 2, width: BOX, height: BOX, rx: 9}, node);
+    const rows = SPRITES[id] || [];
+    const s = 3, w = (rows[0] || '').length * s, h = rows.length * s;
+    let d = '';
+    rows.forEach((row, ry) => [...row].forEach((c, rx) => {
+      if (c === '1') d += `M${x - w / 2 + rx * s} ${y - h / 2 + ry * s}h${s}v${s}h${-s}z`;
+    }));
+    el('path', {class: 'px', d}, node);
+    el('text', {x, y: y + BOX / 2 + 14}, node).textContent = CHARS[id][0];
+    const tag = alive && n === st.stage ? ['here', 'hier'] : n === msg.goal ? ['goal', 'Ziel'] : null;
+    if (tag) {
+      el('rect', {class: 'tagbg ' + tag[0], x: x - BOX / 2 - 6, y: y - BOX / 2 - 8, width: 30, height: 15, rx: 7.5}, node);
+      el('text', {class: 'tag', x: x - BOX / 2 + 9, y: y - BOX / 2 + 3}, node).textContent = tag[1];
+    }
+    if (pick) {
+      node.setAttribute('tabindex', '0');
+      node.setAttribute('role', 'button');
+      node.setAttribute('aria-label', CHARS[id][0] + ' als Ziel wählen');
+      const choose = () => post('/api/config', {goal: n});
+      node.addEventListener('click', choose);
+      node.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+      });
+    }
+  }
+}
+
+function bars(n) {
+  return '■'.repeat(n) + '<i>' + '■'.repeat(4 - n) + '</i>';
+}
+function path(list) {
+  return list && list.length ? list.map(name).join(' → ') : '–';
+}
+
+let drawn = '';
+function render(msg) {
+  const st = msg.status, g = msg.growth;
+  const alive = !!g && st.stage > 0;
+  const counting = alive && st.stage >= 2;
+
+  // the stream runs at up to 30 frames a second, the chart changes rarely
+  const key = JSON.stringify([st.stage, st.dead, g, msg.goal]);
+  if (key !== drawn) { drawn = key; drawChart(msg); }
+
+  $('bot').checked = msg.bot;
+  $('discipline').checked = msg.discipline;
+  $('discipline').disabled = !!msg.goal;
+  $('disciplineRow').classList.toggle('off', !!msg.goal);
+  $('goalName').textContent = msg.goal ? name(msg.goal) : 'keins';
+  $('noGoal').disabled = !msg.goal;
+
+  $('stage').textContent = st.dead ? 'Gestorben' : name(st.stage);
+  $('mistakes').textContent = counting ? st.mistakes : '–';
+  $('missed').textContent = counting ? st.missed : '–';
+  $('training').innerHTML = counting ? bars(st.training) : '–';
+  $('forecast').textContent = alive ? (g.forecast.length ? path(g.forecast) : 'bleibt ' + name(st.stage)) : '–';
+
+  let plan = '–', text = '';
+  if (!msg.goal) {
+    text = msg.discipline
+      ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt Mametchi.'
+      : 'Ohne Ziel und ohne Schimpfen bleiben alle Schimpf-Rufe unbeantwortet.';
+  } else if (!alive) {
+    text = CHARS[msg.goal][1] + ' Der Bot beginnt damit, sobald ein Tier lebt.';
+  } else if (st.stage === msg.goal) {
+    plan = 'Ziel erreicht';
+    text = CHARS[msg.goal][1] + ' Ab jetzt wird einfach gut gepflegt.';
+  } else if (!g.plan) {
+    plan = 'nicht mehr erreichbar';
+    text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
+  } else {
+    const todo = [];
+    const cm = g.wanted[0] - st.mistakes, dm = g.wanted[1] - st.missed;
+    if (counting && cm > 0) todo.push(cm + ' Pflegefehler');
+    if (counting && dm > 0) todo.push(dm + (dm === 1 ? ' Schimpf-Ruf übergehen' : ' Schimpf-Rufe übergehen'));
+    plan = path(g.plan);
+    text = CHARS[msg.goal][1] + ' ' + (todo.length
+      ? 'Bis zur nächsten Verwandlung macht der Bot mit Absicht noch: ' + todo.join(' und ') + '.'
+      : 'Bis zur nächsten Verwandlung pflegt der Bot fehlerfrei und schimpft bei jedem Ruf.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  }
+  $('plan').textContent = plan;
+  $('goalText').textContent = text;
+
+  if (msg.log) {
+    const list = $('log');
+    list.textContent = '';
+    for (const [when, line] of msg.log.slice().reverse()) {
+      const li = document.createElement('li');
+      const time = document.createElement('time');
+      time.textContent = when;
+      li.append(time, line);
+      list.append(li);
+    }
+  }
+}
+
+$('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
+$('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
+$('noGoal').addEventListener('click', () => post('/api/config', {goal: null}));
+
+const events = new EventSource('/events');
+events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
+events.onerror = () => $('offline').classList.add('show');
+</script>
+</body>
+</html>
