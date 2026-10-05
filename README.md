@@ -56,6 +56,10 @@ Der Bot liest Hunger, Glück, Häufchen und Krankheit aus dem RAM und dem Displa
 das Menü wie ein Mensch: A wählt das Icon, B bestätigt, C bricht ab. Er stellt außerdem die Uhr
 des Geräts nach der Systemzeit.
 
+Wer selbst eine Taste drückt oder ein Menü-Icon im Display anklickt (der Server läuft dann mit A
+dorthin), hat das Gerät für sich: Der Bot bricht ab, was er gerade tut, und macht erst 60 Sekunden
+nach der letzten Eingabe weiter.
+
 Auf der Unterseite `/bot` lässt sich ein Ziel wählen. Der Bot macht dann genau die Fehler, die
 für diesen Charakter nötig sind, und pflegt sonst fehlerfrei.
 
@@ -163,5 +167,9 @@ lab/             die Experimente, aus denen die Tabellen stammen
 
 ## Lizenz
 
-GPL-2.0, wie TamaLIB (siehe `LICENSE`). Tamagotchi ist eine Marke von Bandai; dieses Projekt hat
-mit Bandai nichts zu tun.
+GPL-2.0, wie TamaLIB (siehe `LICENSE`). Das Spiel-Icon ist „arrow-left-right“ aus
+[coolicons](https://github.com/krystonschwarze/coolicons) von Kryston Schwarze (CC BY 4.0). Das
+Favicon ist das Icon
+[„Tamagotchi“, erstellt von Magnific – Flaticon](https://www.flaticon.com/de/kostenloses-icon/tamagotchi_743850);
+es steht unter der Flaticon-Lizenz und nicht unter der GPL. Tamagotchi ist eine Marke von Bandai;
+dieses Projekt hat mit Bandai nichts zu tun.

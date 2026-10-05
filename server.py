@@ -39,6 +39,7 @@ CHUNK = 1024                    # ticks per emulation slice (1/32 s)
 FRAME = 1 / 30                  # seconds between screen updates
 SPEEDS = (1, 2, 5, 20, 0)       # 0 = as fast as possible
 MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
+HANDS_OFF = 60                  # real seconds the bot waits after the user's last input
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C}
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html"}
@@ -170,6 +171,7 @@ class Engine:
         self.bot = CareBot(self.tama, self.add_log)
         self.slices = 0
         self.bot_enabled = True
+        self.hands_off = None   # time.monotonic() until which the user has the buttons
         self.speed = 1
         self.paused = False
         self.pressed = {}       # btn -> tick of the press
@@ -222,9 +224,16 @@ class Engine:
 
     # -- commands from the web UI -----------------------------------------
 
+    def take_over(self):
+        """The user is at the buttons: the bot lets go and waits (call with the lock)."""
+        self.bot.stop()
+        if self.bot_enabled:
+            self.hands_off = time.monotonic() + HANDS_OFF
+
     def button(self, name, down):
         btn = BUTTONS[name]
         with self.lock:
+            self.take_over()
             now = self.tama.ticks
             if down:
                 self.tama.button(btn, True)
@@ -233,10 +242,18 @@ class Engine:
             elif btn in self.pressed:
                 self.release[btn] = max(now, self.pressed[btn] + MIN_HOLD)
 
+    def icon(self, index):
+        if index not in range(7):       # the eighth is the pet calling, not a menu entry
+            raise Refused("Dieses Icon lässt sich nicht anwählen.")
+        with self.lock:
+            self.take_over()
+            self.bot.request(index)
+
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False):
         with self.lock:
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
+                self.hands_off = None
                 self.bot.stop()
                 self.add_log("Care-Bot an" if self.bot_enabled else "Care-Bot aus")
             if discipline is not None:
@@ -277,7 +294,11 @@ class Engine:
                 tama.button(btn, False)
                 del self.release[btn]
                 del self.pressed[btn]
-        if self.bot_enabled:
+        if self.hands_off is not None and time.monotonic() >= self.hands_off \
+                and not self.pressed:
+            self.hands_off = None
+            self.bot.resume()
+        if self.bot.manual or (self.bot_enabled and self.hands_off is None):
             self.bot.step()
         self.slices += 1
         if self.slices % 32 == 0:   # once per emulated second
@@ -306,6 +327,7 @@ class Engine:
             "status": status,
             "growth": self.bot.growth(status),
             "bot": self.bot_enabled,
+            "handsOff": self.hands_off is not None,
             "discipline": self.bot.discipline,
             "goal": self.bot.goal,
             "speed": self.speed,
@@ -376,6 +398,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_body(302, b"", "text/plain", [("Location", "/settings")])
             with open(os.path.join(HERE, "web", PAGES[self.path]), "rb") as f:
                 self.send_body(200, f.read(), "text/html; charset=utf-8")
+        elif self.path in ("/favicon.png", "/favicon-dark.png"):
+            with open(os.path.join(HERE, "web", self.path[1:]), "rb") as f:
+                self.send_body(200, f.read(), "image/png")
         elif self.path == "/events" and self.engine:
             self.stream()
         else:
@@ -433,6 +458,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Refused("Es fehlt noch die ROM.")
             elif self.path == "/api/button":
                 self.engine.button(data["btn"], bool(data["down"]))
+            elif self.path == "/api/icon":
+                self.engine.icon(data["icon"])
             elif self.path == "/api/config":
                 self.engine.configure(data.get("bot"), data.get("discipline"),
                                       data.get("speed"), data.get("paused"),

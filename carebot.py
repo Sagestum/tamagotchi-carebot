@@ -88,6 +88,7 @@ class CareBot:
         self.feed_below = feed_below    # act when fewer hearts than this
         self.play_below = play_below
         self.task = None
+        self.manual = False             # the task is a menu walk the user asked for
         self.wake = 0.0
         self.held = None
         self.clock_set_at = None
@@ -149,6 +150,7 @@ class CareBot:
             self.wake = now + next(self.task)
         except StopIteration:
             self.task = None
+            self.manual = False
             self.wake = now + 1.0
 
     def stop(self):
@@ -158,6 +160,7 @@ class CareBot:
                 self.tama.button(btn, False)
             self.held = None
         self.task = None
+        self.manual = False
         self.wake = 0.0
 
     # -- primitives (generators yielding emulated seconds to wait) ---------
@@ -185,6 +188,25 @@ class CareBot:
                 return True
             yield from self.press(BTN_A)
         return False
+
+    def goto(self, icon):
+        """Walk to a menu icon and stop there; confirming is left to the user."""
+        for _ in range(3):              # the ROM ignores buttons during animations
+            if self.screen().selected() == icon:
+                break
+            yield from self.home()      # A means something else inside a submenu
+            yield from self.select(icon)
+
+    def request(self, icon):
+        """The user clicked a menu icon: walk there, whatever the bot was doing."""
+        self.stop()
+        self.task = self.goto(icon)
+        self.manual = True
+
+    def resume(self):
+        """Take over again after the user played: they may have left a menu open."""
+        self.stop()
+        self.task = self.home()
 
     # -- actions -----------------------------------------------------------
 
