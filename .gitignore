@@ -20,3 +20,6 @@ Tamagrowth_chart.webp
 artikel/
 /tama.b
 settings.json
+
+# Tamagotchi Paradise experiments (Capybara clone, local Rust toolchain)
+Paradise/
