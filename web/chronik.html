@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)">
+<title>Tamagotchi – Chronik</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 14px 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  a { color: var(--accent); }
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  p { margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row > span:first-child { color: var(--muted); }
+  .row > :last-child { text-align: right; }
+  .row.off { opacity: 0.45; }
+  .row.tall { display: block; padding: 5px 0; }
+  .row.tall > span { display: block; text-align: left; }
+  [hidden] { display: none !important; }
+  main { grid-template-columns: minmax(0, 1fr); max-width: 760px; }
+  #lives { display: grid; gap: 14px; }
+  .life h3 { margin: 0; font-size: 16px; }
+  .life .when { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .life.now { border-color: var(--ok); }
+  .stages { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 4px; margin-bottom: 10px; }
+  .stage { width: 78px; text-align: center; font-size: 12px; overflow-wrap: anywhere; }
+  .stage svg { display: block; width: 50px; height: 50px; margin: 0 auto 3px; }
+  .stage .lcd { fill: var(--lcd); stroke: var(--line); stroke-width: 1.5; }
+  .stage .px { fill: var(--lcd-on); }
+  .arrow { color: var(--muted); line-height: 50px; }
+  .counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 16px; font-size: 13px; }
+  @media (max-width: 520px) { .counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .counts div { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding-top: 4px; }
+  .counts span { color: var(--muted); }
+  #offline {
+    display: none;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 14px;
+  }
+  #offline.show { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Chronik<span id="who"></span></h1>
+    <a href="/" id="back">← zurück zum Tamagotchi</a>
+  </header>
+  <div id="offline">Keine Verbindung zum Server – bitte die Seite neu laden.</div>
+  <p class="note" id="intro">Alle Leben, die diese Hülle gesehen hat, das neueste zuerst. Die Chronik verschwindet, wenn das Tier entfernt wird.</p>
+  <div id="lives"></div>
+</main>
+
+<script src="/sprites.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const SVG = 'http://www.w3.org/2000/svg';
+const BOX = 50;
+
+/* Which pet: /chronik?pet=3 */
+let pet = new URLSearchParams(location.search).get('pet');
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVG, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.append(node);
+  return node;
+}
+function add(parent, tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  parent.append(node);
+  return node;
+}
+
+/* One character as on the growth chart: the first picture of its idle animation */
+function picture(sprites, id) {
+  const svg = el('svg', {viewBox: `0 0 ${BOX} ${BOX}`, 'aria-hidden': 'true'});
+  el('rect', {class: 'lcd', x: 1, y: 1, width: BOX - 2, height: BOX - 2, rx: 9}, svg);
+  const stored = sprites[id] || [];
+  const rows = Array.isArray(stored[0]) ? stored[0] : stored;
+  const s = 3, w = (rows[0] || '').length * s, top = (BOX - rows.length * s) / 2;
+  let d = '';
+  rows.forEach((row, ry) => [...row].forEach((c, rx) => {
+    if (c === '1') d += `M${(BOX - w) / 2 + rx * s} ${top + ry * s}h${s}v${s}h${-s}z`;
+  }));
+  el('path', {class: 'px', d}, svg);
+  return svg;
+}
+
+function draw(lives, model) {
+  const sprites = SPRITES_OF[model] || {};
+  const day = (t) => new Date(t * 1000).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'});
+  const list = $('lives');
+  list.textContent = '';
+  if (!lives.length) add(list, 'p', 'note', 'Noch ist nichts geschlüpft.');
+  lives.forEach((life, i) => {
+    const box = document.createElement('section');
+    box.className = 'life' + (life.ended ? '' : ' now');
+    add(box, 'h3', '', 'Leben Nr. ' + (i + 1));
+    add(box, 'div', 'when', day(life.began) + (life.ended ? ' bis ' + day(life.ended) : ' bis heute') +
+      ' · ' + String(life.days).replace('.', ',') + (life.days === 1 ? ' Tag' : ' Tage') + ' gelebt' +
+      ' · ' + (life.end || 'lebt'));
+    const stages = add(box, 'div', 'stages');
+    life.stages.forEach(([id, name], n) => {
+      if (n) add(stages, 'span', 'arrow', '→');
+      const stage = add(stages, 'div', 'stage');
+      stage.append(picture(sprites, id));
+      add(stage, 'span', '', name);
+    });
+    const counts = add(box, 'div', 'counts');
+    const s = life.stats;
+    for (const [label, value] of [
+      ['Herzen aufgefüllt', s && s.hunger + s.happy],
+      ['davon Hunger', s && s.hunger],
+      ['davon Glück', s && s.happy],
+      ['Haufen', s && s.poop],
+      ['Gespült', s && s.cleaned],
+      ['Krank', s && s.sick],
+    ]) {
+      const cell = add(counts, 'div');
+      add(cell, 'span', '', label);
+      add(cell, 'b', '', s ? value : '–');
+    }
+    list.prepend(box);
+  });
+}
+
+let lives = [], model = null;
+async function connect() {
+  const pets = (await (await fetch('/api/pets')).json()).pets;
+  const mine = pets.find((p) => p.id === pet) || pets[0];
+  if (!mine) return;
+  pet = mine.id;
+  $('who').textContent = ' · ' + mine.name;
+  $('back').href = '/#' + pet;
+  $('back').textContent = '← zurück zu ' + mine.name;
+  const events = new EventSource('/events?pet=' + pet);
+  events.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    $('offline').classList.remove('show');
+    if (!msg.lives && msg.model === model) return;
+    if (msg.lives) lives = msg.lives;
+    model = msg.model;
+    draw(lives, model);
+  };
+  events.onerror = () => $('offline').classList.add('show');
+}
+connect();
+</script>
+</body>
+</html>

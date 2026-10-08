@@ -27,6 +27,7 @@ MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
 HANDS_OFF = 60                  # real seconds the bot waits after the user's last input
 GONE_AFTER = 60                 # emulated seconds without a character until a life counts as over
 LIVES_KEPT = 300                # the chronicle forgets what is older
+STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP}
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp")
 
@@ -35,7 +36,8 @@ class Engine:
     def __init__(self, rom_path, state_path, smtp, model, name, emit):
         self.state_path = state_path
         self.model = model
-        self.emit = emit        # called with (snapshot, sound, log or None) when the picture changes
+        # called with (snapshot, sound, log or None, chronicle or None) when the picture changes
+        self.emit = emit
         self.lock = threading.Lock()
         self.tama = Tama(rom_path, LIB)
         self.log = collections.deque(maxlen=60)
@@ -47,10 +49,14 @@ class Engine:
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
         # {"began", "ended": real time or None, "seconds": emulated ones lived,
-        #  "stages": [[character, name]], "end": how it ended}
+        #  "stages": [[character, name]], "end": how it ended,
+        #  "stats": hearts filled, droppings, flushes and illnesses on the way}
         self.lives = []
+        self.lives_id = 0       # goes up whenever the chronicle reads differently
+        self.lives_sent = -1
         self.egg_for = 0        # emulated seconds without a character
         self.leaving = False    # it was taking its leave when last seen
+        self.cared = None       # (hunger, happy, poop, sick) when last seen
         self.bot_enabled = True
         self.hands_off = None   # time.monotonic() until which the user has the buttons
         self.speed = 1
@@ -184,7 +190,9 @@ class Engine:
         if self.lives and self.lives[-1]["ended"] is None:
             self.lives[-1]["ended"] = time.time()
             self.lives[-1]["end"] = "verabschiedet" if self.leaving and how != "gestorben" else how
+            self.lives_id += 1
         self.leaving = False
+        self.cared = None
 
     def chronicle(self, status):
         """Called once per emulated second: note what the pet is and whether it still is."""
@@ -197,24 +205,42 @@ class Engine:
             # No character: an egg, or the next generation is on its way. (A Morino reads 0
             # for a moment while something is after it, so wait a little.)
             self.egg_for += 1
+            self.cared = None
             if life and self.egg_for == GONE_AFTER:
                 self.end_life("neu begonnen")
             return
         self.egg_for = 0
         self.leaving = status["leaving"]
         if life is None:
-            life = {"began": time.time(), "ended": None, "seconds": 0, "stages": [], "end": None}
+            life = {"began": time.time(), "ended": None, "seconds": 0, "stages": [], "end": None,
+                    "stats": dict.fromkeys(STATS, 0)}
             self.lives.append(life)
             del self.lives[:-LIVES_KEPT]
+            self.lives_id += 1
         life["seconds"] += 1
+        if life["seconds"] % 8640 == 0:     # the days are told in tenths
+            self.lives_id += 1
         if not life["stages"] or life["stages"][-1][0] != stage:
             life["stages"].append([stage, self.model.names.get(stage, "Stufe %d" % stage)])
+            self.lives_id += 1
+        # What it took to get here; a life from before these were counted has no "stats"
+        now = (status["hunger"], status["happy"], status["poop"], bool(status["sick"]))
+        stats, before = life.get("stats"), self.cared
+        self.cared = now
+        if stats is None or before is None or now == before:
+            return
+        stats["hunger"] += max(0, now[0] - before[0])
+        stats["happy"] += max(0, now[1] - before[1])
+        stats["poop"] += max(0, now[2] - before[2])
+        stats["cleaned"] += now[2] < before[2]
+        stats["sick"] += now[3] and not before[3]
+        self.lives_id += 1
 
     def lives_told(self):
-        """The chronicle for the web UI: the days are rounded so that it changes rarely."""
+        """The chronicle for the web UI."""
         return [{"began": life["began"], "ended": life["ended"], "end": life["end"],
                  "days": round(life["seconds"] / 86400, 1),
-                 "stages": [name for _, name in life["stages"]]} for life in self.lives]
+                 "stages": life["stages"], "stats": life.get("stats")} for life in self.lives]
 
     def set_smtp(self, smtp):
         with self.lock:
@@ -287,7 +313,8 @@ class Engine:
             "speed": self.speed,
             "paused": self.paused,
             "logId": self.log_id,
-            "lives": self.lives_told(),
+            "livesId": self.lives_id,
+            "cycle": [len(self.lives), bool(self.lives) and self.lives[-1]["ended"] is None],
         }
         if sound or snap != self.snapshot:
             self.snapshot = snap
@@ -295,7 +322,11 @@ class Engine:
             if self.log_id != self.log_sent:
                 self.log_sent = self.log_id
                 log = [[when, text] for _, when, text in self.log]
-            self.emit(snap, sound, log)
+            lives = None
+            if self.lives_id != self.lives_sent:
+                self.lives_sent = self.lives_id
+                lives = self.lives_told()
+            self.emit(snap, sound, log, lives)
 
     def loop(self):
         last = time.monotonic()
@@ -326,9 +357,9 @@ def run(conn, rom_path, state_path, smtp, model_id, name):
     """The life of a worker process. Ends when told to stop or when the server is gone."""
     signal.signal(signal.SIGINT, signal.SIG_IGN)    # Ctrl+C reaches us too: the server decides
 
-    def emit(snap, sound, log):
+    def emit(snap, sound, log, lives):
         try:
-            conn.send(("snap", snap, sound, log))
+            conn.send(("snap", snap, sound, log, lives))
         except (BrokenPipeError, OSError):
             engine.running = False
 

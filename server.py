@@ -35,7 +35,7 @@ import models  # noqa: E402
 from report import smtp_from_env  # noqa: E402
 
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
-         "/settings": "settings.html"}
+         "/settings": "settings.html", "/chronik": "chronik.html"}
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
@@ -83,6 +83,7 @@ class Pet:
         self.snapshot = None
         self.sounds = []
         self.log = []
+        self.lives = []
         self.version = 0
         self.alive = False
         self.error = None
@@ -111,6 +112,8 @@ class Pet:
                     self.snapshot, self.sounds = msg[1], msg[2]
                     if msg[3] is not None:
                         self.log = msg[3]
+                    if msg[4] is not None:
+                        self.lives = msg[4]
                     self.version += 1
                 elif msg[0] == "error":
                     self.error = msg[1]
@@ -369,6 +372,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_body(302, b"", "text/plain", [("Location", "/settings")])
             with open(os.path.join(HERE, "web", PAGES[url.path]), "rb") as f:
                 self.send_body(200, f.read(), "text/html; charset=utf-8")
+        elif url.path == "/sprites.js":
+            with open(os.path.join(HERE, "web", "sprites.js"), "rb") as f:
+                self.send_body(200, f.read(), "text/javascript; charset=utf-8")
         elif url.path in ("/favicon.png", "/favicon-dark.png"):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
@@ -384,7 +390,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         self.close_connection = True
-        seen, log_seen = -1, -1
+        seen, log_seen, lives_seen = -1, -1, -1
         try:
             while pet.alive and pet.id in self.app.pets:
                 with pet.changed:
@@ -397,10 +403,13 @@ class Handler(BaseHTTPRequestHandler):
                     seen = pet.version
                     msg = dict(pet.snapshot)
                     msg["sound"] = pet.sounds
-                    log = pet.log
+                    log, lives = pet.log, pet.lives
                 if msg["logId"] != log_seen:
                     log_seen = msg["logId"]
                     msg["log"] = log
+                if msg["livesId"] != lives_seen:
+                    lives_seen = msg["livesId"]
+                    msg["lives"] = lives
                 self.wfile.write(b"data: " + json.dumps(msg).encode() + b"\n\n")
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):

@@ -218,10 +218,6 @@
     font-size: 13px;
   }
   #log li { display: flex; gap: 10px; padding: 2px 0; }
-  #lives { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 13px; }
-  #lives li { padding: 5px 0; border-top: 1px solid var(--line, rgba(0,0,0,.08)); }
-  #lives li b { font-weight: 600; }
-  #lives li small { display: block; color: var(--muted); }
   #log time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .plain {
     border: 1px solid var(--line);
@@ -394,15 +390,13 @@
         <button class="plain" id="reset">Neues Ei</button>
       </div>
       <div class="row">
+        <span>Dieses Leben ist</span>
+        <span><b id="cycle">–</b> · <a href="/chronik" id="livesLink">Chronik</a></span>
+      </div>
+      <div class="row">
         <span>Diesen Tab schließen</span>
         <button class="plain" id="remove">Tier entfernen</button>
       </div>
-    </section>
-
-    <section>
-      <h2>Chronik</h2>
-      <div class="row"><span>Dieses Leben ist</span><b id="cycle">–</b></div>
-      <ul id="lives"></ul>
     </section>
 
     <section>
@@ -648,30 +642,6 @@ const AGE_OF = {morino: {1: ' (Baby)', 2: ' (Kind)', 13: ' (Kokon)'}};
 function hearts(n) {
   return '♥'.repeat(n) + '<i>' + '♥'.repeat(4 - n) + '</i>';
 }
-/* The chronicle: every life this shell has seen, the newest first */
-let livesDrawn = '';
-function drawLives(lives) {
-  const key = JSON.stringify(lives);
-  if (key === livesDrawn) return;
-  livesDrawn = key;
-  const day = (t) => new Date(t * 1000).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: '2-digit'});
-  const open = lives.length && lives[lives.length - 1].ended === null;
-  $('cycle').textContent = !lives.length ? '–' : open ? 'Nr. ' + lives.length : 'vorbei (bisher ' + lives.length + ')';
-  const list = $('lives');
-  list.textContent = '';
-  lives.forEach((life, i) => {
-    const li = document.createElement('li');
-    const head = document.createElement('b');
-    head.textContent = 'Nr. ' + (i + 1) + ': ' + life.stages.join(' → ');
-    const note = document.createElement('small');
-    note.textContent = day(life.began) + (life.ended ? ' bis ' + day(life.ended) : ' bis heute') +
-      ' · ' + String(life.days).replace('.', ',') + (life.days === 1 ? ' Tag' : ' Tage') +
-      (life.end ? ' · ' + life.end : ' · lebt');
-    li.append(head, note);
-    list.prepend(li);
-  });
-}
-
 function render(msg) {
   drawLcd(msg.lcd);
   if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
@@ -715,7 +685,8 @@ function render(msg) {
   $('paused').checked = msg.paused;
   document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));
 
-  drawLives(msg.lives || []);
+  const [lives, open] = msg.cycle || [0, false];
+  $('cycle').textContent = !lives ? '–' : open ? 'Nr. ' + lives : 'vorbei (bisher ' + lives + ')';
 
   if (msg.log) {
     const list = $('log');
@@ -773,6 +744,7 @@ function openPet(p) {
   history.replaceState(null, '', '#' + p.id);
   document.title = p.name + ' – Tamagotchi';
   $('botLink').href = '/bot?pet=' + p.id;
+  $('livesLink').href = '/chronik?pet=' + p.id;
   [...held].forEach((name) => { held.delete(name); document.querySelector(`[data-btn="${name}"]`).classList.remove('down'); });
   if (events) events.close();
   $('offline').innerHTML = OFFLINE;
