@@ -119,7 +119,16 @@
   .bars { letter-spacing: 2px; color: var(--accent); }
   .bars i { font-style: normal; opacity: 0.22; }
 
+  [hidden] { display: none !important; }
   /* The growth chart */
+  #chart .px.a { animation: frameA 1.4s steps(1) infinite; }
+  #chart .px.b { animation: frameB 1.4s steps(1) infinite; }
+  @keyframes frameA { 0% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes frameB { 0% { opacity: 0; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    #chart .px.a { animation: none; }
+    #chart .px.b { display: none; }
+  }
   #chart { display: block; width: 100%; height: auto; }
   #chart text {
     font: 12px system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -175,7 +184,7 @@
 <main>
   <header>
     <h1>Care-Bot</h1>
-    <a href="/">← zurück zum Tamagotchi</a>
+    <a href="/" id="back">← zurück zum Tamagotchi</a>
   </header>
   <div id="offline">Keine Verbindung zum Server – bitte die Seite neu laden.</div>
 
@@ -188,34 +197,16 @@
         <span><svg><line x1="0" y1="4" x2="26" y2="4" stroke="var(--ink)" stroke-width="2" stroke-dasharray="5 5"/></svg>so käme es ohne weitere Fehler</span>
         <span>blass = nicht mehr erreichbar</span>
       </div>
-      <p class="note" style="margin:8px 0 0">Einen Erwachsenen antippen, um ihn als Ziel zu wählen.</p>
+      <p class="note" style="margin:8px 0 0">Eine Figur ab der Erwachsenen-Stufe antippen, um sie als Ziel zu wählen.</p>
     </section>
 
     <section>
       <h2>So entscheidet das Tamagotchi</h2>
-      <p>Es zählen nur zwei Dinge, beide ab der Kind-Stufe und fürs ganze Leben:</p>
-      <p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Langeweile bleibt 15 Minuten unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an.<br>
-         <b>Verpasste Schimpf-Rufe</b> – es ruft, obwohl nichts fehlt, und wird 15 Minuten lang nicht geschimpft.</p>
+      <div id="rulesIntro"></div>
       <div class="scroll">
-      <table>
-        <tr><th>Verwandlung</th><th>Pflegefehler</th><th>verpasste Schimpf-Rufe</th><th>wird zu</th></tr>
-        <tr><td rowspan="2">Marutchi</td><td>0–2</td><td>egal</td><td>Tamatchi</td></tr>
-        <tr><td>ab 3</td><td>egal</td><td>Kuchitamatchi</td></tr>
-        <tr><td rowspan="6">Tamatchi</td><td rowspan="3">0–2</td><td>0</td><td>Mametchi</td></tr>
-        <tr><td>1</td><td>Ginjirotchi</td></tr>
-        <tr><td>ab 2</td><td>Maskutchi</td></tr>
-        <tr><td rowspan="3">ab 3</td><td>0–1</td><td>Kuchipatchi</td></tr>
-        <tr><td>2–3</td><td>Nyorotchi</td></tr>
-        <tr><td>ab 4</td><td>Tarakotchi</td></tr>
-        <tr><td rowspan="3">Kuchitamatchi</td><td rowspan="3">egal</td><td>0–1</td><td>Kuchipatchi</td></tr>
-        <tr><td>2</td><td>Nyorotchi</td></tr>
-        <tr><td>ab 3</td><td>Tarakotchi</td></tr>
-      </table>
+      <table id="rules"></table>
       </div>
-      <p class="note" style="margin-top:8px">Hatte das Kind schon 3 oder mehr Schimpf-Rufe verpasst, gelten für den Teenager andere Grenzen:
-        Tamatchi wird dann mit bis zu 3 Pflegefehlern Maskutchi (und nur dieser Maskutchi später Oyajitchi), sonst Nyorotchi
-        oder ab 8 verpassten Rufen Tarakotchi; Kuchitamatchi wird Nyorotchi oder ab 6 verpassten Rufen Tarakotchi.
-        Die Disziplin-Anzeige im Status-Bild selbst spielt keine Rolle.</p>
+      <p class="note" style="margin-top:8px" id="rulesNote"></p>
     </section>
   </div>
 
@@ -241,8 +232,9 @@
       <h2>Stand</h2>
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
       <div class="row"><span>Pflegefehler</span><span id="mistakes">–</span></div>
-      <div class="row"><span>Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
-      <div class="row"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
+      <div class="row" id="missedRow"><span>Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
+      <div class="row" id="trainingRow"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
+      <div class="row" id="powerRow" hidden><span>Angel Power</span><span id="power">–</span></div>
       <div class="row tall"><span>Ohne weitere Fehler</span><span id="forecast">–</span></div>
       <div class="row tall"><span>Plan des Bots</span><span id="plan">–</span></div>
     </section>
@@ -258,21 +250,35 @@
 const $ = (id) => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
 
-/* Characters by the number in RAM 0x5D; pictures taken from the emulated LCD */
-const SPRITES = /*SPRITES*/{
-  1: ["011110", "101101", "111111", "110011", "111111", "011110"],
-  2: ["0011111100", "0100000010", "1001001001", "1000000001", "1000110001", "1000000001", "1000000001", "0100000010", "0011111100"],
-  3: ["000111111000", "001000000100", "010010010010", "010000000010", "010001100010", "110000000111", "010000000010", "010000000010", "001011110100", "001010001000", "000100000000"],
-  4: ["01001111111000", "10110100000100", "10000010001010", "01110000000001", "10000000000001", "10110000000001", "01010000000001", "00001000000001", "00001000000001", "00000100000010", "00000011111100"],
-  5: ["0011000001100", "0111100011110", "0111111111110", "0100000000010", "0100100010010", "1000000000001", "1000011100001", "0100000000010", "1001000001010", "0110000001110", "0100000000010", "0010000000100", "0001011101000", "0001010010000", "0000100000000"],
-  6: ["000111111100", "001111111110", "010111111101", "010111111001", "010011110001", "010001100001", "010000000001", "100000000001", "010010010001", "010001110001", "001000000010", "000101110100", "000101001000", "000010000000"],
-  7: ["000011110000000", "000011111111000", "000111111111100", "001111111111110", "001111111110010", "001111100010110", "001100000010011", "001000000001111", "010000000000100", "010000000000100", "001000000001000", "110100000010000", "100011111101100", "010000000000010", "111000000000111"],
-  8: ["0000111111", "0001000010", "0010010000", "0100000000", "0100000000", "0100000000", "0100000000", "1000101001", "1000101001", "1000010001", "0100000010", "0001110100", "0001010100", "0010001000"],
-  9: ["00000111110000", "00001000001000", "01110100010100", "10000000000010", "01110000000010", "10000000000010", "01110000000010", "00010000000010", "00001000000100", "00000111111000", "00000001100000", "00000011000001", "00000110011001", "00000011100110"],
-  10: ["000001111111000", "000010000011100", "000100100101110", "011111110000110", "010000010000010", "011111110000010", "010000100000010", "011111100000010", "010000000000100", "010000000000100", "001000000001000", "110100000010000", "100011111101100", "010000000000010", "111000000000111"],
-  11: ["00111111111000", "01000000000110", "01001111110001", "01010010001001", "00100001110110", "00100000000001", "01111100110001", "10000000000010", "11110000000010", "01000000000010", "01011111000010", "10110000100101", "01010100011010", "11111111111111"],
+/* Characters by the number in RAM 0x5D; pictures taken from the emulated LCD.
+   P1 and P2 grow by the same rules, only the characters differ. */
+const SPRITES_P1 = /*SPRITES*/{
+  1: [["00111100","01011010","11111111"],["011110","101101","111111","110011","111111","011110"]],
+  2: [["0011111100","0100000010","1010000101","1000110001","1000110001","1000000001","0100000010","0011111100"],["0011111100","0100000010","1001001001","1000000001","1000110001","1000000001","1000000001","0100000010","0011111100"]],
+  3: [["000111111000","001000000100","010010010010","010000000010","010001100010","110000000111","010000000010","010000000010","001011110100","001010001000","000100000000"],["000111111000","001000000100","010100001010","010001100010","010001100010","111000000011","010000000010","010000000010","001011110100","000100010100","000000001000"]],
+  4: [["0001111110010","0010000101101","0100100000001","1000000001110","1000000000001","1000000001101","1000000001010","1000000001000","0100000010000","0011111100000"],["0100111111000","1011010000100","1000000010010","0111000000001","1000000000001","1011000000001","0101000000001","0001000000001","0000100000010","0000011111100"]],
+  5: [["0011000001100","0111100011110","0111111111110","0100000000010","0100100010010","1000000000001","1000011100001","0100000000010","0101000001001","0111000000110","0100000000010","0010000000100","0001011101000","0000100101000","0000000010000"],["0011000001100","0111100011110","0111111111110","0100000000010","0100100010010","1000000000001","1000011100001","0100000000010","1001000001010","0110000001110","0100000000010","0010000000100","0001011101000","0001010010000","0000100000000"]],
+  6: [["001111111000","010011100100","101000001010","100000000010","101000001010","100111110010","100000000010","101000001001","111000000110","100000000010","010000000100","001011101000","000100101000","000000010000"],["001111111000","011111111100","101111111010","100111111010","100011110010","100001100010","100000000010","100000000001","100010010010","100011100010","010000000100","001011101000","000100101000","000000010000"]],
+  7: [["000011110000000","000011111111000","000111111111100","001111111111110","001111111110010","001111100010110","001100000010011","001000000001111","010000000000100","010000000000100","001000000001000","110100000010000","100011111101100","010000000000010","111000000000111"],["000000011110000","000111111110000","001111111111000","011111111111100","010011111111100","011010001111100","110010000001100","111100000000100","001000000000010","001000000000010","000100000000100","000010000001011","001101111110001","010000000000010","111000000000111"]],
+  8: [["00001111100000","00010000010000","00101000101110","01000000000001","01000000001110","01000000000001","01000000001110","10010100001000","10010100001000","10001000001000","01000000010000","00101110100000","00101010100000","00010001000000"],["00001111110010","00010000101101","00100100000001","01000000001110","01000000000001","01000000001101","01000000001010","10010100001000","10001000001000","10000000001000","01000000001000","00111011010000","00001011010000","00000100100000"]],
+  9: [["0000001111110010","0000010000101101","0000100100000001","0001000000001110","0001000000000001","0001000000001101","0001000000001010","0001000000001000","0000100000010000","0000011111100000","0000000110000000","0001000110000000","1010101100000000","0100111000000000"],["0100111111000000","1011010000100000","1000000010010000","0111000000001000","1000000000001000","1011000000001000","0101000000001000","0001000000001000","0000100000010000","0000011111100000","0000000110000000","0000000110001000","0000000011010101","0000000001110010"]],
+  10: [["000001111111000","000010000011100","000100100101110","011111110000110","010000010000010","011111110000010","010000100000010","011111100000010","010000000000100","010000000000100","001000000001000","110100000010000","100011111101100","010000000000010","111000000000111"],["000011111110000","000100000111000","001001001011100","111111100001100","100000100000100","111111100000100","100001000000100","111111000000100","001000000000010","001000000000010","000100000000100","000010000001011","001101111110001","010000000000010","111000000000111"]],
+  11: [["00000010000000","00000100000000","00000010000000","00001111110000","00010000001000","00110111011100","01110000000010","01100010001010","01000000000010","01000011110010","00101100001100","01111001101010","10001111110001","01000000000010","11100000000111"],["00000001000000","00000000100000","00000001000000","00001111110000","00010000001000","00111011101100","01000000001110","01010001000110","01000000000010","01001111000010","00110000110100","01010110011110","10001111110001","01000000000010","11100000000111"]],
 }/*END*/;
-const CHARS = {
+const SPRITES_P2 = {
+  1: [["00111100","01000010","10100001","10000101","10110001","11111111"],["00111100","01000010","10000101","10100001","10001101","11111111"]],
+  2: [["0000110000","0001001000","0011001100","0100000010","1000001001","1010000001","1000110001","1000000001","1000000001","0100000010","0011111100"],["0000110000","0001001000","0011001100","0100000010","1001000001","1000000101","1000110001","1000000001","1000000001","0100000010","0011111100"]],
+  3: [["0000110000","0001001000","0011001100","0100000010","1001000001","1000000101","1000110001","1000000001","1000000001","0100000010","0011111100","0111001100","0000001110"],["0000010000","0000101000","0011001100","0100000010","1000000001","1010100101","1000110001","1000000001","1000000001","0100000010","0011111100","0111001100","0000001110"]],
+  4: [["0001111111111","0010000100001","0100000111111","1000010011100","1000000011111","1010000010001","1000000011111","1000000001000","1000000001000","1000000001000","0100000010000","0011111100000"],["1111111111000","1000010000100","1111110000010","0011100100001","1111100000001","1000100000101","1111100000001","0001000000001","0001000000001","0001000000001","0000100000010","0000011111100"]],
+  5: [["0011000001100","0111100011110","0111100011110","0011110111100","0011111111100","0010000000100","0101000001010","0100011100010","1110000000011","1110000000011","0100000000010","0010000001100","0001111111100","0011100000100"],["0011000001100","0111100011110","0111100011110","0011110111100","0011111111100","0010000000100","0101000001010","0100011100010","1100000000111","1100000000111","0100000000010","0011000000100","0011111111000","0010000011100"]],
+  6: [["000011111110000","000100000001000","001101000000100","011100000100010","111000110001001","111000000001111","001111111000100","011000000001110","011000000001110","001000000000100","000110000001000","000111111110000","000100000111000"],["000011111110000","000100011111000","001000011111100","010010001111110","100100001111111","111000000000111","001000000000100","011100100000111","011101001000110","001001110000100","000110000001000","000111111110000","000100000111000"]],
+  7: [["01111100111110","10001111110001","00011111111000","00111111111100","00111111100100","00111111110100","00111111100110","00111111111110","00100000001000","00011111110000","00001010101000","01110101001000","00000101010000"],["01111100111110","10001111110001","00011111111000","00111111111100","00100111111100","00101111111100","01100111111100","01111111111100","00010000000100","00001111111000","00010101010000","00010010101110","00001010100000"]],
+  8: [["00000111110000","00001000001000","00010010111111","00100000100001","00101000111111","00100000010001","00100000011111","00101010000100","10100100000100","01100000000100","00010000001000","00111111110000","01110000111000"],["00001111100000","00010000010000","11111101001000","10000100000100","11111100010100","10001000000100","11111000000100","00100001010100","00100000100101","00100000000110","00010000001000","00001111111100","00011100001110"]],
+  9: [["00001111111111","00010000100001","00100000111111","01000010011100","01000000011111","01010000010001","01000000011111","01000000001000","01000000001000","00100000010000","01111111111000","11110101111100","01100100011000","00001000000000","00111111000000","00011110000000"],["11111111110000","10000100001000","11111100000100","00111001000010","11111000000010","10001000001010","11111000000010","00010000000010","00010000000010","00001000000100","00011111111110","00111110101111","00011000100110","00000000010000","00000011111100","00000001111000"]],
+  10: [["0001110100000","0000111110000","0001000001000","0110100100100","1000000000010","0110000000010","1000000000010","0110000000010","0001000000010","0000111111100","0001010101000","0001001010111","0000101010000"],["0001110100000","0000111110000","0001000001000","0110100100100","1000000000010","0110000000010","1000000000010","0110000000010","0010000000010","0001111111100","0000101101000","0111010010111","0000010010000"]],
+  11: [["00000011000000","00000011000000","00011111111000","00100011000100","01100000000110","01111110111110","01100100010110","00100000000100","00110011101111","00110000001001","11111111111001","11110000001111","00100000000100","00111111111100","01010101010100","10101010101010"],["00000011000000","00011111111000","00100011000100","00111000111100","01100101000110","01111000011110","01100000000110","00100101000100","11110000000100","10011010001100","10011000011111","11110111101111","00100000000100","00111111111100","00101010101010","01010101010101"]],
+};
+const CHARS_P1 = {
   1: ['Babytchi', 'Braucht ständig Pflege. Hier zählt noch nichts.'],
   2: ['Marutchi', 'Ab jetzt wird gezählt.'],
   3: ['Tamatchi', 'Der gesunde Teenager: alle sechs Erwachsenen sind möglich.'],
@@ -285,20 +291,106 @@ const CHARS = {
   10: ['Tarakotchi', 'Eigensinnig und braucht viel Pflege. Wurde im Test 7 Tage alt.'],
   11: ['Oyajitchi', 'Die Geheimfigur. Entsteht nur aus einem Maskutchi, der schon als Kind unerzogen war. Wurde im Test 24 Tage alt.'],
 };
-const POS = {
-  1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
-  5: [345, 45], 6: [345, 127], 7: [345, 209], 8: [345, 291], 9: [345, 373], 10: [345, 455],
-  11: [440, 209],
+const CHARS_P2 = {
+  1: ['Shirobabytchi', 'Braucht ständig Pflege. Hier zählt noch nichts.'],
+  2: ['Tonmarutchi', 'Ab jetzt wird gezählt.'],
+  3: ['Tongaritchi', 'Der gesunde Teenager: alle sechs Erwachsenen sind möglich.'],
+  4: ['Hashitamatchi', 'Der schlecht gepflegte Teenager: nur die unteren drei sind möglich.'],
+  5: ['Mimitchi', 'Fehlerfrei gepflegt und bei jedem Ruf geschimpft. Wurde im Test 20 Tage alt.'],
+  6: ['Pochitchi', 'Gut gepflegt, ein Schimpf-Ruf verpasst.'],
+  7: ['Zuccitchi', 'Gut gepflegt, aber unerzogen. Wurde im Test 16 Tage alt.'],
+  8: ['Hashizotchi', 'Schlecht gepflegt, aber erzogen.'],
+  9: ['Kusatchi', 'Schlecht gepflegt und wenig erzogen.'],
+  10: ['Takotchi', 'Schlecht gepflegt und unerzogen.'],
+  11: ['Zatchi', 'Die Geheimfigur. Entsteht nur aus einem Zuccitchi, der schon als Kind unerzogen war. Wurde im Test 24 Tage alt.'],
 };
-const EDGES = [[1, 2], [2, 3], [2, 4], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10],
-               [4, 8], [4, 9], [4, 10], [7, 11]];
+const SPRITES_ANGEL = /*ANGEL*/{
+  12: [["000000000000100","000000000000100","000000010011011","010000011000100","101001111000100","010011111100000","000011111100000","000111111110000","001110110111000","001111111111000","010111111111100","101111001111110","101111111111110","111111111111110","011111111111100"],["000000000000100","000000000000100","000000010011011","010000011000100","101001111000100","010011111100000","000011111100000","000111111110000","001110110111000","001111111011000","010111111111110","101111001111110","101111111111111","111111111111111","011111111111110"]],
+  20: [["0000110000110000","0101010000101010","1100011111100011","1110100000010111","1101010000101011","1010000000001101","0010000000001100","0111111111111100","1000000000000010","0111111111111010","1000000000000010","0111111111111100","0001111111111000","0000111111110000","0000100000001000"],["0000110000110000","0101010000101010","1100011111100011","1110100000010111","1101010000101011","1011000000000101","0011000000000100","0011111111111110","0100000000000001","0101111111111110","0100000000000001","0011111111111110","0001111111111000","0000111111110000","0001000000010000"]],
+  1: [["00011110000","00100001000","00011110000","00000000000","00011110000","00100001000","01010010100","01000000100","10000000010","10001100010","01000000100","01010010100","00100001000","00010010000","00001111001","00000001110"],["00001111000","00010000100","00001111000","00000000000","00001111000","00010000100","00101001010","00100000010","01000000001","01000110001","00100000010","00101001010","00010000100","00001001000","10011110000","01110000000"]],
+  2: [["011110011110000","000000100001000","000001000010000","001111100111100","010000011000010","101001001000001","100000000111001","101111000100110","100000000100000","010000001000000","001111110000000","000000000000000","000000000000000","000000000000000","000000000000000","000011100000000"],["000011110011110","000100001000000","000010000100000","001111001111100","010000110000010","100000100100101","100111000000001","011001000111101","000001000000001","000000100000010","000000011111100","000000000000000","000000000000000","000000000000000","000000000000000","000000001110000"]],
+  3: [["000000001111000","000000000000000","000000011111100","000000100000010","001111000000001","010001001000101","100001000000001","100110000011001","011010000000001","000010001000010","000101101111101","000110010110010","000000000000000","000000000000000","000000000000000","000001111111000"],["000000001111000","000000000000000","011100011111100","100010100000010","100001001000101","011001000000001","000101000000001","000010000111001","000010000000001","000010001000010","000101101111101","000110010110010","000000000000000","000000000000000","000000000000000","000001111111000"]],
+  4: [["000001111000000","000000000000000","000000000011100","000001111100010","000010000010110","011100100101001","100100000001010","100100000001001","101100000010110","010010000100000","000001111010000","000001001001000","000000100100000","000000000000000","000000000000000","000001111100000"],["000000111100000","000000000000000","001110000000000","010001111100000","011010000010000","100101001001110","010100000001001","100100000001001","011010000001101","000001000010010","000010111100000","000100100100000","000001001000000","000000000000000","000000000000000","000001111100000"]],
+  5: [["0000000001110000","0000000010001000","0001110001110000","0000000010001000","0001110101010100","0010001100000100","0101010100100100","0100000110001110","0100110101111001","0010001001001101","0101110101000101","1010000100100101","1001001010111010","1010110000100100","0100010000000000"],["0000111000000000","0001000100000000","0000111000111000","0001000100000000","0010101010111000","0010000011000100","0010010010101010","0111000110000010","1001111010110010","1011001001000100","1010001010111010","1010010010000101","0101110101001001","0010010000110101","0000000000100010"]],
+  6: [["00000001110000","00000100000000","00001110000000","00011001000000","00101100100000","01010001010000","01000000011000","01001110010110","10100000100001","10011111011111","01110101011000","00010111010100","00001010101100","00000000000000","00000000000000","00001111111000"],["00001110000000","00000000100000","00000001110000","00000010011000","00000100110100","00001010001010","00011000000010","01101001110010","10000100000101","11111011111001","00011010101110","00101011101000","00110101010000","00000000000000","00000000000000","00011111110000"]],
+  7: [["000000111100000","000000000000000","000001111110000","000011111111000","000101111110100","000100111100100","011100011000110","100010000011001","100001000100001","101110000011101","010100110000110","000010000001000","000101111010000","000110001010000","000000000100000"],["000001111000000","000000000000000","000011111100000","000111111110000","001011111101000","001001111001000","011000110001110","100110000010001","100001000100001","101110000011101","011000011001010","000100000010000","000010111101000","000010100011000","000001000000000"]],
+  8: [["0000000111110000","0000000000000000","0000000111110000","0000011000001100","0000100000000010","0111001000001001","1001000000000001","1001000000000001","0101000000000001","0111000000000001","0101000011110001","0100100000000010","1100011111111100","1011110101000000","0010001010000000"],["0000111110000000","0000000000000000","0000111110000000","0011000001100000","0100000000010000","1001100011001000","1000000000001000","1000000000001000","1000000000001110","1000000000001001","1000011000001001","0100000000010110","0011111111100011","0000000101011101","0000000010100100"]],
+  9: [["0000111110000000","0000000000000000","0110111111000110","1001000000101001","1010100000010001","0110000001010010","0010000000001100","0111111111000100","1000000000100100","0111111110100100","1000000000100100","0111111111000100","0000100000001010","0000010110110110","0000001001000000"],["0000111110000000","0000000000000000","0000111111000000","0001000000100000","0010000001010000","0110100000011100","1010000000010010","0111111100010001","1000000010001001","0111110010000110","1000000010000100","0111111100001010","0000010000001110","0000001011010000","0000000100100000"]],
+  10: [["000011111000000","011000100000110","101011111101001","100100000010001","101110111001001","010000000001110","010100010001100","010000000000100","010011110000100","001100001101000","010101100110100","011011111000110","001000000000000","000000000000000","000000000000000","000011111100000"],["000000111110000","011000001000110","100101111110101","100010000001001","100100111011101","011100000000010","001100010001010","001000000000010","001000011110010","000101100001100","001011001101010","011000111110110","000000000000100","000000000000000","000000000000000","000001111110000"]],
+  11: [["000000000111000","000000000010000","000001111110000","000010000010000","001101101101100","000100000001000","011101101101110","100100000001001","100100111001001","010101000101010","001110010011100","001001111100100","010100101001010","000011111110000","000001000100000"],["000111000000000","000010000000000","000011111100000","000010000010000","001101101101100","000100000001000","011101101101110","100100000001001","100100111001001","010101000101010","001110010011100","001001111100100","010100101001010","000011111110000","000001000100000"]],
+  13: [["000000111000000","000001000100000","000000111000000","000000000000000","000101111101000","000010101010000","000100000001000","011001000100110","101000000000101","100000111000001","011010000010110","000100101001000","000010101010000","000111111111000","000111111111000","000011111110000"],["00011111000","00000000000","00101110100","00011011000","00101010100","01100000110","00101010100","00100000110","01101110101","10100000001","10001010110","01101010100","00101010100","01111111110","01111111110","00111111100"]],
+}/*END*/;
+const CHARS_ANGEL = {
+  1: ['Ghost Jr', 'Das Baby. Nach einer Stunde wird es Marutchi Angel. Hier zählt noch nichts.'],
+  2: ['Marutchi Angel', 'Das Kind. Ab jetzt zählen Pflegefehler, bei jeder Verwandlung wieder ab 0.'],
+  3: ['Tamatchi Angel', 'Der gut gepflegte Teenager. Aus ihm wird Chestnut oder Ginjirotchi Angel.'],
+  4: ['Takotchi Angel', 'Der Teenager nach drei oder mehr Pflegefehlern. Bei ihm entscheidet die Angel Power.'],
+  5: ['Twin Angels', 'Sonderfigur aus Chestnut oder Chubby Angel.'],
+  6: ['Chestnut Angel', 'Aus Tamatchi Angel mit höchstens 2 Pflegefehlern. Wird ohne weitere Fehler zu Twin Angels.'],
+  7: ['Ginjirotchi Angel', 'Aus Tamatchi Angel mit 3 oder mehr Pflegefehlern. Verwandelt sich nicht weiter.'],
+  8: ['Chubby Angel', 'Aus Takotchi Angel mit 40 oder mehr Angel Power. Wird mit höchstens 2 Fehlern zu Twin Angels.'],
+  9: ['Tarakotchi Angel', 'Aus Takotchi Angel mit 30 bis 39 Angel Power. Wird mit höchstens 3 Fehlern zu Cactus Angel.'],
+  10: ['Oyajitchi Angel', 'Aus Takotchi Angel mit weniger als 30 Angel Power. Wird mit höchstens 4 Fehlern zu Shogun Angel.'],
+  11: ['Shogun Angel', 'Sonderfigur aus Oyajitchi Angel.'],
+  12: ['Lucky Unchi-Kun', 'Die Geheimfigur. Sie braucht vier Generationen nacheinander: zweimal Oyajitchi Angel, dann Ginjirotchi Angel, und das Baby der vierten wird nach fünf Tagen Lucky Unchi-Kun. Dauert rund 24 Tage.'],
+  13: ['Cactus Angel', 'Sonderfigur aus Tarakotchi Angel (nur in der japanischen Fassung).'],
+  14: ['Ghost Jr', 'Das Baby der vierten Generation. Es wird kein Kind, sondern nach fünf Tagen Lucky Unchi-Kun.'],
+  20: ['Deviltchi', 'Das böse Ende. Wird ein Angel als dieselbe Figur dreimal krank, verwandelt er sich in Deviltchi und ist verloren.'],
+};
+
+/* Two families: P1 and P2 share one tree, the Angel has its own */
+const TAMA = {
+  pos: {
+    1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
+    5: [345, 45], 6: [345, 127], 7: [345, 209], 8: [345, 291], 9: [345, 373], 10: [345, 455],
+    11: [440, 209],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10],
+          [4, 8], [4, 9], [4, 10], [7, 11]],
+  viaChild: true,       // the server's lists start after the child
+  /* Characters the pet has certainly been before the current one */
+  before(stage) {
+    if (stage >= 11) return [1, 2, 3, 7];
+    if (stage >= 5 && stage <= 7) return [1, 2, 3];
+    if (stage >= 8) return [1, 2];
+    return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];
+  },
+  teenInReach: (n, st) => st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2),
+};
+const ANGEL = {
+  pos: {
+    1: [40, 250], 2: [125, 250], 3: [215, 130], 4: [215, 370],
+    6: [315, 45], 7: [315, 135], 8: [315, 250], 9: [315, 355], 10: [315, 455],
+    5: [425, 130], 13: [425, 355], 11: [425, 455],
+    20: [125, 455], 12: [425, 250],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [3, 6], [3, 7], [4, 8], [4, 9], [4, 10],
+          [6, 5], [8, 5], [9, 13], [10, 11]],
+  viaChild: false,
+  before(stage) {
+    if (stage === 13) return [1, 2, 4, 9];
+    if (stage === 11) return [1, 2, 4, 10];
+    if (stage === 6 || stage === 7) return [1, 2, 3];
+    if (stage >= 8 && stage <= 10) return [1, 2, 4];
+    return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];     // Twin Angels come two ways
+  },
+  teenInReach: (n, st) => st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2),
+};
+const MODELS = {
+  p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
+  angel: [SPRITES_ANGEL, CHARS_ANGEL, ANGEL],
+};
+let model = 'p1', [SPRITES, CHARS, FAMILY] = MODELS.p1;
 const BOX = 50;
+
+/* Which pet: /bot?pet=3 */
+let pet = new URLSearchParams(location.search).get('pet');
 
 function post(path, body) {
   return fetch(path, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify({...body, pet}),
   }).catch(() => {});
 }
 function el(name, attrs, parent) {
@@ -307,26 +399,72 @@ function el(name, attrs, parent) {
   if (parent) parent.append(node);
   return node;
 }
-function name(id) { return CHARS[id] ? CHARS[id][0] : 'Ei'; }
+function name(id) { return CHARS[id] ? CHARS[id][0] : FAMILY === ANGEL ? 'Geist' : 'Ei'; }
 
-/* Characters the pet has certainly been before the current one */
-function before(stage) {
-  if (stage >= 11) return [1, 2, 3, 7];
-  if (stage >= 5 && stage <= 7) return [1, 2, 3];
-  if (stage >= 8) return [1, 2];
-  return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];
+/* The table of rules, with the names of the model that is running */
+function drawRules() {
+  const n = name, row = (cells) => '<tr>' + cells.map(([text, span]) =>
+    `<td${span ? ` rowspan="${span}"` : ''}>${text}</td>`).join('') + '</tr>';
+  if (FAMILY === ANGEL) {
+    $('rulesIntro').innerHTML =
+      '<p>Jede Stufe entscheidet für sich: Die Pflegefehler beginnen bei jeder Verwandlung wieder bei 0.</p>' +
+      '<p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder leerem Einsatz bleibt 15 Minuten unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an.<br>' +
+      '<b>Angel Power</b> – steigt durch Süßes (+2) und durch Loben beim Beten (+20), sinkt von selbst. Sie entscheidet nur beim Takotchi Angel.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Pflegefehler</th><th>Angel Power</th><th>wird zu</th></tr>' + [
+        [[n(2), 2], ['0–2'], ['egal'], [n(3)]],
+        [['ab 3'], ['egal'], [n(4)]],
+        [[n(3), 2], ['0–2'], ['egal'], [n(6)]],
+        [['ab 3'], ['egal'], [n(7)]],
+        [[n(4), 3], ['egal', 3], ['ab 40'], [n(8)]],
+        [['30–39'], [n(9)]],
+        [['unter 30'], [n(10)]],
+        [[n(6)], ['0–3'], ['egal'], [n(5)]],
+        [[n(8)], ['0–2'], ['egal'], [n(5)]],
+        [[n(9)], ['0–3'], ['egal'], [n(13)]],
+        [[n(10)], ['0–4'], ['egal'], [n(11)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `Mit mehr Pflegefehlern bleiben die vier Erwachsenen in den letzten Zeilen, was sie sind. ${n(7)} verwandelt sich nie weiter. ` +
+      `Alle Grenzen sind im Emulator nachgemessen und decken sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  $('rulesIntro').innerHTML =
+    '<p>Es zählen nur zwei Dinge, beide ab der Kind-Stufe und fürs ganze Leben:</p>' +
+    '<p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Langeweile bleibt 15 Minuten unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an.<br>' +
+    '<b>Verpasste Schimpf-Rufe</b> – es ruft, obwohl nichts fehlt, und wird 15 Minuten lang nicht geschimpft.</p>';
+  $('rules').innerHTML =
+    '<tr><th>Verwandlung</th><th>Pflegefehler</th><th>verpasste Schimpf-Rufe</th><th>wird zu</th></tr>' + [
+      [[n(2), 2], ['0–2'], ['egal'], [n(3)]],
+      [['ab 3'], ['egal'], [n(4)]],
+      [[n(3), 6], ['0–2', 3], ['0'], [n(5)]],
+      [['1'], [n(6)]],
+      [['ab 2'], [n(7)]],
+      [['ab 3', 3], ['0–1'], [n(8)]],
+      [['2–3'], [n(9)]],
+      [['ab 4'], [n(10)]],
+      [[n(4), 3], ['egal', 3], ['0–1'], [n(8)]],
+      [['2'], [n(9)]],
+      [['ab 3'], [n(10)]],
+    ].map(row).join('');
+  $('rulesNote').textContent =
+    `Hatte das Kind schon 3 oder mehr Schimpf-Rufe verpasst, gelten für den Teenager andere Grenzen: ` +
+    `${n(3)} wird dann mit bis zu 3 Pflegefehlern ${n(7)} (und nur dieser ${n(7)} später ${n(11)}), sonst ${n(9)} ` +
+    `oder ab 8 verpassten Rufen ${n(10)}; ${n(4)} wird ${n(9)} oder ab 6 verpassten Rufen ${n(10)}. ` +
+    `Die Disziplin-Anzeige im Status-Bild selbst spielt keine Rolle.`;
 }
 
 function drawChart(msg) {
   const st = msg.status, g = msg.growth;
   const chart = $('chart');
   chart.textContent = '';
+  const POS = FAMILY.pos;
   const alive = !!g && st.stage > 0;
-  const gone = alive ? before(st.stage) : [];
+  const gone = alive ? FAMILY.before(st.stage) : [];
   const on = (list) => {      // edges along a list of characters, starting at the current one
     const set = new Set();
     let from = Math.max(st.stage, 1);
-    if (list && list.length && st.stage < 2) list = [2, ...list];   // always by way of Marutchi
+    if (FAMILY.viaChild && list && list.length && st.stage < 2) list = [2, ...list];
     for (const to of list || []) { set.add(from + '-' + to); from = to; }
     return set;
   };
@@ -337,7 +475,7 @@ function drawChart(msg) {
 
   // lines first, the wanted ones on top
   const rank = (e) => plan.has(e) && msg.goal ? 3 : forecast.has(e) ? 2 : passed.has(e) ? 1 : 0;
-  for (const [a, b] of EDGES.slice().sort((x, y) => rank(x.join('-')) - rank(y.join('-')))) {
+  for (const [a, b] of FAMILY.edges.slice().sort((x, y) => rank(x.join('-')) - rank(y.join('-')))) {
     const key = a + '-' + b, [x1, y1] = POS[a], [x2, y2] = POS[b];
     const mid = (x1 + x2) / 2;
     const cls = ['edge', 'gone', 'forecast', 'plan'][rank(key)];
@@ -350,7 +488,7 @@ function drawChart(msg) {
     const pick = n >= 5;
     const reach = !alive || n === st.stage || gone.includes(n) ||
       g.forecast.includes(n) || (g.plan || []).includes(n) ||
-      (n >= 5 ? g.reachable.includes(n) : st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2));
+      (n >= 5 ? g.reachable.includes(n) : FAMILY.teenInReach(n, st));
     const cls = ['node'];
     if (!reach) cls.push('out');
     if (pick) cls.push('pick');
@@ -359,14 +497,19 @@ function drawChart(msg) {
     const node = el('g', {class: cls.join(' ')}, chart);
     el('title', {}, node).textContent = CHARS[id][0] + ': ' + CHARS[id][1];
     el('rect', {class: 'lcd', x: x - BOX / 2, y: y - BOX / 2, width: BOX, height: BOX, rx: 9}, node);
-    const rows = SPRITES[id] || [];
-    const s = 3, w = (rows[0] || '').length * s, h = rows.length * s;
-    let d = '';
-    rows.forEach((row, ry) => [...row].forEach((c, rx) => {
-      if (c === '1') d += `M${x - w / 2 + rx * s} ${y - h / 2 + ry * s}h${s}v${s}h${-s}z`;
-    }));
-    el('path', {class: 'px', d}, node);
-    el('text', {x, y: y + BOX / 2 + 14}, node).textContent = CHARS[id][0];
+    // one picture, or the two of its idle animation taking turns; both stand on the same line
+    const stored = SPRITES[id] || [];
+    const frames = Array.isArray(stored[0]) ? stored : [stored];
+    const s = 3, tall = Math.max(...frames.map((rows) => rows.length)) * s;
+    frames.forEach((rows, f) => {
+      const w = (rows[0] || '').length * s, top = y + tall / 2 - rows.length * s;
+      let d = '';
+      rows.forEach((row, ry) => [...row].forEach((c, rx) => {
+        if (c === '1') d += `M${x - w / 2 + rx * s} ${top + ry * s}h${s}v${s}h${-s}z`;
+      }));
+      el('path', {class: 'px' + (frames.length > 1 ? ' ' + 'ab'[f] : ''), d}, node);
+    });
+    el('text', {x, y: y + BOX / 2 + 14}, node).textContent = CHARS[id][0].replace(' Angel', '');
     const tag = alive && n === st.stage ? ['here', 'hier'] : n === msg.goal ? ['goal', 'Ziel'] : null;
     if (tag) {
       el('rect', {class: 'tagbg ' + tag[0], x: x - BOX / 2 - 6, y: y - BOX / 2 - 8, width: 30, height: 15, rx: 7.5}, node);
@@ -394,12 +537,22 @@ function path(list) {
 
 let drawn = '';
 function render(msg) {
+  if (!msg.goals) { location.replace('/#' + pet); return; }    // nothing to plan for this model
   const st = msg.status, g = msg.growth;
   const alive = !!g && st.stage > 0;
   const counting = alive && st.stage >= 2;
 
+  if (MODELS[msg.model] && msg.model !== model) {
+    model = msg.model;
+    [SPRITES, CHARS, FAMILY] = MODELS[model];
+    drawRules();
+  }
+  const angel = FAMILY === ANGEL;
+  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel;
+  $('powerRow').hidden = !angel;
+  $('power').textContent = alive ? st.weight : '–';
   // the stream runs at up to 30 frames a second, the chart changes rarely
-  const key = JSON.stringify([st.stage, st.dead, g, msg.goal]);
+  const key = JSON.stringify([model, st.stage, st.dead, g, msg.goal]);
   if (key !== drawn) { drawn = key; drawChart(msg); }
 
   $('bot').checked = msg.bot;
@@ -409,7 +562,7 @@ function render(msg) {
   $('goalName').textContent = msg.goal ? name(msg.goal) : 'keins';
   $('noGoal').disabled = !msg.goal;
 
-  $('stage').textContent = st.dead ? 'Gestorben' : name(st.stage);
+  $('stage').textContent = st.dead ? (angel ? 'Gegangen' : 'Gestorben') : name(st.stage);
   $('mistakes').textContent = counting ? st.mistakes : '–';
   $('missed').textContent = counting ? st.missed : '–';
   $('training').innerHTML = counting ? bars(st.training) : '–';
@@ -417,17 +570,47 @@ function render(msg) {
 
   let plan = '–', text = '';
   if (!msg.goal) {
-    text = msg.discipline
-      ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt Mametchi.'
+    text = angel ? 'Ohne Ziel pflegt der Bot fehlerfrei. Das ergibt ' + name(6) + ' und danach ' + name(5) + '.'
+      : msg.discipline
+      ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt ' + name(5) + '.'
       : 'Ohne Ziel und ohne Schimpfen bleiben alle Schimpf-Rufe unbeantwortet.';
   } else if (!alive) {
     text = CHARS[msg.goal][1] + ' Der Bot beginnt damit, sobald ein Tier lebt.';
+  } else if (!g.plan && !(angel && msg.goal === 12)) {
+    plan = 'nicht mehr erreichbar';
+    text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
+  } else if (angel && msg.goal === 12) {
+    const gen = st.generation, raising = g.wanted.raising;
+    plan = st.stage === 12 ? 'Ziel erreicht' : 'Generation ' + gen + ' von 4';
+    text = CHARS[12][1] + ' ' + (st.stage === 12 ? 'Ab jetzt wird einfach gut gepflegt.'
+      : gen >= 4 ? 'Jetzt ist das vierte Baby da: Der Bot pflegt es fehlerfrei, bis es sich verwandelt.'
+      : 'Gerade zieht der Bot ' + name(raising) + ' groß, lässt ihn einige Tage leben und macht dann Pflegefehler, bis er sich verabschiedet. '
+        + 'Den Abschied und den Start der nächsten Generation erledigt er selbst. „Neues Ei“ darf dabei nicht gedrückt werden.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (angel && msg.goal === 20) {
+    plan = 'dreimal krank machen';
+    text = CHARS[20][1] + ' Der Bot schaltet dafür ab der Kind-Stufe dreimal das Licht aus, während das Tier wach ist, und heilt es dazwischen. '
+      + (st.sickness ? 'Bisher ' + st.sickness + ' von 3.' : '') + ' Danach ist das Tier weg.';
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (angel) {
+    // each character decides for itself: what is still to do for the present one
+    const todo = [], more = g.wanted.mistakes, [low, high] = g.wanted.power || [0, 99];
+    if (counting && more > 0) todo.push('noch ' + more + ' Pflegefehler machen');
+    if (st.stage === 4) {
+      todo.push(high < 99 ? (low ? 'die Angel Power zwischen ' + (low - 4) + ' und ' + high + ' halten, also beim Beten nicht loben'
+                                 : 'die Angel Power unter ' + (high + 1) + ' lassen: kein Süßes, kein Loben')
+                          : 'die Angel Power über ' + (low - 6) + ' halten');
+    }
+    const here = st.stage === msg.goal;
+    plan = here ? 'Ziel erreicht' : path(g.plan);
+    text = CHARS[msg.goal][1] + ' ' + (here
+      ? (todo.length ? 'Damit es so bleibt, wird der Bot ' + todo.join(' und ') + '.' : 'Ab jetzt wird einfach gut gepflegt.')
+      : todo.length ? 'Als ' + name(st.stage) + ' wird der Bot ' + todo.join(' und ') + '.'
+      : 'Als ' + name(st.stage) + ' pflegt der Bot fehlerfrei.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (st.stage === msg.goal) {
     plan = 'Ziel erreicht';
     text = CHARS[msg.goal][1] + ' Ab jetzt wird einfach gut gepflegt.';
-  } else if (!g.plan) {
-    plan = 'nicht mehr erreichbar';
-    text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
   } else {
     const todo = [];
     const cm = g.wanted[0] - st.mistakes, dm = g.wanted[1] - st.missed;
@@ -457,11 +640,22 @@ function render(msg) {
 
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
 $('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
+drawRules();
 $('noGoal').addEventListener('click', () => post('/api/config', {goal: null}));
 
-const events = new EventSource('/events');
-events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
-events.onerror = () => $('offline').classList.add('show');
+async function start() {
+  const pets = (await (await fetch('/api/pets')).json()).pets;
+  const mine = pets.find((p) => p.id === pet) || pets[0];
+  if (!mine) { location.href = '/settings'; return; }
+  pet = mine.id;
+  $('back').href = '/#' + pet;
+  $('back').textContent = '← zurück zu ' + mine.name;
+  document.title = mine.name + ' – Care-Bot';
+  const events = new EventSource('/events?pet=' + pet);
+  events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
+  events.onerror = () => $('offline').classList.add('show');
+}
+start().catch(() => $('offline').classList.add('show'));
 </script>
 </body>
 </html>

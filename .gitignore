@@ -23,3 +23,7 @@ settings.json
 
 # Tamagotchi Paradise experiments (Capybara clone, local Rust toolchain)
 Paradise/
+
+# Other ROM dumps supplied by the user
+/Tamagotchi P2/
+/Tamagotchis/

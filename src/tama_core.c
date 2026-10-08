@@ -183,10 +183,10 @@ uint64_t tama_ticks(void)
 	return total_ticks;
 }
 
-/* btn: 0 = left (A), 1 = middle (B), 2 = right (C) */
+/* btn: 0 = left (A), 1 = middle (B), 2 = right (C), 3 = tap sensor (Angel) */
 void tama_button(int btn, int pressed)
 {
-	if (btn < 0 || btn > 2) {
+	if (btn < 0 || btn > 3) {
 		return;
 	}
 

@@ -8,7 +8,8 @@ make                 # baut libtamalab.so: der Emulator plus eine Funktion zum S
 python3 mkbase.py    # Spielstand eines Kindes kurz vor der Verwandlung (wird von exp3–exp7 gebraucht)
 ```
 
-Die ROM muss unter `../tama/tama.b` liegen. Alles läuft im Zeitraffer ohne Server.
+Die ROM muss unter `../tama/tama.b` liegen; eine andere nimmt man mit `TAMA_ROM=pfad python3 …`.
+Alles läuft im Zeitraffer ohne Server.
 
 | Skript | Frage |
 |---|---|

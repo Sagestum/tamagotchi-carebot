@@ -105,35 +105,19 @@
   <section>
     <h2>ROM</h2>
 
-    <div id="romMissing" hidden>
-      <p><b>Es fehlt noch die ROM.</b> Sie ist urheberrechtlich geschützt und liegt dem Programm
-        deshalb nicht bei. Gebraucht wird <code>tama.b</code> aus dem MAME-Romset <code>tama</code>;
-        die Datei <code>tama.zip</code> geht auch.</p>
-      <dl>
-        <dt>Größe</dt><dd><span id="expSize"></span> Bytes</dd>
-        <dt>SHA-1</dt><dd><code id="expSha1"></code></dd>
-        <dt>CRC32</dt><dd><code id="expCrc"></code></dd>
-      </dl>
-      <p class="note">Die Datei wird nur angenommen, wenn ihre Prüfsumme dazu passt.</p>
+    <p>Die ROMs sind urheberrechtlich geschützt und liegen dem Programm deshalb nicht bei. Jedes
+      Modell braucht seine eigene; angenommen wird eine Datei nur, wenn ihre Prüfsumme passt.</p>
+    <div id="roms"></div>
 
-      <label for="romFile">Datei von diesem Gerät hochladen</label>
+    <div id="romAdd" hidden>
+      <label for="romFile">Datei von diesem Gerät hochladen (einzeln oder das ZIP des MAME-Romsets)</label>
       <input type="file" id="romFile" accept=".b,.bin,.zip">
       <div class="buttons"><button class="main" id="romUpload" disabled>Hochladen</button></div>
 
       <hr>
       <label for="romPath">Oder: Die Datei liegt schon auf dem Server, unter diesem Pfad</label>
-      <input type="text" id="romPath" placeholder="/pfad/zu/tama.b" autocomplete="off" spellcheck="false">
+      <input type="text" id="romPath" placeholder="/pfad/zur/rom" autocomplete="off" spellcheck="false">
       <div class="buttons"><button id="romUse">Diese Datei verwenden</button></div>
-    </div>
-
-    <div id="romPresent" hidden>
-      <dl>
-        <dt>Datei</dt><dd><code id="romWhere"></code></dd>
-        <dt>Größe</dt><dd><span id="romSize"></span> Bytes</dd>
-        <dt>SHA-1</dt><dd><code id="romSha1"></code></dd>
-        <dt>CRC32</dt><dd><code id="romCrc"></code></dd>
-      </dl>
-      <p class="note" id="romVerdict"></p>
     </div>
     <p class="msg" id="romMsg" role="status"></p>
   </section>
@@ -195,34 +179,35 @@ async function send(path, body, raw) {
   }
 }
 
+let firstPet = null;
 async function load() {
   const cfg = await (await fetch('/api/settings')).json();
-  const rom = cfg.rom, exp = cfg.expected;
-  $('romMissing').hidden = !!rom;
-  $('romPresent').hidden = !rom;
-  $('back').hidden = !rom;
-  $('test').disabled = !rom;
-  $('expSize').textContent = exp.size;
-  $('expSha1').textContent = exp.sha1;
-  $('expCrc').textContent = exp.crc32;
-  if (rom) {
-    $('romWhere').textContent = rom.path;
-    $('romSize').textContent = rom.size;
-    $('romSha1').textContent = rom.sha1;
-    $('romCrc').textContent = rom.crc32;
-    $('romVerdict').textContent = rom.sha1 === exp.sha1
-      ? 'Das ist die erwartete ROM (tama.b aus dem MAME-Romset „tama“).'
-      : 'Achtung: Das ist nicht die ROM, für die der Care-Bot gebaut wurde (erwartet: SHA-1 ' + exp.sha1 + ').';
+  const pets = (await (await fetch('/api/pets')).json()).pets;
+  firstPet = pets.length ? pets[0].id : null;
+  $('back').hidden = !pets.length;
+  $('test').disabled = !pets.length;
+  $('romAdd').hidden = cfg.roms.every((m) => m.path);
+  $('roms').textContent = '';
+  for (const m of cfg.roms) {
+    const dl = document.createElement('dl');
+    for (const [k, v] of [['Modell', m.name],
+                          ['Datei', `${m.source}, ${m.size} Bytes`],
+                          ['SHA-1', m.sha1], ['CRC32', m.crc32],
+                          ['Stand', m.path ? 'vorhanden: ' + m.path : 'fehlt noch']]) {
+      dl.append(Object.assign(document.createElement('dt'), {textContent: k}),
+                Object.assign(document.createElement('dd'), {textContent: v}));
+    }
+    $('roms').append(dl);
   }
   for (const key of FIELDS) $(key).value = cfg.smtp[key];
   $('password').value = '';
   $('password').placeholder = cfg.smtp.password ? 'gespeichert – leer lassen, um es zu behalten' : '';
-  return rom;
+  return pets.length;
 }
 
 async function romDone(error) {
   if (error) return say('romMsg', error);
-  if (await load()) say('romMsg', 'Die ROM passt. Das Tamagotchi läuft jetzt.', true);
+  if (await load()) say('romMsg', 'Die ROM passt. Neue Tiere legt man auf der Hauptseite mit „+“ an.', true);
 }
 $('romFile').addEventListener('change', () => { $('romUpload').disabled = !$('romFile').files.length; });
 $('romUpload').addEventListener('click', async () => {
@@ -245,7 +230,7 @@ $('smtp').addEventListener('submit', async (e) => {
   say('smtpMsg', 'Gespeichert.', true);
 });
 $('test').addEventListener('click', async () => {
-  const error = await send('/api/test-mail');
+  const error = await send('/api/test-mail', {pet: firstPet});
   say('smtpMsg', error || 'Der Bericht wird mit den gespeicherten Einstellungen verschickt. Ob es geklappt hat, steht im Protokoll auf der Hauptseite.', !error);
 });
 

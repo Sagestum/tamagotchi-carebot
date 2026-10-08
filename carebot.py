@@ -8,16 +8,26 @@ import random
 import time
 
 import growth
-from tama import BTN_A, BTN_B, BTN_C, LCD_W
+import models
+from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_W
 
-# RAM cells of the P1 ROM (found by experiment, one 4-bit value each)
+UNSET_HOUR = 32         # what the hour cells hold before the clock has been set
+
+# RAM cells of the P1 and P2 ROMs (found by experiment, one 4-bit value each)
 MEM_SEC_LO, MEM_SEC_HI = 0x10, 0x11     # clock seconds, BCD
 MEM_MIN_LO, MEM_MIN_HI = 0x12, 0x13     # clock minutes, BCD
 MEM_HOUR_LO, MEM_HOUR_HI = 0x14, 0x15   # clock hours, binary
 MEM_HUNGER = 0x40                       # 0..15, a heart per 4
 MEM_HAPPY = 0x41                        # 0..15, a heart per 4
 MEM_WEIGHT_LO, MEM_WEIGHT_HI = 0x46, 0x47  # BCD
-MEM_GAME_WIN = 0x84                     # game: non-zero if the coming round is a win
+MEM_GAME_WIN = 0x84                     # P1 game: non-zero if the coming round is a win
+MEM_GAME_NUMBER = 0x71                  # P2 game: the number on the screen, less one
+MEM_SICK_COUNT = 0x49                   # Angel: times it has been ill as this character
+MEM_JUMP_OBSTACLE = 0x81                # Angel game: where the obstacle is, 0xC far to 0x9 hit
+MEM_JUMP_ROUNDS = 0x85                  # Angel game: rounds still to come, 5 to 0
+MEM_ANGEL_STATE = 0x5E                  # Angel: 1 awake, 3 asleep, 9 sick, 2 eating, 0xD a bat
+                                        # is after the sweet, 0xA praying, 0xB out for a
+                                        # stroll, 4 making a dropping (5, 7, 8 in the game)
 MEM_POOP = 0x4D                         # number of droppings on screen
 MEM_STAGE = 0x5D                        # 0 egg/dead, 1 baby, 2 child, ... (growth.py)
 MEM_MISTAKES = 0x42                     # care mistakes so far, 0..15
@@ -25,8 +35,7 @@ MEM_DISCIPLINE = 0x43                   # discipline meter, +4 per scolding
 MEM_KIND = 0x50                         # tells the two kinds of a teenager apart
 MEM_MISSED = 0x51                       # discipline calls left unanswered, 0..15
 
-ICON_FOOD, ICON_LIGHT, ICON_GAME, ICON_MEDICINE, ICON_TOILET, ICON_STATUS, \
-    ICON_DISCIPLINE, ICON_ATTENTION = range(8)
+ICON_ATTENTION = 7      # the menu icons are in another order on each model (models.py)
 
 CLOCK_TOLERANCE = 45    # seconds the pet's clock may be off before it is set again
 NEGLECT_LIMIT = 40 * 60  # give up waiting for a wanted care mistake after this long
@@ -42,16 +51,6 @@ Z_BIG = ("....###.", "......#.", ".....#..", "....#...",
          "..#.###.", "#.......", "........", "........")
 ARROW = ("........", "...#....", "...##...", ".#####..",
          ".######.", ".#####..", "...##...", "...#....")
-CLOCK_M = ("........", ".##.###.", ".#.#.##.", ".#.#.##.")
-DEAD = (
-    (".#...#..", "#....#..", ".###.#..", "..#.#...",
-     ".##.....", "#.#.....", "#.......", "........"),
-    ("........", ".#...#..", "...#....", "..#.#...",
-     "...#....", ".#...#..", "........", "........"),
-    ("........", "........", ".#.#.#.#", ".#.#.##.",
-     ".#.#.#..", "..##.#..", "...#.#..", ".##....."),
-)
-
 
 def hearts(value):
     return (value + 1) // 4
@@ -80,19 +79,30 @@ class Screen:
 
 
 class CareBot:
-    def __init__(self, tama, log=print, discipline=True, feed_below=3, play_below=3):
+    def __init__(self, tama, log=print, discipline=True, feed_below=3, play_below=3,
+                 model=models.P1):
         self.tama = tama
+        self.model = model
         self.log = log
         self.discipline = discipline    # scold at all (only asked when there is no goal)
         self.goal = None                # character to raise (growth.GOALS) or None
         self.feed_below = feed_below    # act when fewer hearts than this
         self.play_below = play_below
+        self.power_below = 20           # Angel: give sweets below this much Angel Power
         self.task = None
         self.manual = False             # the task is a menu walk the user asked for
         self.wake = 0.0
         self.held = None
         self.clock_set_at = None
         self.dead_logged = False
+        self.gone = False               # the pet has died (kept while the end screen slides)
+        self.walking = False            # Angel: out for a walk
+        self.praised = False            # Angel: this prayer has been praised
+        self.generation = 1             # Angel: which one on the way to Lucky Unchi-Kun
+        self.settled = None             # when the adult of this generation was first seen
+        self.extra = (0, 0.0)           # mistakes to reach so that it takes its leave, and
+                                        # when to ask for the next one
+        self.leaving_logged = False
         self.scold_after = None
         self.light_wish = None
         self.realtime = True        # False while the emulation is sped up
@@ -113,23 +123,40 @@ class CareBot:
         # Light off inverts the LCD: all black when awake, black with a
         # floating "Z" cut out while it sleeps.
         dark = s.lit() > 400
+        stage = m(MEM_STAGE)
+        angel = self.model.game == "jump"
+        weight = m(MEM_WEIGHT_HI) * 10 + m(MEM_WEIGHT_LO)
+        # No character and the end screen. A new egg weighs nothing.
+        self.gone = stage == 0 and (s.region(24, 8, 8, 8) in self.model.dead
+                                    or (self.gone and weight > 0))
+        if angel:       # the end screens: no character, and the state the sleepers have
+            self.gone = stage == 0 and m(MEM_ANGEL_STATE) == 3
+        away = angel and m(MEM_ANGEL_STATE) == 0xB      # a door on the screen
         return {
-            "stage": m(MEM_STAGE),
+            "stage": stage,
+            "away": away,
+            "praying": angel and m(MEM_ANGEL_STATE) == 0xA,
+            "sickness": m(MEM_SICK_COUNT) if angel else 0,
+            "leaving": angel and m(MEM_ANGEL_STATE) == 0xC,     # it cries: its time is over
+            "generation": self.generation if angel else None,
+            "name": "Unterwegs" if away else self.model.stage_name(stage),
             "hunger": hearts(m(MEM_HUNGER)),
             "happy": hearts(m(MEM_HAPPY)),
-            "weight": m(MEM_WEIGHT_HI) * 10 + m(MEM_WEIGHT_LO),
+            "weight": weight,
             "poop": m(MEM_POOP),
             "mistakes": m(MEM_MISTAKES),
             "missed": m(MEM_MISSED),
             "training": hearts(m(MEM_DISCIPLINE)),   # the meter on the status screen
             "kind": m(MEM_KIND),
-            "sick": top_right == SKULL,
-            "asleep": top_right in (Z_SMALL, Z_BIG) or (dark and s.lit() < len(s.pixels)),
+            "sick": top_right == SKULL or (angel and m(MEM_ANGEL_STATE) == 9),
+            "asleep": m(MEM_ANGEL_STATE) == 3 if angel
+            else top_right in (Z_SMALL, Z_BIG) or (dark and s.lit() < len(s.pixels)),
             "light": not dark,
             "attention": bool(s.icons[ICON_ATTENTION]),
-            "dead": s.region(24, 8, 8, 8) in DEAD,
-            # Only meaningful while the game is running (decided before the press)
-            "game": bool(m(MEM_GAME_WIN)) if s.icons[ICON_GAME] else None,
+            "dead": self.gone,
+            # P1, while the game is running: the round is decided before the press
+            "game": bool(m(MEM_GAME_WIN))
+            if self.model.game == "direction" and s.icons[self.model.icon("game")] else None,
             "clock": "%02d:%d%d" % (m(MEM_HOUR_HI) * 16 + m(MEM_HOUR_LO),
                                     m(MEM_MIN_HI), m(MEM_MIN_LO)),
         }
@@ -179,7 +206,7 @@ class CareBot:
             if self.screen().selected() is None:
                 break
             yield from self.press(BTN_C, 0.8)
-        if self.screen().region(2, 12, 8, 4) == CLOCK_M:
+        if self.screen().region(2, 12, 8, 4) == self.model.clock_m:
             yield from self.press(BTN_B, 3.0)
 
     def select(self, icon):
@@ -268,10 +295,10 @@ class CareBot:
     def sync_clock(self, error):
         self.log("Uhr nachstellen (ging %d s %s)" % (abs(error), "vor" if error > 0 else "nach"))
         yield from self.home()
-        if self.screen().region(2, 12, 8, 4) != CLOCK_M:
+        if self.screen().region(2, 12, 8, 4) != self.model.clock_m:
             yield from self.press(BTN_B, 4.0)       # open the clock view (slides in)
         for _ in range(3):
-            if self.screen().region(2, 12, 8, 4) != CLOCK_M:
+            if self.screen().region(2, 12, 8, 4) != self.model.clock_m:
                 break
             # A and C together switch the clock view to set mode
             self.tama.button(BTN_A, True)
@@ -294,7 +321,7 @@ class CareBot:
     def feed(self):
         self.log("Füttern (Hunger %d/4)" % hearts(self.tama.memory(MEM_HUNGER)))
         yield from self.home()
-        if not (yield from self.select(ICON_FOOD)):
+        if not (yield from self.select(self.model.icon("food"))):
             return
         yield from self.press(BTN_B, 1.0)
         if self.screen().region(0, 0, 8, 8) != ARROW:
@@ -311,18 +338,44 @@ class CareBot:
         for _ in range(3):
             if hearts(self.tama.memory(MEM_HAPPY)) >= 4:
                 break
-            if not (yield from self.select(ICON_GAME)):
+            if not (yield from self.select(self.model.icon("game"))):
                 return
-            yield from self.press(BTN_B, 5.0)
-            for _ in range(5):
-                yield from self.press(random.choice((BTN_A, BTN_B)), 8.0)
+            if self.model.game == "jump":
+                # An obstacle comes along five times: jump (B) when it is two steps away
+                yield from self.press(BTN_B, 1.0)
+                waited, armed, begun = 0.0, True, False
+                while waited < 60:
+                    yield 0.05
+                    waited += 0.05
+                    at = self.tama.memory(MEM_JUMP_OBSTACLE)
+                    begun = begun or self.tama.memory(MEM_JUMP_ROUNDS) > 0
+                    if armed and at == 0xA:
+                        yield from self.press(BTN_B, 0.05)
+                        armed = False
+                    elif at == 0xC:
+                        armed = True
+                    if begun and self.tama.memory(MEM_JUMP_ROUNDS) == 0 \
+                            and self.tama.memory(MEM_ANGEL_STATE) not in (5, 8):
+                        break
+            elif self.model.game == "number":
+                # Higher (B) or lower (A) than the number shown, 1 to 9? The
+                # next number is only drawn when the button goes down.
+                yield from self.press(BTN_B, 6.0)
+                for _ in range(5):
+                    low = self.tama.memory(MEM_GAME_NUMBER) <= 3
+                    yield from self.press(BTN_B if low else BTN_A, 9.5)
+            else:
+                # Left or right: the round is decided before the press (MEM_GAME_WIN)
+                yield from self.press(BTN_B, 5.0)
+                for _ in range(5):
+                    yield from self.press(random.choice((BTN_A, BTN_B)), 8.0)
             yield 8.0
             yield from self.home()
 
     def clean(self):
         self.log("Saubermachen")
         yield from self.home()
-        if (yield from self.select(ICON_TOILET)):
+        if (yield from self.select(self.model.icon("toilet"))):
             yield from self.press(BTN_B, 8.0)
         yield from self.home()
 
@@ -330,17 +383,17 @@ class CareBot:
         self.log("Medizin geben")
         yield from self.home()
         for _ in range(3):
-            if not (yield from self.select(ICON_MEDICINE)):
+            if not (yield from self.select(self.model.icon("medicine"))):
                 return
             yield from self.press(BTN_B, 7.0)
             yield from self.home()
-            if self.screen().region(24, 0, 8, 8) != SKULL:
+            if not self.status()["sick"]:
                 break
 
-    def light(self, on):
-        self.log("Licht an" if on else "Licht aus")
+    def light(self, on, why=None):
+        self.log(why or ("Licht an" if on else "Licht aus"))
         yield from self.home()
-        if not (yield from self.select(ICON_LIGHT)):
+        if not (yield from self.select(self.model.icon("light"))):
             return
         yield from self.press(BTN_B, 1.0)
         if (self.screen().region(0, 0, 8, 8) == ARROW) != on:
@@ -348,10 +401,57 @@ class CareBot:
         yield from self.press(BTN_B, 2.0)
         yield from self.home()
 
+    def candy(self):
+        """Angel: the sweet is the second entry of the food menu and gives Angel Power."""
+        self.log("Süßes geben (Angel Power %d)" % self.status()["weight"])
+        yield from self.home()
+        if not (yield from self.select(self.model.icon("food"))):
+            return
+        yield from self.press(BTN_B, 1.0)
+        if self.screen().region(0, 0, 8, 8) == ARROW:
+            yield from self.press(BTN_A)
+        yield from self.press(BTN_B, 0.1)
+        # Now and then a bat comes for the sweet: a tap on the case drives it away
+        for _ in range(90):
+            yield 0.1
+            if self.tama.memory(MEM_ANGEL_STATE) == 0xD:
+                self.log("Fledermaus verscheucht")
+                yield 0.3
+                yield from self.press(BTN_TAP, 6.0)
+                break
+        yield from self.home()
+
+    def praise(self, why="Loben"):
+        self.log(why)
+        yield from self.home()
+        if (yield from self.select(self.model.icon("praise"))):
+            yield from self.press(BTN_B, 6.0)
+        yield from self.home()
+
+    def farewell(self):
+        """Angel: let the one that is crying go (B) and begin the next generation (A and C)."""
+        self.log("Generation %d verabschiedet sich" % self.generation)
+        for _ in range(3):
+            yield from self.press(BTN_C, 1.0)
+        yield 5.0
+        yield from self.press(BTN_B, 40.0)
+        self.tama.button(BTN_A, True)
+        self.tama.button(BTN_C, True)
+        self.held = (BTN_A, BTN_C)
+        yield 0.3
+        self.tama.button(BTN_A, False)
+        self.tama.button(BTN_C, False)
+        self.held = None
+        yield 5.0
+        if self.tama.memory(MEM_ANGEL_STATE) != 0xC:
+            self.generation += 1
+            self.counted = None
+            self.log("Generation %d beginnt" % self.generation)
+
     def scold(self, why="Schimpfen"):
         self.log(why)
         yield from self.home()
-        if (yield from self.select(ICON_DISCIPLINE)):
+        if (yield from self.select(self.model.icon("discipline"))):
             yield from self.press(BTN_B, 6.0)
         yield from self.home()
 
@@ -369,6 +469,20 @@ class CareBot:
         """Where the pet stands in the growth chart, for the web UI."""
         if st["dead"]:
             return None
+        if self.model.game == "jump":
+            more, low, high, way = self.angel_wish(st)
+            rules = self.model.growth
+            alive = st["stage"] > 0 or st["away"]
+            return {
+                "forecast": rules.forecast(st["stage"], st["mistakes"], st["weight"]) if alive else [],
+                "reachable": rules.reachable(st["stage"], st["mistakes"]) if alive
+                else list(rules.GOALS),
+                "plan": way,
+                "wanted": {"mistakes": more,
+                           "power": [low, high] if self.goal and way is not None else None,
+                           "raising": rules.GENERATIONS.get(self.generation)
+                           if self.goal == rules.LUCKY else None},
+            }
         here = st["stage"], st["kind"], st["mistakes"], st["missed"]
         way = growth.plan(self.goal, *here) if self.goal is not None else None
         return {
@@ -380,20 +494,122 @@ class CareBot:
 
     def watch(self, st):
         """Log what the ROM has counted and what the pet has turned into."""
+        if st["away"]:
+            return                      # out for a walk: it is still the same one
         seen = st["stage"], st["mistakes"], st["missed"]
         if self.counted and st["stage"] >= growth.CHILD:
             stage, mistakes, missed = self.counted
             if stage != st["stage"] and stage > 0:
-                self.log("Verwandelt in " + growth.stage_name(st["stage"]))
+                self.log("Verwandelt in " + st["name"])
             if st["mistakes"] > mistakes and stage >= growth.CHILD:
                 self.log("Pflegefehler gezählt (jetzt %d)" % st["mistakes"])
             if st["missed"] > missed and stage >= growth.CHILD:
                 self.log("Schimpf-Ruf verpasst (jetzt %d)" % st["missed"])
         self.counted = seen
 
+    def angel_wish(self, st):
+        """What the goal asks of the present character: (mistakes still to make, least and
+        most Angel Power to hold, the characters to come). Without a goal: just good care."""
+        rules = self.model.growth
+        goal, extra = self.goal, 0
+        if goal == rules.LUCKY:
+            # Four generations (growth_angel.py): raise this generation's adult and, once it
+            # has been one for two days, add a care mistake every half day until it leaves
+            if st["stage"] == rules.GHOST_LUCKY:
+                self.generation = 4
+            goal = rules.GENERATIONS.get(self.generation)
+            now = self.tama.seconds
+            if st["stage"] != goal:
+                self.settled, self.extra = None, (0, 0.0)
+            else:
+                if self.settled is None:
+                    self.settled = now
+                if now - self.settled > 2 * 86400 and now >= self.extra[1]:
+                    self.extra = (min(rules.MOST, st["mistakes"] + 1), now + 43200)
+                extra = self.extra[0]
+        way = rules.plan(goal, st["stage"], st["mistakes"]) if goal else None
+        if not way:
+            return 0, self.power_below, rules.FULL, None
+        _, least, _, low, high = way[0]
+        more = max(0, max(least, extra) - st["mistakes"]) if st["stage"] >= rules.CHILD else 0
+        if high < rules.FULL:           # a ceiling: stay a little above the floor, no more
+            low = low + 4 if low else 0
+        elif low:                       # a floor: keep well above it
+            low = low + 6
+        else:
+            low = self.power_below
+        return more, low, high, [step[0] for step in way[1:]]
+
+    def plan_angel(self, st, now):
+        """The Angel: food, game, sweets, medicine, light, and praise when it prays."""
+        more, low, high, _ = self.angel_wish(st)
+        capped = high < self.model.growth.FULL
+        # Out for a stroll: it comes back by itself after five minutes, nothing is lost
+        if st["away"]:
+            if not self.walking:
+                self.walking = True
+                self.log("Macht einen Spaziergang")
+            return None
+        self.walking = False
+        # Praying (it stands in the middle with its arms up): praise it. That gives
+        # 20 Angel Power; afterwards it leaves a dropping either way.
+        if st["praying"]:
+            # (not when the Angel Power has to stay low: praise would add 20)
+            if not self.praised and not capped:
+                self.praised = True
+                return self.praise("Betet: loben")
+            return None
+        self.praised = False
+        if st["asleep"] != (not st["light"]):
+            wish = not st["asleep"]
+            if self.light_wish is None or self.light_wish[0] != wish:
+                self.light_wish = (wish, now)
+            elif now - self.light_wish[1] >= 5:
+                self.light_wish = None
+                return self.light(wish)
+        else:
+            self.light_wish = None
+        if st["asleep"] or not st["light"]:
+            return None
+        if st["poop"] > 0:
+            return self.clean()
+        if st["sick"]:
+            return self.heal()
+        if self.goal == self.model.growth.DEVILTCHI and st["stage"] >= self.model.growth.CHILD:
+            # The bad end: ill three times as the same character. Light off while it is
+            # awake makes it ill at once; the lines above switch it on again and cure it.
+            return self.light(False, "Licht aus im Wachen: das macht krank (%d von 3)"
+                              % (st["sickness"] + 1))
+        if st["hunger"] < self.feed_below:
+            return self.feed()
+        if more:
+            # Care mistakes are wanted: every praise takes a heart of effort; with none
+            # left it calls, and a call left alone for a quarter of an hour counts
+            if st["happy"] > 0:
+                if self.tama.memory(MEM_HAPPY) > 1:
+                    return self.praise("Pflegefehler mit Absicht: Einsatz leeren")
+            elif not self.ignoring:
+                self.ignoring = True
+                self.log("Pflegefehler mit Absicht: Ruf wird übergangen (noch %d)" % more)
+        else:
+            self.ignoring = False
+            if st["happy"] < self.play_below:
+                return self.play()
+        if st["weight"] < low:
+            return self.candy()
+        if self.realtime and now >= self.clock_check:
+            self.clock_check = now + 600
+            error = self.clock_error()
+            if abs(error) > CLOCK_TOLERANCE:
+                return self.sync_clock(error)
+        return None
+
     def plan(self):
         st = self.status()
         now = self.tama.seconds
+        if st["stage"] == 0 and self.counted and self.counted[0] > 0 and st["weight"] > 0 \
+                and self.model.game != "jump":
+            self.gone = st["dead"] = True       # it was alive a moment ago
         if not st["dead"]:
             self.watch(st)
 
@@ -403,6 +619,25 @@ class CareBot:
                 self.dead_logged = True
             return None
         self.dead_logged = False
+
+        if not self.model.care or self.model.game == "jump":
+            # The clock of a new one is set once; whether a pet has died is not known here
+            m = self.tama.memory
+            if st["leaving"]:
+                # Its time is over. On the way to Lucky Unchi-Kun the next generation follows;
+                # otherwise the farewell is left to the user (B, then A and C for a new one)
+                if self.goal == self.model.growth.LUCKY and self.generation < 4:
+                    return self.farewell()
+                if not self.leaving_logged:
+                    self.leaving_logged = True
+                    self.log("Seine Zeit ist um: B verabschiedet es, danach A und C für ein neues")
+                return None
+            self.leaving_logged = False
+            if st["stage"] == 0:
+                if m(MEM_HOUR_HI) * 16 + m(MEM_HOUR_LO) == UNSET_HOUR and now > 3:
+                    return self.set_clock()
+                return None
+            return self.plan_angel(st, now) if self.model.care else None
 
         if st["stage"] == 0:
             # Egg: it only starts hatching (about 5 minutes) once the clock is set

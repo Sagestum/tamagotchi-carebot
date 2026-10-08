@@ -1,7 +1,7 @@
-# Tamagotchi P1 im Browser, mit Care-Bot
+# Tamagotchi P1 und P2 im Browser, mit Care-Bot
 
-Das Original-Tamagotchi von 1996/97 läuft hier als emulierte ROM auf einem Server und wird im
-Browser angezeigt. Ein Care-Bot drückt die drei Tasten, wenn das Tier etwas braucht, und kann
+Das Original-Tamagotchi von 1996/97 (erste oder zweite Generation) läuft hier als emulierte ROM auf einem Server und wird im
+Browser angezeigt, beliebig viele Tiere nebeneinander, jedes in seinem Tab. Ein Care-Bot drückt die drei Tasten, wenn das Tier etwas braucht, und kann
 gezielt einen bestimmten Charakter großziehen.
 
 ![Die Oberfläche](docs/img/oberflaeche.jpg)
@@ -12,20 +12,38 @@ HTML-Seiten.
 
 ## Die ROM gehört nicht dazu
 
-Die ROM ist urheberrechtlich geschützt und liegt nicht in diesem Repository. Gebraucht wird die
-Datei `tama.b` aus dem MAME-Romset `tama`:
+Die ROMs sind urheberrechtlich geschützt und liegen nicht in diesem Repository. Jedes Modell
+braucht seine eigene:
 
-| | |
-|---|---|
-| Größe | 12 288 Bytes |
-| SHA-1 | `4b4979cf92dc9d2fb6d7295a38f209f3da144f72` |
-| CRC32 | `5c864cb1` |
+| Modell | Datei | Größe | SHA-1 | CRC32 |
+|---|---|---|---|---|
+| Tamagotchi P1 | `tama.b` aus dem MAME-Romset `tama` | 12 288 Bytes | `4b4979cf92dc9d2fb6d7295a38f209f3da144f72` | `5c864cb1` |
+| Tamagotchi P1 Japan | `TamagotchiP1J.bin` (Sammlung zu BrickEmuPy) | 12 288 Bytes | `15763f806c9c792f6a6458538dbd932a3c6668a3` | `15647a14` |
+| Tamagotchi P2 | `tamag2.bin` aus dem MAME-Romset `tamag2` | 12 288 Bytes | `09e5101b37636a314fc599d5d69b4846721b3c88` | `9f97539e` |
+| Tamagotchi Angel | `tamaang.bin` aus dem MAME-Romset `tamaang` | 16 384 Bytes | `f5899bb7717756ac581451cf16cf97d909961c5c` | `87bcb59f` |
 
-Fehlt die ROM beim Start, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und fragt
-danach: Man lädt `tama.b` (oder MAMEs `tama.zip`) im Browser hoch oder nennt den Pfad, unter dem
-sie auf dem Server liegt. Angenommen wird die Datei nur, wenn die Prüfsumme passt. Gespeichert
-wird sie als `tama.b` neben dem Spielstand. Wer sie selbst hinlegen will: dorthin oder nach
-`tama/tama.b`, oder `--rom` angeben.
+Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
+fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
+unter dem sie auf dem Server liegt. Angenommen wird sie nur, wenn die Prüfsumme passt.
+Gespeichert wird sie im Ordner `roms/` neben den Spielständen. Wer ROMs selbst hinlegen will:
+dorthin, als `tama.b` neben den Spielstand, nach `tama/tama.b`, oder mit `--rom` eine Datei oder
+einen ganzen Ordner angeben (mehrfach möglich).
+
+## Mehrere Tiere
+
+Oben auf der Seite steht für jedes Tier ein Tab, „+“ legt ein neues an (Modell wählen, Name
+vergeben, Farbe der Hülle aussuchen), auch mehrere vom selben Modell. Jedes Tier hat seinen
+eigenen Care-Bot, sein Ziel, sein Tempo und seinen Spielstand; die Farbe lässt sich unter
+„Gerät“ jederzeit ändern. „Tier entfernen“ schließt den Tab; der Spielstand wird dabei
+nicht gelöscht, sondern nach `deleted/` verschoben.
+
+Jedes Tier läuft in einem eigenen Prozess (TamaLIB hält die ganze Maschine in globalen
+Variablen, in einen Prozess passt also nur eines). In Echtzeit braucht ein Tier etwa 1 % eines
+Prozessorkerns und 25 MB.
+
+Neben dem Spielstand des ersten Tiers (`tama_state.json`) liegen `pets.json` mit der Liste der
+Tiere, `pets/` mit den weiteren Spielständen und `settings.json`. Wer von der Fassung mit nur
+einem Tier kommt, findet es als ersten Tab wieder.
 
 ![Erster Start ohne ROM](docs/img/optionen.jpg)
 
@@ -107,8 +125,92 @@ daran nichts.
 
 Diese Tabellen stammen nicht aus dem Netz, sondern aus der ROM: Kurz vor jeder Verwandlung
 wurden beide Zähler im emulierten RAM auf alle 16 × 16 Kombinationen gesetzt und das Ergebnis
-ausgelesen. Die Skripte dazu liegen in [`lab/`](lab/). Getestet ist nur dieser eine ROM-Dump;
+ausgelesen. Die Skripte dazu liegen in [`lab/`](lab/). Getestet sind nur diese drei ROM-Dumps;
 andere Fassungen und die Neuauflagen können anders rechnen.
+
+### Tamagotchi P1 Japan
+
+Die japanische Ausgabe ergab dieselben Tabellen und hat dasselbe Spiel. Anders ist nur das Ende:
+statt des Engels erscheint ein Grabstein.
+
+### Tamagotchi Angel
+
+Der Angel (Tenshitchi no Tamagotchi, hier die japanische Fassung) hat einen ersten Care-Bot.
+Darunter steckt dieselbe Maschine wie im P1: Figur, Hunger, Glück, Pflegefehler, Uhr und Licht
+liegen in denselben RAM-Zellen, statt des Gewichts wird Angel Power gezählt. Anders sind die
+Reihenfolge im Menü (Status, Essen, Spiel, Toilette, Loben, Medizin, Licht), das Spiel und ein
+paar Eigenheiten:
+
+- **Sprungspiel:** Fünfmal kommt ein Hindernis. Der Bot liest dessen Position aus dem RAM und
+  springt (B), wenn es zwei Schritte entfernt ist. Ein Spiel füllt das Glück ganz.
+- **Süßes und Fledermaus:** Süßes gibt 2 Angel Power. Etwa bei jedem sechsten kommt eine
+  Fledermaus; ein Klopfen aufs Gehäuse, solange sie im Bild ist, rettet es. Unter dem Gerät gibt
+  es dafür die Taste „Klopfen“ (Taste T), der Bot klopft selbst.
+- **Medizin:** Ein krankes Tier brauchte im Test vier Gaben.
+- **Beten:** Ab der Kind-Stufe steht das Tier ab und zu mit erhobenen Armen in der Bildmitte. Der
+  Bot lobt es dann; das gibt 20 Angel Power. Danach liegt immer ein Häufchen da.
+- **Spaziergang:** Ab und zu zeigt das Bild eine Tür und das Tier ist fünf Minuten weg. Der
+  Bot wartet, bis es zurückkommt.
+- **Pflegefehler** werden bei jeder Verwandlung wieder auf 0 gesetzt.
+
+Auf `/bot` lässt sich auch beim Angel ein Ziel wählen. Jede Stufe entscheidet für sich, die
+Pflegefehler beginnen bei jeder Verwandlung wieder bei 0:
+
+| Verwandlung | Pflegefehler | Angel Power | wird zu |
+|---|---|---|---|
+| Marutchi Angel (Kind) | 0–2 | egal | Tamatchi Angel |
+| | ab 3 | egal | Takotchi Angel |
+| Tamatchi Angel | 0–2 | egal | Chestnut Angel |
+| | ab 3 | egal | Ginjirotchi Angel |
+| Takotchi Angel | egal | ab 40 | Chubby Angel |
+| | egal | 30–39 | Tarakotchi Angel |
+| | egal | unter 30 | Oyajitchi Angel |
+| Chestnut Angel | 0–3 | egal | Twin Angels |
+| Chubby Angel | 0–2 | egal | Twin Angels |
+| Tarakotchi Angel | 0–3 | egal | Cactus Angel |
+| Oyajitchi Angel | 0–4 | egal | Shogun Angel |
+
+Mit mehr Fehlern bleiben die vier Erwachsenen der letzten Zeilen, was sie sind; Ginjirotchi Angel
+verwandelt sich nie weiter. Wird ein Angel als dieselbe Figur dreimal krank, wird er zu
+Deviltchi und ist verloren (krank wird er, wenn man im Wachen das Licht ausschaltet). Alle Grenzen
+sind im Emulator nachgemessen (`growth_angel.py`) und decken sich mit der Figurenliste des
+[Tamagotchi-Wikis](https://tamagotchi.fandom.com/wiki/Tamagotchi_Angel/Character_list).
+
+Für ein Ziel macht der Bot die nötigen Pflegefehler selbst: Jedes Loben nimmt ein Herz Einsatz,
+ist keins mehr da, ruft das Tier, und ein Ruf, der eine Viertelstunde unbeantwortet bleibt, zählt
+(etwa ein Fehler pro Stunde). Beim Takotchi Angel hält er die Angel Power im passenden Bereich:
+Süßes hebt sie, und wo sie niedrig bleiben muss, lobt er das Beten nicht. Im Zeitraffer hat er
+vom Start weg jedes der zehn Ziele erreicht.
+
+**Lucky Unchi-Kun** braucht vier Generationen nacheinander auf demselben Gerät (gefunden vom
+YouTuber Aibonnotamakatsunikki, hier im Emulator bestätigt): zweimal einen Oyajitchi Angel, der
+einer bleibt, bis er sich verabschiedet (der zweite geht als Unchi-Kun ohne Gesicht), dann einen
+Ginjirotchi Angel; das Baby der vierten Generation wird kein Kind, sondern nach fünf Tagen Lucky
+Unchi-Kun. Der Bot macht das als Ziel von allein: Er lässt jeden Erwachsenen zwei Tage leben,
+macht dann alle zwölf Stunden einen Pflegefehler, bis er weint, drückt B für den Abschied und A
+und C zusammen für die nächste Generation. Im Zeitraffer dauerte das knapp 22 Tage. „Neues Ei“
+unterbricht die Kette.
+
+### Japanische Fassungen
+
+P1 Japan, P2 und Angel beschriften ihre Menüs japanisch. Ist bei so einem Tier Essen, Licht oder
+Status angewählt, steht unter dem Gerät, was die Wörter heißen (Schrift, Aussprache, Bedeutung),
+zum Beispiel ごはん (gohan) für die Mahlzeit. Die Wörter sind vom emulierten Display abgelesen.
+
+### Tamagotchi P2
+
+Das P2 ist dasselbe Programm mit anderen Bildern und einem anderen Spiel. Die RAM-Adressen sind
+dieselben, und dieselben Experimente ergaben dieselben Tabellen und dieselben Zeiten. Es heißen
+nur alle anders:
+
+| P1 | Marutchi | Tamatchi | Kuchitamatchi | Mametchi | Ginjirotchi | Maskutchi | Kuchipatchi | Nyorotchi | Tarakotchi | Oyajitchi |
+|---|---|---|---|---|---|---|---|---|---|---|
+| P2 | Tonmarutchi | Tongaritchi | Hashitamatchi | Mimitchi | Pochitchi | Zuccitchi | Hashizotchi | Kusatchi | Takotchi | Zatchi |
+
+Im Spiel des P2 rät man, ob die nächste Zahl (1 bis 9) höher (B) oder niedriger (A) ist. Die
+nächste Zahl entsteht erst beim Tastendruck, vorhersagen lässt sie sich nicht. Der Bot liest die
+angezeigte Zahl aus dem RAM und tippt bei 1 bis 4 auf höher, sonst auf niedriger. Damit gewann
+er im Test 28 von 30 Spielen.
 
 | | | | |
 |---|---|---|---|
@@ -158,9 +260,12 @@ src/tamalib/     TamaLIB, unverändert bis auf eine Zeile in cpu.c (i = 0xFF in 
 src/tama_core.c  C-Hülle: ROM laden, Ticks laufen lassen, LCD/Ton/RAM auslesen, Zustand sichern
 tama.py          ctypes-Anbindung
 carebot.py       der Care-Bot
-growth.py        Wachstumsregeln und Planung für ein Ziel
+growth.py        Wachstumsregeln und Planung für ein Ziel (P1, P2)
+growth_angel.py  dasselbe für den Angel
+models.py        die bekannten ROMs und worin sie sich unterscheiden
 report.py        Tagesbericht per E-Mail
-server.py        Emulator-Schleife und HTTP-Server
+engine.py        ein Tier: Emulator-Schleife und Care-Bot, als eigener Prozess
+server.py        HTTP-Server, startet je Tier einen Prozess
 web/             Oberfläche, die Unterseite /bot und die Optionen /settings
 lab/             die Experimente, aus denen die Tabellen stammen
 ```

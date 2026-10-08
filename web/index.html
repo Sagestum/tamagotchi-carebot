@@ -239,10 +239,71 @@
     padding: 8px 14px;
   }
   #offline.show { display: block; }
+  /* What the Japanese words on the screen mean */
+  #legend {
+    max-width: 330px;
+    margin: 10px auto 0;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+  }
+  #legend table { margin: 4px auto 0; border-collapse: collapse; text-align: left; }
+  #legend td { padding: 1px 8px 1px 0; vertical-align: top; }
+  #legend td:first-child { color: var(--ink); font-size: 15px; white-space: nowrap; }
+  #legend td:nth-child(2) { font-style: italic; white-space: nowrap; }
+  /* One tab per pet */
+  #tabs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #tabs button {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    font: inherit;
+    border-radius: 999px;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+  #tabs button small { color: var(--muted); margin-left: 6px; }
+  #tabs button i, .swatches button {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  }
+  #tabs button i { margin-right: 7px; }
+  .swatches { display: flex; gap: 6px; }
+  .swatches button { width: 20px; height: 20px; border: 0; padding: 0; cursor: pointer; }
+  .swatches button.on { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #tabs button.on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+  #tabs button.on small { color: inherit; opacity: 0.7; }
+  #tabs button.broken { border-color: var(--accent); }
+  dialog {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--ink);
+    padding: 18px 20px;
+    width: min(340px, 92vw);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+  dialog label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+  dialog select, dialog input {
+    width: 100%;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  dialog .msg { color: var(--accent); font-size: 13px; margin: 10px 0 0; min-height: 1.2em; }
 </style>
 </head>
 <body>
 <main>
+  <nav id="tabs" aria-label="Tiere"></nav>
   <div id="offline">Keine Verbindung zum Server – das Tamagotchi ist angehalten, bis <code>server.py</code> wieder läuft.</div>
 
   <div>
@@ -258,32 +319,35 @@
         <button data-btn="C" aria-label="Taste C: abbrechen">C</button>
       </div>
     </div>
+    <div id="legend" hidden></div>
+    <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
+      – der Sensor im Gehäuse, Taste <kbd>T</kbd></p>
     <p class="hint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
   </div>
 
   <aside>
-    <section>
+    <section id="careBox">
       <h2>Care-Bot</h2>
       <div class="row">
         <span>Kümmert sich automatisch <span class="flag" id="handsOff" hidden>wartet auf dich</span></span>
         <label class="switch"><input type="checkbox" id="bot"><b></b></label>
       </div>
-      <div class="row">
+      <div class="row" id="disciplineRow">
         <span>Darf schimpfen</span>
         <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
       </div>
-      <div class="row">
+      <div class="row" id="goalRow">
         <span>Ziel</span>
-        <span><b id="goal">keins</b> · <a href="/bot">Wachstum und Ziel</a></span>
+        <span><b id="goal">keins</b> · <a href="/bot" id="botLink">Wachstum und Ziel</a></span>
       </div>
     </section>
 
     <section>
       <h2>Zustand</h2>
       <div class="row"><span>Hunger</span><span class="hearts" id="hunger"></span></div>
-      <div class="row"><span>Glück</span><span class="hearts" id="happy"></span></div>
+      <div class="row" id="happyRow"><span id="happyLabel">Glück</span><span class="hearts" id="happy"></span></div>
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
-      <div class="row"><span>Gewicht</span><span id="weight">–</span></div>
+      <div class="row"><span id="weightLabel">Gewicht</span><span id="weight">–</span></div>
       <div class="row"><span>Uhr im Gerät</span><span id="clock">–</span></div>
       <div class="row" id="gameRow" hidden><span>Spielrunde (steht vorher fest)</span><span id="game"></span></div>
       <div class="flags" id="flags"></div>
@@ -314,8 +378,16 @@
         <a href="/settings">E-Mail und ROM</a>
       </div>
       <div class="row">
+        <span>Farbe</span>
+        <span class="swatches" id="colors"></span>
+      </div>
+      <div class="row">
         <span>Von vorn beginnen</span>
         <button class="plain" id="reset">Neues Ei</button>
+      </div>
+      <div class="row">
+        <span>Diesen Tab schließen</span>
+        <button class="plain" id="remove">Tier entfernen</button>
       </div>
     </section>
 
@@ -326,32 +398,108 @@
   </aside>
 </main>
 
+<dialog id="newPet">
+  <form method="dialog" id="newForm">
+    <h2>Neues Tier</h2>
+    <label for="newModel">Modell</label>
+    <select id="newModel"></select>
+    <label for="newName">Name (steht auf dem Tab)</label>
+    <input type="text" id="newName" maxlength="24" autocomplete="off">
+    <label>Farbe</label>
+    <span class="swatches" id="newColors"></span>
+    <p class="msg" id="newMsg" role="status"></p>
+    <div class="actions">
+      <button class="plain" type="button" id="newCancel">Abbrechen</button>
+      <button class="plain" type="submit">Anlegen</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 const $ = (id) => document.getElementById(id);
 
-/* Menu icons, in LCD order: four above the pet, four below */
-const ICONS = [
-  ['Füttern', '<path d="M7 3v7a2 2 0 0 0 4 0V3M9 3v18M16 3c-2 2-2 7 0 9v9"/>'],
-  ['Licht', '<path d="M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11zM10 20h4"/>'],
+/* Menu icons. Every model has them in its own order (msg.menu): four above the pet, four below */
+const ICONS = {
+  food: ['Füttern', '<path d="M7 3v7a2 2 0 0 0 4 0V3M9 3v18M16 3c-2 2-2 7 0 9v9"/>'],
+  light: ['Licht', '<path d="M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11zM10 20h4"/>'],
   // "arrow-left-right" from coolicons by Kryston Schwarze, CC BY 4.0
-  ['Spielen', '<path d="m16 13l3 3m0 0l-3 3m3-3H5m3-5L5 8m0 0l3-3M5 8h14"/>'],
-  ['Medizin', '<path d="M14 4l6 6M17 7l-9 9-3 1 1-3 9-9M9 11l4 4M5 19l-2 2"/>'],
-  ['Saubermachen', '<path d="M5 4h4v7h10a6 6 0 0 1-6 6H9a4 4 0 0 1-4-4zM9 17v3h6v-3"/>'],
-  ['Status', '<path d="M4 17a8 8 0 0 1 16 0zM12 17l4-6"/>'],
-  ['Schimpfen', '<path d="M4 5h16v10H10l-4 4v-4H4zM12 7.5v4M12 13v.5"/>'],
-  ['Ruft nach dir', '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>'],
-];
-ICONS.forEach(([title, path], i) => {
-  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-    stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`;
-  (i < 4 ? $('iconsTop') : $('iconsBottom')).insertAdjacentHTML('beforeend', svg);
-});
-const iconEls = [...document.querySelectorAll('.icons svg')];
-/* Clicking a menu icon walks there with A; the last one is the pet calling */
-iconEls.slice(0, 7).forEach((el, i) => {
-  el.classList.add('pick');
-  el.addEventListener('click', () => post('/api/icon', {icon: i}));
-});
+  game: ['Spielen', '<path d="m16 13l3 3m0 0l-3 3m3-3H5m3-5L5 8m0 0l3-3M5 8h14"/>'],
+  medicine: ['Medizin', '<path d="M14 4l6 6M17 7l-9 9-3 1 1-3 9-9M9 11l4 4M5 19l-2 2"/>'],
+  toilet: ['Saubermachen', '<path d="M5 4h4v7h10a6 6 0 0 1-6 6H9a4 4 0 0 1-4-4zM9 17v3h6v-3"/>'],
+  status: ['Status', '<path d="M4 17a8 8 0 0 1 16 0zM12 17l4-6"/>'],
+  discipline: ['Schimpfen', '<path d="M4 5h16v10H10l-4 4v-4H4zM12 7.5v4M12 13v.5"/>'],
+  praise: ['Loben', '<path d="M12 20s-7-4.5-7-9.5a4 4 0 0 1 7-2.5a4 4 0 0 1 7 2.5c0 5-7 9.5-7 9.5z"/>'],
+  attention: ['Ruft nach dir', '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>'],
+};
+/* The Japanese editions: what the words on the screen say, by the menu that is open.
+   Read off the emulated LCD: [as written, how it is read, what it means]. */
+const JP_P1 = {
+  food: [['ごはん', 'gohan', 'Mahlzeit, füllt den Hunger'], ['おかし', 'okashi', 'Süßes, füllt das Glück']],
+  light: [['おん', 'on', 'Licht an'], ['おふ', 'ofu', 'Licht aus']],
+  status: [['才', 'sai', 'Alter in Jahren (darunter das Gewicht)'], ['しつけ', 'shitsuke', 'Erziehung'],
+           ['おなか', 'onaka', 'Bauch: Hunger'], ['ごきげん', 'gokigen', 'Laune: Glück']],
+};
+const JP = {
+  p1j: JP_P1,
+  p2: JP_P1,
+  angel: {
+    food: [['パイ', 'pai', 'Kuchen, füllt den Hunger'], ['チョコ', 'choko', 'Schokolade, +2 Angel Power']],
+    light: [['おん', 'on', 'Licht an'], ['おふ', 'ofu', 'Licht aus']],
+    status: [['', '', 'erste Seite: Alter, darunter Angel Power'], ['しあわせ', 'shiawase', 'Glück: Anzeige der guten Taten'],
+             ['おなか', 'onaka', 'Bauch: Hunger'], ['がんばる', 'ganbaru', 'sich anstrengen: Einsatz']],
+  },
+};
+let legend = '';
+function drawLegend(msg) {
+  const words = JP[msg.model];
+  let open = null;
+  for (let i = 0; i < 7; i++) if ((msg.icons >> i) & 1) open = msg.menu[i];
+  const key = msg.model + ':' + (words ? open : '');
+  if (key === legend) return;
+  legend = key;
+  const box = $('legend');
+  box.hidden = !words;
+  box.textContent = '';
+  if (!words) return;
+  const rows = words[open];
+  if (!rows) {
+    box.textContent = 'Japanische Fassung: Bei Essen, Licht und Status steht hier, was die Wörter bedeuten.';
+    return;
+  }
+  const table = document.createElement('table');
+  for (const row of rows) {
+    const tr = table.insertRow();
+    for (const text of row) tr.insertCell().textContent = text;
+  }
+  box.append(table);
+}
+
+/* Where a model's shell shows another picture for the same thing */
+const ICONS_OF = {
+  angel: {
+    game: ['Spielen', '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>'],
+    praise: ['Loben', '<path d="M12 3v3M8 17c0-5 1-9 4-9s4 4 4 9M6 17h12M12 20v.5"/>'],
+    medicine: ['Medizin', '<path d="M7 3c8 2 8 16 0 18M7 3v18M3 12h16M16 9l3 3-3 3"/>'],
+  },
+};
+let iconEls = [], menu = '';
+function drawIcons(names, model) {
+  $('iconsTop').textContent = '';
+  $('iconsBottom').textContent = '';
+  names.forEach((name, i) => {
+    const [title, path] = (ICONS_OF[model] || {})[name] || ICONS[name];
+    const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+      stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`;
+    (i < 4 ? $('iconsTop') : $('iconsBottom')).insertAdjacentHTML('beforeend', svg);
+  });
+  iconEls = [...document.querySelectorAll('.icons svg')];
+  /* Clicking a menu icon walks there with A; the last one is the pet calling */
+  iconEls.slice(0, 7).forEach((el, i) => {
+    el.classList.add('pick');
+    el.addEventListener('click', () => post('/api/icon', {icon: i}));
+  });
+}
+drawIcons(['food', 'light', 'game', 'medicine', 'toilet', 'status', 'discipline', 'attention']);
 
 /* LCD */
 const canvas = $('lcd');
@@ -400,11 +548,12 @@ function playSound(events) {
 }
 
 /* Commands */
+let pet = null;     // the pet of the open tab
 function post(path, body) {
   return fetch(path, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify({...body, pet: pet && pet.id}),
   }).catch(() => {});
 }
 
@@ -423,10 +572,10 @@ document.querySelectorAll('[data-btn]').forEach((el) => {
   }
   el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
 });
-const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C'};
+const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C', t: 'T'};
 window.addEventListener('keydown', (e) => {
   const name = KEYS[e.key];
-  if (!name || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!name || e.repeat || e.ctrlKey || e.metaKey || e.altKey || $('newPet').open) return;
   e.preventDefault();
   setButton(name, true);
 });
@@ -442,54 +591,60 @@ $('speed').addEventListener('click', (e) => {
 
 $('testmail').addEventListener('click', () => post('/api/test-mail'));
 
-let resetArmed = null;
-$('reset').addEventListener('click', () => {
-  const btn = $('reset');
-  if (resetArmed) {
-    clearTimeout(resetArmed);
-    resetArmed = null;
-    btn.textContent = 'Neues Ei';
-    btn.classList.remove('danger');
-    post('/api/reset');
-    return;
-  }
-  btn.textContent = 'Wirklich? Das Tier geht verloren';
-  btn.classList.add('danger');
-  resetArmed = setTimeout(() => {
-    resetArmed = null;
-    btn.textContent = 'Neues Ei';
-    btn.classList.remove('danger');
-  }, 4000);
-});
+/* Buttons that cost the pet ask twice */
+function twice(id, label, warning, action) {
+  let armed = null;
+  const btn = $(id);
+  const calm = () => { armed = null; btn.textContent = label; btn.classList.remove('danger'); };
+  btn.addEventListener('click', () => {
+    if (armed) {
+      clearTimeout(armed);
+      calm();
+      action();
+      return;
+    }
+    btn.textContent = warning;
+    btn.classList.add('danger');
+    armed = setTimeout(calm, 4000);
+  });
+}
+twice('reset', 'Neues Ei', 'Wirklich? Das Tier geht verloren', () => post('/api/reset'));
+twice('remove', 'Tier entfernen', 'Wirklich? Der Tab verschwindet',
+      () => post('/api/pets/remove').then(() => loadPets()));
 
 /* Live state */
-const CHARACTERS = ['Ei', 'Babytchi (Baby)', 'Marutchi (Kind)', 'Tamatchi (Teenager)', 'Kuchitamatchi (Teenager)',
-  'Mametchi', 'Ginjirotchi', 'Maskutchi', 'Kuchipatchi', 'Nyorotchi', 'Tarakotchi', 'Oyajitchi'];
-function stageName(n) {
-  return CHARACTERS[n] || 'Erwachsen';
-}
+const AGE = {1: ' (Baby)', 2: ' (Kind)', 3: ' (Teenager)', 4: ' (Teenager)'};
 function hearts(n) {
   return '♥'.repeat(n) + '<i>' + '♥'.repeat(4 - n) + '</i>';
 }
 function render(msg) {
   drawLcd(msg.lcd);
+  if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
+  $('tapRow').hidden = !msg.tap;
+  $('careBox').hidden = !msg.care;      // no bot for this model (yet)
+  $('happyRow').hidden = !msg.care;
+  $('goalRow').hidden = !msg.goals;
+  $('disciplineRow').hidden = !msg.goals || !msg.menu.includes('discipline');
+  $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
+  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : 'Glück';
+  drawLegend(msg);
   iconEls.forEach((el, i) => el.classList.toggle('on', (msg.icons >> i) & 1));
 
   const st = msg.status;
   const alive = st.stage > 0 && !st.dead;
   $('hunger').innerHTML = alive ? hearts(st.hunger) : '–';
   $('happy').innerHTML = alive ? hearts(st.happy) : '–';
-  $('stage').textContent = st.dead ? 'Gestorben' : stageName(st.stage);
-  $('weight').textContent = alive ? st.weight + ' oz' : '–';
+  $('stage').textContent = st.dead ? 'Gestorben' : st.name + (msg.care && AGE[st.stage] || '');
+  $('weight').textContent = alive ? st.weight + (msg.unit === 'AP' ? '' : ' oz') : '–';
   $('clock').textContent = alive ? st.clock : '–';
   $('gameRow').hidden = st.game === null || !alive;
   $('game').textContent = st.game ? 'wird gewonnen' : 'wird verloren';
   const flags = [];
   if (st.dead) flags.push(['Gestorben', true]);
-  if (alive && st.poop) flags.push([st.poop + '× Häufchen', true]);
-  if (alive && st.sick) flags.push(['Krank', true]);
+  if (alive && msg.care && st.poop) flags.push([st.poop + '× Häufchen', true]);
+  if (alive && msg.care && st.sick) flags.push(['Krank', true]);
   if (alive && st.attention) flags.push(['Ruft nach dir', true]);
-  if (alive && st.asleep) flags.push(['Schläft', false]);
+  if (alive && msg.care && st.asleep) flags.push(['Schläft', false]);
   if (alive && !st.light) flags.push(['Licht aus', false]);
   $('flags').innerHTML = flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('');
 
@@ -497,7 +652,7 @@ function render(msg) {
   $('handsOff').hidden = !msg.handsOff;
   $('discipline').checked = msg.discipline;
   $('discipline').disabled = !!msg.goal;      // with a goal the bot decides that itself
-  $('goal').textContent = msg.goal ? stageName(msg.goal) : 'keins';
+  $('goal').textContent = msg.goalName || 'keins';
   $('paused').checked = msg.paused;
   document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));
 
@@ -515,9 +670,123 @@ function render(msg) {
   if (msg.sound.length) playSound(msg.sound);
 }
 
-const events = new EventSource('/events');
-events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
-events.onerror = () => $('offline').classList.add('show');
+/* Shell colours: light, dark, edge */
+const SHELLS = {
+  yellow: ['#ffd23f', '#f29f05', '#b86e00'],
+  red: ['#ff8a75', '#e0412d', '#96200f'],
+  blue: ['#8accff', '#2f86e0', '#165199'],
+  green: ['#b5e67a', '#5cab25', '#356d0d'],
+  pink: ['#ffadd8', '#ec5fa8', '#a82a6d'],
+  teal: ['#8ae8da', '#1fb5a3', '#0d7468'],
+  purple: ['#cfb0ff', '#8e5be8', '#5a2fa8'],
+  white: ['#ffffff', '#d9d9de', '#9a9aa3'],
+};
+const COLOR_NAMES = {yellow: 'Gelb', red: 'Rot', blue: 'Blau', green: 'Grün', pink: 'Rosa',
+                     teal: 'Türkis', purple: 'Lila', white: 'Weiß'};
+function swatches(el, chosen, pick) {
+  el.textContent = '';
+  for (const c in SHELLS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.style.setProperty('--c', SHELLS[c][1]);
+    b.title = COLOR_NAMES[c];
+    b.setAttribute('aria-label', COLOR_NAMES[c]);
+    b.className = c === chosen ? 'on' : '';
+    b.addEventListener('click', () => pick(c));
+    el.append(b);
+  }
+}
+function paint(color) {
+  const [a, b, edge] = SHELLS[color] || SHELLS.yellow;
+  const root = document.documentElement.style;
+  root.setProperty('--shell-a', a);
+  root.setProperty('--shell-b', b);
+  root.setProperty('--shell-edge', edge);
+}
+
+/* Tabs: every pet has its own stream */
+const OFFLINE = $('offline').innerHTML;
+let events = null, models = [];
+function openPet(p) {
+  pet = p;
+  history.replaceState(null, '', '#' + p.id);
+  document.title = p.name + ' – Tamagotchi';
+  $('botLink').href = '/bot?pet=' + p.id;
+  [...held].forEach((name) => { held.delete(name); document.querySelector(`[data-btn="${name}"]`).classList.remove('down'); });
+  if (events) events.close();
+  $('offline').innerHTML = OFFLINE;
+  $('offline').classList.remove('show');
+  if (p.error) {
+    $('offline').textContent = p.name + ' läuft nicht: ' + p.error;
+    $('offline').classList.add('show');
+  }
+  events = new EventSource('/events?pet=' + p.id);
+  events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
+  events.onerror = () => $('offline').classList.add('show');
+}
+async function loadPets(select) {
+  const data = await (await fetch('/api/pets')).json();
+  models = data.models;
+  if (!data.pets.length) { location.href = '/settings'; return; }
+  const want = select || location.hash.slice(1);
+  const cur = data.pets.find((p) => p.id === want) || data.pets[0];
+  const nav = $('tabs');
+  nav.textContent = '';
+  for (const p of data.pets) {
+    const b = document.createElement('button');
+    const small = document.createElement('small');
+    small.textContent = p.modelName.replace('Tamagotchi ', '');
+    const dot = document.createElement('i');
+    dot.style.setProperty('--c', (SHELLS[p.color] || SHELLS.yellow)[1]);
+    b.append(dot, p.name);
+    if (p.name !== p.modelName) b.append(small);     // tell pets of different models apart
+    b.className = (p.id === cur.id ? 'on' : '') + (p.error || !p.alive ? ' broken' : '');
+    b.title = p.error || p.modelName;
+    b.addEventListener('click', () => loadPets(p.id));
+    nav.append(b);
+  }
+  const add = document.createElement('button');
+  add.textContent = '+';
+  add.title = 'Neues Tier';
+  add.setAttribute('aria-label', 'Neues Tier');
+  add.addEventListener('click', newPet);
+  nav.append(add);
+  if (!pet || pet.id !== cur.id || pet.error !== cur.error) openPet(cur);
+  pet = cur;
+  paint(cur.color);
+  swatches($('colors'), cur.color,
+           (c) => post('/api/pets/color', {color: c}).then(() => loadPets(cur.id)));
+}
+
+let newColor = null;    // none chosen: the server takes one that is still free
+function newPet() {
+  const have = models.filter((m) => m.rom);
+  $('newModel').textContent = '';
+  for (const m of have) $('newModel').append(new Option(m.name, m.id));
+  $('newName').value = '';
+  newColor = null;
+  const choose = (c) => { newColor = c; swatches($('newColors'), c, choose); };
+  swatches($('newColors'), null, choose);
+  const missing = models.filter((m) => !m.rom).map((m) => m.name);
+  $('newMsg').textContent = missing.length ? 'Ohne ROM (unter „Optionen“ angeben): ' + missing.join(', ') : '';
+  $('newPet').showModal();
+  $('newName').focus();
+}
+$('newCancel').addEventListener('click', () => $('newPet').close());
+$('newForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch('/api/pets', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({model: $('newModel').value, name: $('newName').value, color: newColor}),
+  }).catch(() => null);
+  const data = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok) { $('newMsg').textContent = data.error || 'Keine Verbindung zum Server.'; return; }
+  $('newPet').close();
+  loadPets(data.id);
+});
+
+loadPets().catch(() => $('offline').classList.add('show'));
 </script>
 </body>
 </html>

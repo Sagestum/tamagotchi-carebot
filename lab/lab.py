@@ -2,20 +2,22 @@ import sys, os, pickle
 P = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, P)
 from tama import Tama, ascii_frame, BTN_A, BTN_B, BTN_C
-import carebot
+import carebot, models
 from carebot import CareBot
 
 CHUNK = 1024
 MEMLEN = 550
 LABLIB = os.path.dirname(os.path.abspath(__file__)) + "/libtamalab.so"
+ROM = os.environ.get("TAMA_ROM", P + "/tama/tama.b")   # another dump: TAMA_ROM=...
+MODEL = models.identify(open(ROM, "rb").read()) or models.P1
 
 def new(log=None):
-    t = Tama(P + "/tama/tama.b", LABLIB)
+    t = Tama(ROM, LABLIB)
     logs = []
     def lg(msg):
         logs.append((t.seconds, msg))
         if log: log(msg)
-    b = CareBot(t, lg)
+    b = CareBot(t, lg, model=MODEL)
     b.realtime = False
     b.logs = logs
     return t, b
@@ -77,9 +79,9 @@ class LabBot(CareBot):
         return CareBot.plan(self)
 
 def new_lab(**kw):
-    t = Tama(P + "/tama/tama.b", LABLIB)
+    t = Tama(ROM, LABLIB)
     logs = []
-    b = LabBot(t, lambda m: logs.append((t.seconds, m)))
+    b = LabBot(t, lambda m: logs.append((t.seconds, m)), model=MODEL)
     b.realtime = False
     b.logs = logs
     for k, v in kw.items(): setattr(b, k, v)

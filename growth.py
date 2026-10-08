@@ -1,4 +1,4 @@
-"""Growth chart of the P1 ROM: which character the pet turns into, and why.
+"""Growth chart of the P1 and P2 ROMs: which character the pet turns into, and why.
 
 Found by experiment (see DOKUMENTATION.md): shortly before an evolution the
 two counters were set to every combination and the result was read from RAM.
@@ -10,6 +10,10 @@ Only two things count:
 
 Both only ever go up (to 15) and are kept for the pet's whole life. The
 discipline meter itself (RAM 0x43) plays no part.
+
+The constants carry the names of the P1 characters. The P2 ROM gave the same
+tables in the same experiments; its characters have the same numbers and
+other names (models.py).
 """
 from functools import lru_cache
 
@@ -17,22 +21,11 @@ EGG, BABY, CHILD = 0, 1, 2
 TAMATCHI, KUCHITAMATCHI = 3, 4
 MAMETCHI, GINJIROTCHI, MASKUTCHI, KUCHIPATCHI, NYOROTCHI, TARAKOTCHI, OYAJITCHI = range(5, 12)
 
-NAMES = {
-    EGG: "Ei", BABY: "Babytchi", CHILD: "Marutchi",
-    TAMATCHI: "Tamatchi", KUCHITAMATCHI: "Kuchitamatchi",
-    MAMETCHI: "Mametchi", GINJIROTCHI: "Ginjirotchi", MASKUTCHI: "Maskutchi",
-    KUCHIPATCHI: "Kuchipatchi", NYOROTCHI: "Nyorotchi", TARAKOTCHI: "Tarakotchi",
-    OYAJITCHI: "Oyajitchi",
-}
 GOALS = (MAMETCHI, GINJIROTCHI, MASKUTCHI, KUCHIPATCHI, NYOROTCHI, TARAKOTCHI, OYAJITCHI)
 
 # RAM 0x50 tells the two kinds of each teenager apart: the second kind had
 # missed three or more discipline calls as a child.
 SECRET_KIND = 6     # RAM 0x50 of a Maskutchi that will become Oyajitchi
-
-
-def stage_name(stage):
-    return NAMES.get(stage, "Erwachsen")
 
 
 def teen_for(mistakes, missed):

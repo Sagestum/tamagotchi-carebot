@@ -6,7 +6,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 TICK_HZ = 32768
 LCD_W, LCD_H, ICONS = 32, 16, 8
-BTN_A, BTN_B, BTN_C = 0, 1, 2
+BTN_A, BTN_B, BTN_C, BTN_TAP = 0, 1, 2, 3    # the tap sensor exists on the Angel only
 
 
 class SoundEvent(ctypes.Structure):

@@ -12,7 +12,6 @@ import time
 import zlib
 from email.message import EmailMessage
 
-import growth
 from tama import LCD_H, LCD_W, TICK_HZ
 
 SLEEP_AFTER = 20 * TICK_HZ      # asleep this long (emulated) = really asleep
@@ -57,8 +56,9 @@ def smtp_from_env(env=os.environ):
 
 
 class DailyReport:
-    def __init__(self, log, smtp=None):
+    def __init__(self, log, smtp=None, name=""):
         self.log = log
+        self.name = name        # which pet, when there are several
         self.configure(smtp or smtp_from_env())
 
         self.asleep = False         # debounced
@@ -144,7 +144,7 @@ class DailyReport:
             ("Herzen aufgefüllt", "%d (Hunger %d, Glück %d)"
              % (s["hunger"] + s["happy"], s["hunger"], s["happy"])),
             ("Gewicht", "%d oz" % st["weight"]),
-            ("Charakter", growth.stage_name(st["stage"])),
+            ("Charakter", st["name"]),
             ("Pflegefehler", "%d, dazu %d verpasste Schimpf-Rufe" % (st["mistakes"], st["missed"])),
             ("Aktueller Stand", "Hunger %d/4, Glück %d/4" % (st["hunger"], st["happy"])),
         ]
@@ -155,7 +155,7 @@ class DailyReport:
             rows.append(("Außerdem", extra))
 
         msg = EmailMessage()
-        msg["Subject"] = "Tamagotchi-Tagesbericht" + (
+        msg["Subject"] = "Tamagotchi-Tagesbericht" + (" " + self.name if self.name else "") + (
             ": schläft seit %s Uhr" % s["slept"] if s["slept"] else "")
         msg["From"] = self.mail_from
         msg["To"] = self.mail_to
