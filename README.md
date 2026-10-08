@@ -21,6 +21,7 @@ braucht seine eigene:
 | Tamagotchi P1 Japan | `TamagotchiP1J.bin` (Sammlung zu BrickEmuPy) | 12 288 Bytes | `15763f806c9c792f6a6458538dbd932a3c6668a3` | `15647a14` |
 | Tamagotchi P2 | `tamag2.bin` aus dem MAME-Romset `tamag2` | 12 288 Bytes | `09e5101b37636a314fc599d5d69b4846721b3c88` | `9f97539e` |
 | Tamagotchi Angel | `tamaang.bin` aus dem MAME-Romset `tamaang` | 16 384 Bytes | `f5899bb7717756ac581451cf16cf97d909961c5c` | `87bcb59f` |
+| Tamagotchi Morino | `TamagotchiMorino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `4b578ea5dd328fd49fc7a664abeca79e35d573b2` | `647ea772` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -138,6 +139,46 @@ andere Fassungen und die Neuauflagen können anders rechnen.
 
 Die japanische Ausgabe ergab dieselben Tabellen und hat dasselbe Spiel. Anders ist nur das Ende:
 statt des Engels erscheint ein Grabstein.
+
+### Tamagotchi Morino
+
+Das Morino (Mori de Hakken! Tamagotch, das mit den Käfern) ist dieselbe Maschine wie die anderen:
+Uhr, Hunger, Glück, Gewicht, Häufchen und Figur liegen in denselben RAM-Zellen. Anders ist fast
+alles, was über das Wachstum entscheidet:
+
+- **Zwei Eier:** Nach dem Uhrstellen wartet das Gerät auf eine Wahl. A oder C wechselt zwischen
+  dem weißen Ei (Babymotchi, zwölf mögliche Erwachsene) und dem gefleckten (Imotchi, wird immer
+  Kabutotchi), B zeigt die Uhr, ein weiteres B beginnt. Der Bot nimmt das weiße, außer das Ziel
+  heißt Kabutotchi.
+- **Keine Pflegefehler, keine Krankheit:** Es stirbt nur an Hunger, an Verletzungen oder im Kokon.
+- **Fressfeinde:** Zur vollen Stunde kommt ab und zu ein Fuß oder ein Frosch. Das fünfte Icon
+  leuchtet dann; es lässt sich sonst nicht anwählen. Eine Taste zeigt den Angreifer, Klopfen
+  vertreibt ihn (zwei Glücksherzen). Sonst ist das Tier verletzt und braucht Medizin; ein zweiter
+  Treffer im verletzten Zustand tötet es.
+- **Spiel:** Unter einem von vier Hüten liegt ein Blatt, viermal hintereinander. RAM `0x80` verrät
+  den Hut (dieser und der nächste gewinnen), der Bot trifft deshalb immer. Jedes Spiel kostet 1 mg.
+- **Kokon:** Imotchi wird alle zwölf wachen Stunden gewogen und spinnt ab 40 mg einen Kokon. Dessen
+  Art hängt an der versteckten Freundschaft (+2 je Spiel, −1 je verlorenem Glücksherz), der
+  Erwachsene an der Temperatur am Ende der 24 Stunden. Der Bot steuert Gewicht, Freundschaft und
+  Temperatur auf das gewählte Ziel hin; die Regeltabelle steht auf `/bot`.
+
+| Kokon | entsteht bei | Temperatur am Ende | wird zu |
+|---|---|---|---|
+| A | 1. oder 2. Wiegen, Freundschaft ab 10 | 1–6 | Tentotchi |
+| | | 7–9 | wieder Imotchi |
+| | | 10–14 | Koganetchi (Twinaritchi, wenn die Süße durch 4 geteilt den Rest 3 lässt) |
+| B | 1. oder 2. Wiegen mit Freundschaft 7–9, 3. Wiegen ab 7 | 1–7 | Minotchi |
+| | | 8–14 | Chobitamatchi |
+| C | 1. bis 3. Wiegen, Freundschaft bis 6 | 1–7 | Gejitchi |
+| | | 8–14 | Mushibatchi |
+| D | 4. Wiegen, egal wie schwer | 4–12 | Funkorogatchi |
+| | | 1–3, 13–14 | Minotchi |
+| gefleckt | geflecktes Ei, ab 40 mg | 1–14 | Kabutotchi |
+
+Bei Temperatur 0 oder 15 stirbt der Kokon. Helmetchi schlüpft aus Kokon D, wenn die Imotchi vorher
+schon einmal aus Kokon A zurückgekommen ist. Die Temperatur ändert sich etwa alle zweieinhalb
+Stunden um 1 oder 2; für das schmale Fenster 7–9 kann der letzte Schritt danebengehen, Helmetchi
+gelingt deshalb nicht in jedem Anlauf.
 
 ### Tamagotchi Angel
 

@@ -231,11 +231,14 @@
     <section>
       <h2>Stand</h2>
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
-      <div class="row"><span>Pflegefehler</span><span id="mistakes">–</span></div>
+      <div class="row" id="mistakesRow"><span>Pflegefehler</span><span id="mistakes">–</span></div>
       <div class="row" id="missedRow"><span>Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
       <div class="row" id="trainingRow"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
-      <div class="row" id="powerRow" hidden><span>Angel Power</span><span id="power">–</span></div>
-      <div class="row tall"><span>Ohne weitere Fehler</span><span id="forecast">–</span></div>
+      <div class="row" id="powerRow" hidden><span id="powerLabel">Angel Power</span><span id="power">–</span></div>
+      <div class="row" id="friendRow" hidden><span>Freundschaft (0–15)</span><span id="friend">–</span></div>
+      <div class="row" id="sweetRow" hidden><span>Süße (Rest beim Teilen durch 4)</span><span id="sweet">–</span></div>
+      <div class="row" id="tempRow" hidden><span>Temperatur im Kokon (0–15)</span><span id="temp">–</span></div>
+      <div class="row tall"><span id="forecastLabel">Ohne weitere Fehler</span><span id="forecast">–</span></div>
       <div class="row tall"><span>Plan des Bots</span><span id="plan">–</span></div>
     </section>
 
@@ -338,7 +341,38 @@ const CHARS_ANGEL = {
   20: ['Deviltchi', 'Das böse Ende. Wird ein Angel als dieselbe Figur dreimal krank, verwandelt er sich in Deviltchi und ist verloren.'],
 };
 
-/* Two families: P1 and P2 share one tree, the Angel has its own */
+const SPRITES_MORINO = /*MORINO*/{
+  1: [["0011100","0111110","1100011","1000001","1000001","1000001","1100011","0111110"],["0011100","0101010","0111110","1110111","1111111"]],
+  2: [["00111000","01000100","10010010","10000010","11100010","01000001","00100001","00011110"],["00011100","00100010","01001001","01000001","01000111","10000010","10000100","01111000"]],
+  3: [["1100011","0011100","0100010","1010101","1000001","1111111","0111110","1100011"],["1000001","0100010","0011100","0100010","1010101","1000001","1111111","0111110","0011100","1100011"]],
+  4: [["00001000","00001000","00001000","00001000","00111100","01000010","10100101","10011001","11000011","11111111","01111010","01110110","00111100","00011000"],["00010000","00010000","00010000","00010000","00111100","01000010","10100101","10011001","11000011","11111111","01111010","01110110","00111100","00011000"]],
+  5: [["00001000010000","00000111100000","00000011000000","00000011000000","00001111110000","00010100101000","00100000000100","10100011000101","01100000000110","00111111111100","00111111111100","00011111111000","00001111110000","00010000001000","00110000001100"],["00001000010000","00000111100000","00000011000000","00000011000000","00001111110000","00010100101000","00100000000100","00100011000100","00100000000100","00111111111100","01111111111110","10111111111101","10011111111001","00001111110000","00010000001000","00110000001100"]],
+  6: [["0000010000100000","0100101001110010","1110010000100101","0100000000000010","0001110000111000","0000111111110000","0000100000010000","0001010000101000","0001000110001000","0011000000001100","0101000000001010","0101111111111010","0000111111110000","0000011111100000","0000010000100000","0000110000110000"],["0000010000100000","0100111001010010","1010010000100111","0100000000000010","0001110000111000","0000111111110000","0000100000010000","0001010000101000","0001000110001000","0011000000001100","0101111111111010","0100111111110010","0000011111100000","0000010000100000","0000110000110000"]],
+  7: [["0000001101100","0000010010000","0001111110000","0011111101000","0111011110100","1111111110110","1101110110101","1111011110111","1111111110101","1011111010110","1111011110100","0111111101000","0001111111100","0011000000010"],["011011000000","000100100000","001111111000","010000001100","010100010110","010000000111","111111100111","100000010011","011111110001","010000010111","001111100011","001000000110","011111111000","100000001100"]],
+  8: [["000110011000","000010010000","000111111000","001000000100","001010010100","101000000100","101000000100","011111111110","001111111101","000111111100","011111111000","010000011100"],["000110011000","000010010000","000111111000","001000000100","001010010100","001000000101","001000000101","011111111110","101111111100","001111111000","000111111110","001110000010"]],
+  9: [["000000000100010","010001000111110","011111001010101","101010101000001","100000101001001","100100100111110","011111000011100","001110000011100","011011000110110"],["010001000000000","011111000100010","101010100111110","100000101010101","100100101000001","011111001001001","001110000111110","001110000011100","011011000110110"]],
+  10: [["000011011011000","100100111100100","110001000010000","100011100111000","100101111011100","101011100111010","101000111100010","111011000011011","101110111101110","101111000011110","100111111111100","100010111101000","100001000010000"],["100011100111000","110110111011100","100111100111100","100110111101100","101001000010010","101010011001010","111010100101010","101010100101011","101010100101010","101010100101010","101010100101010","100111011011100","000111100111100","000011111111000","000010111101000","000001000010000"]],
+  11: [["00000110000000","00000010000000","00001111100000","00010000010000","00101101101000","00100000001100","01111110001110","10000001001111","01111001001111","01000001011111","00111111111111","00000101011010"],["0000000001000000","0000000001000000","0000000001000000","0000000001000000","0000000111110000","0000001000001000","0000010110110100","0000010000000100","0001110001111110","0111110010000001","1111110010011110","1111111010000010","1111111111111100","1111111111110000","0101010101010000"]],
+  12: [["1000001111111100","0100010000110010","1000101110011001","1000110001010111","0000110001010011","1000010001010011","0100010001010111","0011010001010110","0100110001011001","0100110001011001","0010101110111111","0001010001111101","0000111110001110","0000000111111000","0000000010010000","0000001110011000"],["0000001111111100","0000010100000010","0000101110000001","0100100100000001","1000111111111111","0101010000100011","1001000000000111","0100111111100111","0100100001111110","0000101100111110","0111010011111001","0001001100001001","0000110111111110","0000000010010000","0000001110011000"]],
+  13: [["000000001111100","000000010000010","000000100000001","001111000000001","010000000000001","100100000000001","101000000000010","101000000011100","100000000100000","010000001000000","001111110000000"]],
+}/*END*/;
+const CHARS_MORINO = {
+  1: ['Babymotchi', 'Die Larve aus dem weißen Ei. Nach 12 wachen Stunden wird sie Imotchi.'],
+  2: ['Imotchi', 'Die Raupe. Alle 12 wachen Stunden wird sie gewogen: Ab 40 mg spinnt sie einen Kokon. Aus dem gefleckten Ei schlüpft sie direkt.'],
+  13: ['Mayutchi', 'Der Kokon. Er hält 24 Stunden; es zählt nur die Temperatur am Ende. Bei 0 oder 15 stirbt er.'],
+  6: ['Koganetchi', 'Kokon A (Freundschaft ab 10 beim ersten oder zweiten Wiegen), am Ende warm (10–14).'],
+  7: ['Tentotchi', 'Kokon A (Freundschaft ab 10 beim ersten oder zweiten Wiegen), am Ende kühl (1–6).'],
+  3: ['Chobitamatchi', 'Kokon B (Freundschaft 7–9), am Ende warm (8–14).'],
+  4: ['Minotchi', 'Kokon B (Freundschaft 7–9), am Ende kühl (1–7). Kommt auch aus Kokon D bei sehr kalter oder sehr warmer Temperatur.'],
+  10: ['Mushibatchi', 'Kokon C (Freundschaft bis 6), am Ende warm (8–14).'],
+  11: ['Gejitchi', 'Kokon C (Freundschaft bis 6), am Ende kühl (1–7).'],
+  8: ['Funkorogatchi', 'Kokon D: Imotchi bleibt bei drei Wiegungen unter 40 mg, beim vierten Mal spinnt sie trotzdem. Am Ende mittlere Temperatur (4–12).'],
+  9: ['Twinaritchi', 'Sonderfigur aus Kokon A, am Ende warm (10–14), wenn die Süße beim Teilen durch 4 den Rest 3 lässt. Süße kommt von den Snacks: Kirschen und Körner +1, Eis +2.'],
+  12: ['Helmetchi', 'Sonderfigur über zwei Kokons: erst Kokon A mit mittlerer Temperatur (7–9), daraus kommt wieder Imotchi. Die bleibt dann unter 40 mg, spinnt Kokon D, und daraus schlüpft Helmetchi.'],
+  5: ['Kabutotchi', 'Der Käfer aus dem gefleckten Ei. Dafür muss schon das Ei richtig gewählt sein: Der Bot nimmt bei diesem Ziel das gefleckte.'],
+};
+
+/* Three families: P1 and P2 share one tree, the Angel and the Morino have their own */
 const TAMA = {
   pos: {
     1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
@@ -376,9 +410,23 @@ const ANGEL = {
   },
   teenInReach: (n, st) => st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2),
 };
+const MORINO = {
+  pos: {
+    1: [40, 250], 2: [125, 250], 13: [215, 250],
+    6: [315, 45], 7: [315, 147], 3: [315, 250], 4: [315, 352], 10: [315, 455],
+    11: [425, 45], 8: [425, 147], 9: [425, 250], 12: [425, 352], 5: [425, 455],
+  },
+  edges: [[1, 2], [2, 13], [13, 6], [13, 7], [13, 3], [13, 4], [13, 10], [13, 11], [13, 8],
+          [13, 9], [13, 12], [13, 5]],
+  viaChild: false,
+  pick: (n) => n >= 3 && n <= 12,
+  before(stage) { return stage === 2 ? [1] : stage === 13 ? [1, 2] : stage >= 3 ? [1, 2, 13] : []; },
+  teenInReach: () => true,
+};
 const MODELS = {
   p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
   angel: [SPRITES_ANGEL, CHARS_ANGEL, ANGEL],
+  morino: [SPRITES_MORINO, CHARS_MORINO, MORINO],
 };
 let model = 'p1', [SPRITES, CHARS, FAMILY] = MODELS.p1;
 const BOX = 50;
@@ -405,6 +453,31 @@ function name(id) { return CHARS[id] ? CHARS[id][0] : FAMILY === ANGEL ? 'Geist'
 function drawRules() {
   const n = name, row = (cells) => '<tr>' + cells.map(([text, span]) =>
     `<td${span ? ` rowspan="${span}"` : ''}>${text}</td>`).join('') + '</tr>';
+  if (FAMILY === MORINO) {
+    $('rulesIntro').innerHTML =
+      '<p>Pflegefehler gibt es hier nicht. Aus dem weißen Ei schlüpft ' + n(1) + ', nach 12 wachen Stunden wird daraus ' + n(2) + '. ' +
+      'Danach wird alle 12 wachen Stunden gewogen: Ab 40 mg spinnt sie einen Kokon, beim vierten Wiegen in jedem Fall.</p>' +
+      '<p><b>Freundschaft</b> – ein versteckter Wert von 0 bis 15: +2 für jedes Spiel (auch ein verlorenes), −1 für jedes verlorene Glücksherz. Sie bestimmt die Art des Kokons.<br>' +
+      '<b>Temperatur</b> – der Kokon beginnt bei 8 und ändert sich etwa alle zweieinhalb Stunden um 1 oder 2, je nachdem ob geheizt oder gekühlt wird. Es zählt nur der Stand am Ende der 24 Stunden.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Kokon</th><th>entsteht bei</th><th>Temperatur am Ende</th><th>wird zu</th></tr>' + [
+        [['A', 3], ['1. oder 2. Wiegen, Freundschaft ab 10', 3], ['1–6'], [n(7)]],
+        [['7–9'], ['wieder ' + n(2)]],
+        [['10–14'], [n(6) + ' (oder ' + n(9) + ')']],
+        [['B', 2], ['1. oder 2. Wiegen mit Freundschaft 7–9, 3. Wiegen ab 7', 2], ['1–7'], [n(4)]],
+        [['8–14'], [n(3)]],
+        [['C', 2], ['1. bis 3. Wiegen, Freundschaft bis 6', 2], ['1–7'], [n(11)]],
+        [['8–14'], [n(10)]],
+        [['D', 2], ['4. Wiegen, egal wie schwer', 2], ['4–12'], [n(8)]],
+        [['1–3, 13–14'], [n(4)]],
+        [['gefleckt'], ['geflecktes Ei, ab 40 mg'], ['1–14'], [n(5)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
+      `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
+      `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
   if (FAMILY === ANGEL) {
     $('rulesIntro').innerHTML =
       '<p>Jede Stufe entscheidet für sich: Die Pflegefehler beginnen bei jeder Verwandlung wieder bei 0.</p>' +
@@ -485,10 +558,10 @@ function drawChart(msg) {
 
   for (const id in POS) {
     const n = Number(id), [x, y] = POS[id];
-    const pick = n >= 5;
+    const pick = FAMILY.pick ? FAMILY.pick(n) : n >= 5;
     const reach = !alive || n === st.stage || gone.includes(n) ||
       g.forecast.includes(n) || (g.plan || []).includes(n) ||
-      (n >= 5 ? g.reachable.includes(n) : FAMILY.teenInReach(n, st));
+      (pick ? g.reachable.includes(n) : FAMILY.teenInReach(n, st));
     const cls = ['node'];
     if (!reach) cls.push('out');
     if (pick) cls.push('pick');
@@ -547,10 +620,18 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const angel = FAMILY === ANGEL;
-  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel;
-  $('powerRow').hidden = !angel;
-  $('power').textContent = alive ? st.weight : '–';
+  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO;
+  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino;
+  $('mistakesRow').hidden = morino;
+  $('powerRow').hidden = !angel && !morino;
+  $('powerLabel').textContent = morino ? 'Gewicht' : 'Angel Power';
+  $('power').textContent = alive ? st.weight + (morino ? ' mg' : '') : '–';
+  $('friendRow').hidden = $('sweetRow').hidden = !morino;
+  $('tempRow').hidden = !(morino && st.cocoon);
+  $('friend').textContent = alive ? st.friendship : '–';
+  $('sweet').textContent = alive ? st.sweetness % 4 : '–';
+  $('temp').textContent = alive ? st.temperature : '–';
+  $('forecastLabel').textContent = morino ? 'Aus dem Kokon käme jetzt' : 'Ohne weitere Fehler';
   // the stream runs at up to 30 frames a second, the chart changes rarely
   const key = JSON.stringify([model, st.stage, st.dead, g, msg.goal]);
   if (key !== drawn) { drawn = key; drawChart(msg); }
@@ -566,10 +647,33 @@ function render(msg) {
   $('mistakes').textContent = counting ? st.mistakes : '–';
   $('missed').textContent = counting ? st.missed : '–';
   $('training').innerHTML = counting ? bars(st.training) : '–';
-  $('forecast').textContent = alive ? (g.forecast.length ? path(g.forecast) : 'bleibt ' + name(st.stage)) : '–';
+  $('forecast').textContent = !alive ? '–' : morino ? (st.cocoon ? (g.forecast.length ? path(g.forecast) : 'nichts: zu kalt oder zu heiß') : '–')
+    : g.forecast.length ? path(g.forecast) : 'bleibt ' + name(st.stage);
 
   let plan = '–', text = '';
-  if (!msg.goal) {
+  if (morino && msg.goal && alive && g.plan && st.stage !== msg.goal) {
+    // what the goal asks of the egg, of Imotchi and of the cocoon
+    const w = g.wanted, todo = [];
+    if (st.stage <= 2) {
+      if (w.weight && w.weight[1] < 99) todo.push('das Gewicht unter 40 mg halten (wenig füttern, viel spielen)');
+      else if (w.weight) todo.push('auf 40 mg füttern');
+      if (w.friendship) todo.push(w.friendship[1] >= 15 ? 'die Freundschaft auf mindestens ' + w.friendship[0] + ' halten'
+        : w.friendship[0] ? 'die Freundschaft zwischen ' + w.friendship[0] + ' und ' + w.friendship[1] + ' halten'
+        : 'die Freundschaft bei höchstens ' + w.friendship[1] + ' lassen, also selten spielen');
+      if (msg.goal === 9) todo.push('mit Snacks die Süße auf den Rest 3 bringen');
+    }
+    if (w.temperature && (st.cocoon || st.stage <= 2)) {
+      todo.push((st.cocoon ? 'die Temperatur' : 'im Kokon ' + (w.cocoon || '') + ' die Temperatur') + ' ans Ende auf ' + w.temperature[0] + ' bis ' + w.temperature[1] + ' bringen');
+    }
+    plan = path(g.plan);
+    text = CHARS[msg.goal][1] + ' Der Bot wird ' + todo.join(', ') + '.';
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (morino && !msg.goal) {
+    text = 'Ohne Ziel wählt der Bot das weiße Ei, füttert auf 40 mg und spielt, wenn das Glück sinkt. Welcher Kokon daraus wird, ergibt sich; im Kokon hält er die Temperatur so, dass ein Erwachsener schlüpft.';
+  } else if (morino && msg.goal && alive && !g.plan && st.stage !== msg.goal) {
+    plan = 'nicht mehr erreichbar';
+    text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar' + (msg.goal === 5 ? ' (dafür hätte es das gefleckte Ei sein müssen)' : '') + '. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
+  } else if (!msg.goal) {
     text = angel ? 'Ohne Ziel pflegt der Bot fehlerfrei. Das ergibt ' + name(6) + ' und danach ' + name(5) + '.'
       : msg.discipline
       ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt ' + name(5) + '.'

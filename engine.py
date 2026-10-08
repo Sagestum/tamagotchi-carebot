@@ -25,6 +25,8 @@ FRAME = 1 / 30                  # seconds between screen updates
 SPEEDS = (1, 2, 5, 20, 0)       # 0 = as fast as possible
 MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
 HANDS_OFF = 60                  # real seconds the bot waits after the user's last input
+GONE_AFTER = 60                 # emulated seconds without a character until a life counts as over
+LIVES_KEPT = 300                # the chronicle forgets what is older
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP}
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp")
 
@@ -43,6 +45,12 @@ class Engine:
         self.bot = CareBot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0
+        # The chronicle: every life this shell has seen, the present one last.
+        # {"began", "ended": real time or None, "seconds": emulated ones lived,
+        #  "stages": [[character, name]], "end": how it ended}
+        self.lives = []
+        self.egg_for = 0        # emulated seconds without a character
+        self.leaving = False    # it was taking its leave when last seen
         self.bot_enabled = True
         self.hands_off = None   # time.monotonic() until which the user has the buttons
         self.speed = 1
@@ -83,6 +91,7 @@ class Engine:
         self.bot.generation = data.get("generation", 1)
         self.speed = data.get("speed", 1) if data.get("speed", 1) in SPEEDS else 1
         self.report.from_dict(data.get("report", {}))
+        self.lives = data.get("lives", [])
         self.add_log("Spielstand geladen")
 
     def save_state(self):
@@ -97,6 +106,7 @@ class Engine:
                 "generation": self.bot.generation,
                 "speed": self.speed,
                 "report": self.report.to_dict(),
+                "lives": self.lives,
             }
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
         tmp = self.state_path + ".tmp"
@@ -153,6 +163,7 @@ class Engine:
 
     def reset(self):
         with self.lock:
+            self.end_life("neu begonnen")
             self.bot.stop()
             self.bot.clock_set_at = None
             self.bot.gone = False
@@ -163,8 +174,47 @@ class Engine:
 
     def reborn(self):
         """A new life has begun: the day's counters belong to the one before."""
+        self.end_life("neu begonnen")
         self.report.reset_counters()
         self.report.asleep = False
+
+    # -- chronicle ---------------------------------------------------------
+
+    def end_life(self, how):
+        if self.lives and self.lives[-1]["ended"] is None:
+            self.lives[-1]["ended"] = time.time()
+            self.lives[-1]["end"] = "verabschiedet" if self.leaving and how != "gestorben" else how
+        self.leaving = False
+
+    def chronicle(self, status):
+        """Called once per emulated second: note what the pet is and whether it still is."""
+        stage = status["stage"]
+        life = self.lives[-1] if self.lives and self.lives[-1]["ended"] is None else None
+        if status["dead"]:
+            self.end_life("gestorben")
+            return
+        if stage == 0:
+            # No character: an egg, or the next generation is on its way. (A Morino reads 0
+            # for a moment while something is after it, so wait a little.)
+            self.egg_for += 1
+            if life and self.egg_for == GONE_AFTER:
+                self.end_life("neu begonnen")
+            return
+        self.egg_for = 0
+        self.leaving = status["leaving"]
+        if life is None:
+            life = {"began": time.time(), "ended": None, "seconds": 0, "stages": [], "end": None}
+            self.lives.append(life)
+            del self.lives[:-LIVES_KEPT]
+        life["seconds"] += 1
+        if not life["stages"] or life["stages"][-1][0] != stage:
+            life["stages"].append([stage, self.model.names.get(stage, "Stufe %d" % stage)])
+
+    def lives_told(self):
+        """The chronicle for the web UI: the days are rounded so that it changes rarely."""
+        return [{"began": life["began"], "ended": life["ended"], "end": life["end"],
+                 "days": round(life["seconds"] / 86400, 1),
+                 "stages": [name for _, name in life["stages"]]} for life in self.lives]
 
     def set_smtp(self, smtp):
         with self.lock:
@@ -196,7 +246,9 @@ class Engine:
             self.bot.step()
         self.slices += 1
         if self.slices % 32 == 0:   # once per emulated second
-            self.report.observe(self.bot.status(), *tama.frame(), now)
+            status = self.bot.status()
+            self.chronicle(status)
+            self.report.observe(status, *tama.frame(), now)
 
     def publish(self):
         tama = self.tama
@@ -235,6 +287,7 @@ class Engine:
             "speed": self.speed,
             "paused": self.paused,
             "logId": self.log_id,
+            "lives": self.lives_told(),
         }
         if sound or snap != self.snapshot:
             self.snapshot = snap

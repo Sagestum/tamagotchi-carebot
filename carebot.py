@@ -36,6 +36,21 @@ MEM_DISCIPLINE = 0x43                   # discipline meter, +4 per scolding
 MEM_KIND = 0x50                         # tells the two kinds of a teenager apart
 MEM_MISSED = 0x51                       # discipline calls left unanswered, 0..15
 
+# Morino (Mori de Hakken): the clock, hunger, happiness, weight, droppings and character sit
+# where the P1 has them. RAM 0x5E: 1 and 2 awake, 6 asleep, 7 something is after it, 8
+# injured, 0xC dead; on the egg screen 1 is the white egg and 3 the spotted one.
+MEM_FRIENDSHIP = 0x1D                   # +2 for a game played, -1 for a happy heart lost
+MEM_SWEETNESS = 0x1A                    # +1 for cherries or seeds, +2 for ice cream
+MEM_TEMPERATURE = 0x43                  # of the cocoon, 0 cold to 15 hot, begins at 8
+MEM_LOOK = 0x50                         # times Imotchi has been weighed, or the cocoon's kind
+MEM_BACK = 0x51                         # 15 once it has come back out of a cocoon
+MEM_MORINO_LIGHT = 0x4B                 # 15 light on, 0 off
+MEM_CURSOR = 0x75                       # the entry a menu's arrow is at, and the hat in the game
+MEM_LEAF = 0x80                         # game: the leaf is under this hat and the next one
+MEM_HATCHING = 0x76                     # 0 while the egg waits to be chosen
+MORINO_ATTACK, MORINO_INJURED, MORINO_ASLEEP, MORINO_DEAD = 7, 8, 6, 0xC
+EGG_WHITE, EGG_SPOTTED = 1, 3
+
 ICON_ATTENTION = 7      # the menu icons are in another order on each model (models.py)
 
 CLOCK_TOLERANCE = 45    # seconds the pet's clock may be off before it is set again
@@ -114,6 +129,9 @@ class CareBot:
         self.counted = None             # (stage, mistakes, missed) last seen
         self.neglect = None             # (since, next precautionary scolding)
         self.ignoring = False
+        self.defending = False          # Morino: driving off what is after it
+        self.heating = None             # Morino: the way the cocoon's temperature was sent
+        self.warmth = None              # Morino: the cocoon's temperature last logged
 
     # -- state readers -----------------------------------------------------
 
@@ -129,12 +147,21 @@ class CareBot:
         dark = s.lit() > 400
         stage = m(MEM_STAGE)
         angel = self.model.game == "jump"
+        morino = self.model.game == "hats"
+        state = m(MEM_ANGEL_STATE)
+        if morino:
+            dark = m(MEM_MORINO_LIGHT) == 0
+            # While the foot or the frog is on the screen the character reads 0
+            if stage == 0 and state in (MORINO_ATTACK, 0xA) and self.counted:
+                stage = self.counted[0]
         weight = m(MEM_WEIGHT_HI) * 10 + m(MEM_WEIGHT_LO)
         # No character and the end screen. A new egg weighs nothing.
         self.gone = stage == 0 and (s.region(24, 8, 8, 8) in self.model.dead
                                     or (self.gone and weight > 0))
         if angel:       # the end screens: no character, and the state the sleepers have
             self.gone = stage == 0 and m(MEM_ANGEL_STATE) == 3
+        if morino:
+            self.gone = stage == 0 and state == MORINO_DEAD
         away = angel and m(MEM_ANGEL_STATE) == 0xB      # a door on the screen
         return {
             "stage": stage,
@@ -150,13 +177,22 @@ class CareBot:
             "happy": hearts(m(MEM_HAPPY)),
             "weight": weight,
             "poop": m(MEM_POOP),
-            "mistakes": m(MEM_MISTAKES),
+            "mistakes": 0 if morino else m(MEM_MISTAKES),
             "missed": m(MEM_MISSED),
             "training": hearts(m(MEM_DISCIPLINE)),   # the meter on the status screen
             "kind": m(MEM_KIND),
-            "sick": top_right == SKULL or (angel and m(MEM_ANGEL_STATE) == 9),
-            "asleep": m(MEM_ANGEL_STATE) == 3 if angel
+            "sick": state == MORINO_INJURED if morino
+            else top_right == SKULL or (angel and m(MEM_ANGEL_STATE) == 9),
+            "asleep": state == MORINO_ASLEEP if morino else m(MEM_ANGEL_STATE) == 3 if angel
             else top_right in (Z_SMALL, Z_BIG) or (dark and s.lit() < len(s.pixels)),
+            # Morino: something is after it; the cocoon and what decides the adult
+            "attack": morino and state == MORINO_ATTACK,
+            "cocoon": morino and stage == self.model.growth.MAYUTCHI,
+            "temperature": m(MEM_TEMPERATURE) if morino else None,
+            "friendship": m(MEM_FRIENDSHIP) if morino else None,
+            "sweetness": m(MEM_SWEETNESS) if morino else None,
+            "look": m(MEM_LOOK) if morino else None,
+            "back": morino and m(MEM_BACK) == 15,
             "light": not dark,
             "attention": bool(s.icons[ICON_ATTENTION]),
             "dead": self.gone,
@@ -172,6 +208,12 @@ class CareBot:
     def step(self):
         """Call often; does at most one thing and returns immediately."""
         now = self.tama.seconds
+        if self.model.game == "hats" and self.model.care and not self.defending \
+                and self.tama.memory(MEM_ANGEL_STATE) == MORINO_ATTACK:
+            # Morino: something is after it. Any button now shows what, and from then on
+            # there are five seconds to drive it off: drop everything else at once.
+            self.stop()
+            self.task = self.defend()
         if now < self.wake:
             return
         if self.task is None:
@@ -194,6 +236,7 @@ class CareBot:
             self.held = None
         self.task = None
         self.manual = False
+        self.defending = False
         self.wake = 0.0
 
     # -- primitives (generators yielding emulated seconds to wait) ---------
@@ -215,9 +258,20 @@ class CareBot:
         if self.screen().region(2, 12, 8, 4) == self.model.clock_m:
             yield from self.press(BTN_B, 3.0)
 
+    def at_icon(self):
+        """The menu icon the cursor is at, or None."""
+        if self.model.game == "hats":
+            # The Morino lights the icon a moment after the cursor has moved: ask the RAM.
+            # The fifth icon is passed over, so the cursor counts 1-4 and then 5 and 6.
+            at = self.tama.memory(MEM_CURSOR)
+            return None if at == 0 else at - 1 if at <= 4 else at
+        return self.screen().selected()
+
     def select(self, icon):
         for _ in range(10):
-            if self.screen().selected() == icon:
+            if self.at_icon() == icon:
+                if self.model.game == "hats":
+                    yield 0.4           # let the menu catch up before B
                 return True
             yield from self.press(BTN_A)
         return False
@@ -225,7 +279,7 @@ class CareBot:
     def goto(self, icon):
         """Walk to a menu icon and stop there; confirming is left to the user."""
         for _ in range(3):              # the ROM ignores buttons during animations
-            if self.screen().selected() == icon:
+            if self.screen().selected() == icon and self.at_icon() == icon:
                 break
             yield from self.home()      # A means something else inside a submenu
             yield from self.select(icon)
@@ -402,7 +456,9 @@ class CareBot:
         if not (yield from self.select(self.model.icon("light"))):
             return
         yield from self.press(BTN_B, 1.0)
-        if (self.screen().region(0, 0, 8, 8) == ARROW) != on:
+        at_on = self.tama.memory(MEM_CURSOR) == 0 if self.model.game == "hats" \
+            else self.screen().region(0, 0, 8, 8) == ARROW
+        if at_on != on:
             yield from self.press(BTN_A)
         yield from self.press(BTN_B, 2.0)
         yield from self.home()
@@ -437,6 +493,8 @@ class CareBot:
     def fresh(self):
         """A new egg as A and C leave it: nothing counted yet, and no character."""
         m = self.tama.memory
+        if self.model.game == "hats":   # back on the screen where the egg is chosen
+            return m(MEM_STAGE) == 0 and m(MEM_ANGEL_STATE) != MORINO_DEAD
         return (m(MEM_STAGE) == 0 and m(MEM_HUNGER) == 1 and m(MEM_HAPPY) == 1
                 and m(MEM_MISTAKES) == 0)
 
@@ -505,6 +563,20 @@ class CareBot:
         """Where the pet stands in the growth chart, for the web UI."""
         if st["dead"]:
             return None
+        if self.model.game == "hats":
+            rules = self.model.growth
+            wish = self.morino_wish(st)
+            kind = st["look"] if st["cocoon"] else None
+            coming = rules.adult(kind, st["temperature"], st["sweetness"], st["back"]) \
+                if st["cocoon"] else None
+            return {
+                "forecast": [coming] if coming else [],
+                "reachable": rules.reachable(st["stage"], st["look"], st["back"], kind),
+                "plan": wish["way"],
+                "wanted": {"egg": wish["egg"], "cocoon": rules.COCOONS.get(wish["kind"]),
+                           "friendship": wish["friendship"], "temperature": wish["window"],
+                           "weight": wish["weight"]},
+            }
         if self.model.game == "jump":
             more, low, high, way = self.angel_wish(st)
             rules = self.model.growth
@@ -532,6 +604,11 @@ class CareBot:
         """Log what the ROM has counted and what the pet has turned into."""
         if st["away"]:
             return                      # out for a walk: it is still the same one
+        if self.model.game == "hats":   # nothing is counted here, it only changes
+            if self.counted and self.counted[0] not in (0, st["stage"]) and st["stage"] > 0:
+                self.log("Verwandelt in " + st["name"])
+            self.counted = (st["stage"], 0, 0)
+            return
         seen = st["stage"], st["mistakes"], st["missed"]
         if self.counted and st["stage"] >= growth.CHILD:
             stage, mistakes, missed = self.counted
@@ -542,6 +619,259 @@ class CareBot:
             if st["missed"] > missed and stage >= growth.CHILD:
                 self.log("Schimpf-Ruf verpasst (jetzt %d)" % st["missed"])
         self.counted = seen
+
+    # -- Morino ------------------------------------------------------------
+
+    def choose_egg(self, spotted):
+        """After the clock has been set the Morino waits for an egg to be chosen."""
+        self.log("Ei wählen: das %s" % ("gefleckte" if spotted else "weiße"))
+        m = self.tama.memory
+        for _ in range(3):
+            if (m(MEM_ANGEL_STATE) == EGG_SPOTTED) == spotted:
+                break
+            yield from self.press(BTN_A, 1.0)
+        for _ in range(4):              # B shows the clock, B once more begins
+            if m(MEM_HATCHING):
+                break
+            yield from self.press(BTN_B, 1.5)
+        self.heating = self.warmth = None
+
+    def defend(self):
+        """Something is after it: a button shows what, a tap on the case drives it off."""
+        self.defending = True
+        try:
+            self.log("Fressfeind: klopfen")
+            if self.tama.memory(MEM_STAGE):     # (0 once it is on the screen already)
+                yield from self.press(BTN_A, 0.6)
+            for _ in range(12):
+                if self.tama.memory(MEM_ANGEL_STATE) != MORINO_ATTACK:
+                    break
+                yield from self.press(BTN_TAP, 0.6)
+            yield 6.0
+            yield from self.home()
+        finally:
+            self.defending = False
+
+    def feed_morino(self, snack, why):
+        """One helping: the leaf is the first entry of the food menu, the snack of the
+        hour the second for Imotchi and the third for an adult."""
+        self.log(why)
+        yield from self.home()
+        if not (yield from self.select(self.model.icon("food"))):
+            return
+        yield from self.press(BTN_B, 1.0)
+        want = 0 if not snack else 1 if self.tama.memory(MEM_STAGE) == self.model.growth.IMOTCHI \
+            else 2
+        for _ in range(4):
+            if self.tama.memory(MEM_CURSOR) == want:
+                break
+            yield from self.press(BTN_A)
+        yield from self.press(BTN_B, 7.0)
+        yield from self.home()
+
+    def hats_up(self):
+        """The game waits for a choice: four hats in a row."""
+        row = self.screen().region(0, 4, 32, 1)[0]
+        return row.count("#######") >= 3
+
+    def play_morino(self, why):
+        """A leaf is under one of four hats, four times over. RAM 0x80 says where: under
+        that hat and the one after it. A moves on, B lifts the hat."""
+        self.log(why)
+        yield from self.home()
+        if not (yield from self.select(self.model.icon("game"))):
+            return
+        yield from self.press(BTN_B, 1.0)
+        m = self.tama.memory
+        rounds, waited = 0, 0.0
+        while rounds < 4 and waited < 40:
+            if not self.hats_up():
+                yield 0.25
+                waited += 0.25
+                continue
+            yield 0.3
+            for _ in range(6):
+                if m(MEM_CURSOR) == m(MEM_LEAF):
+                    break
+                yield from self.press(BTN_A, 0.3)
+            yield from self.press(BTN_B, 3.0)
+            rounds, waited = rounds + 1, 0.0
+        yield 9.0
+        yield from self.home()
+
+    def set_temperature(self, heat, why):
+        """Cocoon: the meter icon shows C on the left and H on the right with an arrow at
+        the one chosen. A moves the arrow, B confirms."""
+        self.log(why)
+        yield from self.home()
+        if not (yield from self.select(self.model.icon("status"))):
+            return
+        yield from self.press(BTN_B, 1.5)
+        s = self.screen()
+        left = sum(row.count("#") for row in s.region(8, 1, 8, 7))
+        right = sum(row.count("#") for row in s.region(16, 1, 8, 7))
+        if (right > left) != heat:
+            yield from self.press(BTN_A, 1.0)
+        yield from self.press(BTN_B, 2.0)
+        self.heating = heat
+        yield from self.home()
+
+    def morino_wish(self, st):
+        """What the goal asks for at the moment: the egg, the cocoon and its temperature at
+        the end, the friendship to hold, whether it is to gain weight or to stay light,
+        and the characters still to come."""
+        rules = self.model.growth
+        goal = self.goal if self.goal in rules.WAYS else None
+        stage, back = st["stage"], st["back"]
+        egg, kind, low, high, least, most = rules.WAYS[goal] if goal else ("white", None, 0, 0, 0, 15)
+        if goal == rules.HELMETCHI and back:
+            kind = rules.D              # the second cocoon: the one that takes four looks
+        wish = {"egg": egg, "kind": kind, "window": None, "friendship": None, "weight": None,
+                "way": None, "gain": False, "light": False}
+        if stage == rules.MAYUTCHI:
+            wish["window"] = list(rules.window(goal, st["look"], back))
+        elif goal:
+            wish["window"] = list(rules.window(goal, kind, back))
+        if stage in (0, rules.BABYMOTCHI, rules.IMOTCHI):
+            if kind == rules.D:
+                wish["light"] = True
+                wish["weight"] = [0, rules.WEIGHT - 1]
+            else:
+                wish["gain"] = True
+                wish["weight"] = [rules.WEIGHT, 99]
+                if goal and egg == "white":
+                    wish["friendship"] = [least, most]
+        if goal and goal in rules.reachable(stage, st["look"], back,
+                                            st["look"] if st["cocoon"] else None):
+            first = [rules.BABYMOTCHI] if egg == "white" else []
+            way = first + [rules.IMOTCHI, rules.MAYUTCHI]
+            if goal == rules.HELMETCHI:
+                way = (way + [rules.IMOTCHI, rules.MAYUTCHI]) if not back \
+                    else [rules.IMOTCHI, rules.MAYUTCHI]
+            way.append(goal)
+            if stage in way and stage != goal:
+                # what is still to come (the second Imotchi of Helmetchi's way is the one
+                # that has come back)
+                at = len(way) - 1 - way[::-1].index(stage) if back else way.index(stage)
+                way = way[at + 1:]
+            elif stage == goal:
+                way = []
+            wish["way"] = way
+        return wish
+
+    def plan_cocoon(self, st, wish):
+        """Send the temperature towards the middle of what the goal needs. Only where it
+        stands when the cocoon opens counts."""
+        low, high = wish["window"]
+        warmth = st["temperature"]
+        middle = (low + high) // 2
+        heat = self.heating
+        if warmth < middle:
+            heat = True
+        elif warmth > middle:
+            heat = False
+        elif heat is None:
+            heat = False
+        if heat != self.heating or self.warmth is None:
+            self.warmth = warmth
+            return self.set_temperature(heat, "Kokon: Temperatur %d, Ziel %d bis %d: %s"
+                                        % (warmth, low, high, "heizen" if heat else "kühlen"))
+        if warmth != self.warmth:
+            self.warmth = warmth
+            self.log("Kokon: Temperatur %d" % warmth)
+        return None
+
+    def plan_morino(self, st, now):
+        """The Morino: choose the egg, feed, play, clean, heal, drive off what is after it,
+        and steer weight, friendship and the cocoon's temperature towards the goal."""
+        m = self.tama.memory
+        rules = self.model.growth
+        wish = self.morino_wish(st)
+        if st["attack"]:
+            return None                 # step() sees to that
+        if st["stage"] == 0:
+            if m(MEM_HOUR_HI) * 16 + m(MEM_HOUR_LO) == UNSET_HOUR:
+                return self.set_clock() if now > 3 else None
+            # (while something is after it the character reads 0 for a moment as well)
+            if not m(MEM_HATCHING) and not m(MEM_LOOK) \
+                    and m(MEM_ANGEL_STATE) in (EGG_WHITE, EGG_SPOTTED):
+                return self.choose_egg(wish["egg"] == "spotted")
+            return None
+        if st["cocoon"]:
+            return self.plan_cocoon(st, wish)
+        self.heating = self.warmth = None
+        if st["asleep"] != (not st["light"]):
+            wanted = not st["asleep"]
+            if self.light_wish is None or self.light_wish[0] != wanted:
+                self.light_wish = (wanted, now)
+            elif now - self.light_wish[1] >= 5:
+                self.light_wish = None
+                return self.light(wanted)
+        else:
+            self.light_wish = None
+        if st["asleep"] or not st["light"]:
+            return None
+        if st["sick"]:
+            return self.heal()
+        if st["poop"] > 0:
+            return self.clean()
+
+        weight, friendship, happy = st["weight"], st["friendship"], st["happy"]
+        young = st["stage"] in (rules.BABYMOTCHI, rules.IMOTCHI)
+        if young and wish["light"]:
+            # To stay below 40 mg: every game takes one off, and it eats only when it must
+            if weight >= rules.WEIGHT - 3:
+                return self.play_morino("Spielen, damit es leicht bleibt (%d mg)" % weight)
+            if st["hunger"] < 2:
+                return self.feed_morino(False, "Füttern (Hunger %d/4)" % st["hunger"])
+        elif young and wish["gain"] and weight < rules.WEIGHT + 4:
+            # To gain weight: eat whenever there is room. The snack of the hour weighs
+            # double, but it adds to the sweetness, which decides over Twinaritchi.
+            if st["hunger"] < 4:
+                hour = m(MEM_HOUR_HI) * 16 + m(MEM_HOUR_LO)
+                sweet = st["sweetness"] % 4
+                after = (sweet + (2 if 12 <= hour < 16 else 1)) % 4
+                snack = st["stage"] == rules.IMOTCHI and 8 <= hour < 20
+                if self.goal == rules.TWINARITCHI:
+                    # A rest of 3 is wanted when the cocoon is spun. Snacks as they come
+                    # while it is still light; from 32 mg on stop at 3 and do not jump over
+                    # it (at most three more snacks, so it stays below 40 until then)
+                    if weight >= rules.WEIGHT - 8:
+                        if sweet == 2 and after == 0:
+                            snack = False if st["hunger"] < 2 else None
+                        else:
+                            snack = snack and sweet != 3
+                elif snack and after == 3 and sweet != 3:
+                    # a rest of 3 must not stay: go through it only when the snack after
+                    # this one fits as well
+                    if st["hunger"] > 2:
+                        snack = None
+                if snack is not None:
+                    return self.feed_morino(snack, "Füttern, damit es zunimmt (%d mg): %s"
+                                            % (weight, "Snack" if snack else "Blatt"))
+        elif st["hunger"] < self.feed_below:
+            return self.feed_morino(False, "Füttern (Hunger %d/4)" % st["hunger"])
+
+        if young and wish["friendship"]:
+            least, most = wish["friendship"]
+            if most == 15:
+                wanted = friendship < least + 2
+            elif least:
+                wanted = friendship <= least
+            else:
+                wanted = friendship <= most - 2 and happy < self.play_below
+            if wanted:
+                return self.play_morino("Spielen (Freundschaft %d, Ziel %d bis %d)"
+                                        % (friendship, least, most))
+        elif happy < self.play_below and not (young and wish["light"] and weight <= 6):
+            return self.play_morino("Spielen (Glück %d/4)" % happy)
+
+        if self.realtime and now >= self.clock_check:
+            self.clock_check = now + 600
+            error = self.clock_error()
+            if abs(error) > CLOCK_TOLERANCE:
+                return self.sync_clock(error)
+        return None
 
     def angel_wish(self, st):
         """What the goal asks of the present character: (mistakes still to make, least and
@@ -644,7 +974,7 @@ class CareBot:
         st = self.status()
         now = self.tama.seconds
         if st["stage"] == 0 and self.counted and self.counted[0] > 0 and st["weight"] > 0 \
-                and self.model.game != "jump":
+                and self.model.game not in ("jump", "hats"):
             self.gone = st["dead"] = True       # it was alive a moment ago
         if not st["dead"]:
             self.watch(st)
@@ -656,6 +986,8 @@ class CareBot:
             return self.new_life() if self.restart else None
         self.dead_logged = False
 
+        if self.model.game == "hats" and self.model.care:
+            return self.plan_morino(st, now)
         if not self.model.care or self.model.game == "jump":
             # The clock of a new one is set once; whether a pet has died is not known here
             m = self.tama.memory

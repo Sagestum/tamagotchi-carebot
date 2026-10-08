@@ -10,6 +10,7 @@ import zlib
 
 import growth
 import growth_angel
+import growth_morino
 
 
 P1_CLOCK_M = ("........", ".##.###.", ".#.#.##.", ".#.#.##.")
@@ -94,7 +95,19 @@ ANGEL = Model(
     tap=True, unit="AP", rules=growth_angel,
     clock_m=("........", "##.###..", "#.#.##..", "#.#.##.."))
 
-MODELS = (P1, P1J, P2, ANGEL)
+# Mori de Hakken! Tamagotch, the one with the insects. The same machine once more: clock,
+# hunger, happiness, weight and character sit in the cells of the P1. There are no care
+# mistakes; weight, a hidden friendship and the temperature of the cocoon decide what it
+# becomes (growth_morino.py). After the clock has been set it waits for an egg to be chosen:
+# A or C changes between the white and the spotted one, B shows the clock, B once more begins.
+MORINO = Model(
+    "morino", "Tamagotchi Morino", "TamagotchiMorino.bin aus der Sammlung zu BrickEmuPy",
+    16384, "4b578ea5dd328fd49fc7a664abeca79e35d573b2", "647ea772",
+    growth_morino.NAMES, (), "hats",
+    icons=("status", "food", "game", "toilet", "predator", "medicine", "light", "attention"),
+    tap=True, unit="mg", rules=growth_morino)
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO)
 BY_ID = {m.id: m for m in MODELS}
 
 
