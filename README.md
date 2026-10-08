@@ -81,6 +81,12 @@ nach der letzten Eingabe weiter.
 Auf der Unterseite `/bot` lässt sich ein Ziel wählen. Der Bot macht dann genau die Fehler, die
 für diesen Charakter nötig sind, und pflegt sonst fehlerfrei.
 
+Am Ende eines Lebens bleibt das Gerät auf seinem letzten Bild stehen, bis jemand A und C zusammen
+drückt: Dann erscheint ein neues Ei, die Uhr läuft weiter, und es schlüpft nach fünf Minuten von
+selbst. Mit dem Schalter „Nach dem Ende neu beginnen“ (aus, solange man ihn nicht einschaltet)
+macht das der Bot und zieht das nächste Tier mit demselben Ziel groß. Die ROM nimmt den
+Doppeldruck nicht jedes Mal an; der Bot wiederholt ihn, bis das Ei da ist.
+
 ![Der Wachstumsbaum mit Ziel](docs/img/wachstumsbaum.jpg)
 
 ## Was den Charakter bestimmt

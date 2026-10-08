@@ -41,6 +41,7 @@ class Engine:
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
         self.bot = CareBot(self.tama, self.add_log, model=model)
+        self.bot.reborn = self.reborn
         self.slices = 0
         self.bot_enabled = True
         self.hands_off = None   # time.monotonic() until which the user has the buttons
@@ -77,6 +78,7 @@ class Engine:
             raise SystemExit("%s is not a usable state file" % self.state_path)
         self.bot_enabled = data.get("bot", True)
         self.bot.discipline = data.get("discipline", True)
+        self.bot.restart = data.get("restart", False)
         self.bot.goal = data.get("goal") if data.get("goal") in self.model.growth.GOALS else None
         self.bot.generation = data.get("generation", 1)
         self.speed = data.get("speed", 1) if data.get("speed", 1) in SPEEDS else 1
@@ -90,6 +92,7 @@ class Engine:
                 "cpu": base64.b64encode(self.tama.save()).decode(),
                 "bot": self.bot_enabled,
                 "discipline": self.bot.discipline,
+                "restart": self.bot.restart,
                 "goal": self.bot.goal,
                 "generation": self.bot.generation,
                 "speed": self.speed,
@@ -126,7 +129,8 @@ class Engine:
             self.take_over()
             self.bot.request(index)
 
-    def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False):
+    def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
+                  restart=None):
         with self.lock:
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
@@ -135,6 +139,8 @@ class Engine:
                 self.add_log("Care-Bot an" if self.bot_enabled else "Care-Bot aus")
             if discipline is not None:
                 self.bot.discipline = bool(discipline)
+            if restart is not None:
+                self.bot.restart = bool(restart)
             if (goal is None or goal in self.model.growth.GOALS) and goal != self.bot.goal:
                 self.bot.goal = goal
                 self.bot.generation = 1         # a programme over generations starts anew
@@ -152,9 +158,13 @@ class Engine:
             self.bot.gone = False
             self.bot.generation = 1
             self.tama.reset()
-            self.report.reset_counters()
-            self.report.asleep = False
+            self.reborn()
             self.add_log("Neues Ei")
+
+    def reborn(self):
+        """A new life has begun: the day's counters belong to the one before."""
+        self.report.reset_counters()
+        self.report.asleep = False
 
     def set_smtp(self, smtp):
         with self.lock:
@@ -219,6 +229,7 @@ class Engine:
             "bot": self.bot_enabled,
             "handsOff": self.hands_off is not None,
             "discipline": self.bot.discipline,
+            "restart": self.bot.restart,
             "goal": self.bot.goal,
             "goalName": self.model.names.get(self.bot.goal),
             "speed": self.speed,

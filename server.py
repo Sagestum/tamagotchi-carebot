@@ -450,7 +450,8 @@ class Handler(BaseHTTPRequestHandler):
                         and goal not in app.pet(data["pet"]).model.growth.GOALS:
                     raise ValueError
                 app.pet(data["pet"]).send("configure", data.get("bot"), data.get("discipline"),
-                                          data.get("speed"), data.get("paused"), goal)
+                                          data.get("speed"), data.get("paused"), goal,
+                                          data.get("restart"))
             elif self.path == "/api/reset":
                 app.pet(data["pet"]).send("reset")
             elif self.path == "/api/test-mail":

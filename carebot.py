@@ -27,7 +27,8 @@ MEM_JUMP_OBSTACLE = 0x81                # Angel game: where the obstacle is, 0xC
 MEM_JUMP_ROUNDS = 0x85                  # Angel game: rounds still to come, 5 to 0
 MEM_ANGEL_STATE = 0x5E                  # Angel: 1 awake, 3 asleep, 9 sick, 2 eating, 0xD a bat
                                         # is after the sweet, 0xA praying, 0xB out for a
-                                        # stroll, 4 making a dropping (5, 7, 8 in the game)
+                                        # stroll, 4 making a dropping (5, 7, 8 in the game),
+                                        # 0xC crying because its time is over
 MEM_POOP = 0x4D                         # number of droppings on screen
 MEM_STAGE = 0x5D                        # 0 egg/dead, 1 baby, 2 child, ... (growth.py)
 MEM_MISTAKES = 0x42                     # care mistakes so far, 0..15
@@ -49,6 +50,7 @@ Z_SMALL = ("........", "........", ".####...", "....#...",
            "...#....", "..#.....", ".#......", ".####...")
 Z_BIG = ("....###.", "......#.", ".....#..", "....#...",
          "..#.###.", "#.......", "........", "........")
+THANKS = ("###.#.", ".#..#.", ".#..#.")     # Angel: the "T" and "h" of its last screen
 ARROW = ("........", "...#....", "...##...", ".#####..",
          ".######.", ".#####..", "...##...", "...#....")
 
@@ -85,6 +87,8 @@ class CareBot:
         self.model = model
         self.log = log
         self.discipline = discipline    # scold at all (only asked when there is no goal)
+        self.restart = False            # after the end, begin a new life with A and C
+        self.reborn = None              # called when the bot has begun one
         self.goal = None                # character to raise (growth.GOALS) or None
         self.feed_below = feed_below    # act when fewer hearts than this
         self.play_below = play_below
@@ -138,6 +142,8 @@ class CareBot:
             "praying": angel and m(MEM_ANGEL_STATE) == 0xA,
             "sickness": m(MEM_SICK_COUNT) if angel else 0,
             "leaving": angel and m(MEM_ANGEL_STATE) == 0xC,     # it cries: its time is over
+            "thanked": angel and m(MEM_ANGEL_STATE) == 0xC      # B was pressed: "Thanks!"
+            and s.region(2, 1, 6, 3) == THANKS,
             "generation": self.generation if angel else None,
             "name": "Unterwegs" if away else self.model.stage_name(stage),
             "hunger": hearts(m(MEM_HUNGER)),
@@ -428,24 +434,54 @@ class CareBot:
             yield from self.press(BTN_B, 6.0)
         yield from self.home()
 
+    def fresh(self):
+        """A new egg as A and C leave it: nothing counted yet, and no character."""
+        m = self.tama.memory
+        return (m(MEM_STAGE) == 0 and m(MEM_HUNGER) == 1 and m(MEM_HAPPY) == 1
+                and m(MEM_MISTAKES) == 0)
+
+    def begin(self):
+        """On an end screen: A and C together bring a new egg. Its clock keeps running and
+        it hatches by itself. The ROM does not take every press, so look and try again."""
+        for _ in range(6):
+            self.tama.button(BTN_A, True)
+            self.tama.button(BTN_C, True)
+            self.held = (BTN_A, BTN_C)
+            yield 0.3
+            self.tama.button(BTN_A, False)
+            self.tama.button(BTN_C, False)
+            self.held = None
+            yield 5.0
+            if self.fresh():
+                self.gone = False
+                self.counted = None
+                self.clock_set_at = self.tama.seconds   # it is set already
+                if self.reborn:
+                    self.reborn()
+                return True
+        return False
+
+    def new_life(self):
+        """The pet has died: begin again with a new egg."""
+        yield 10.0
+        if self.status()["dead"] and (yield from self.begin()):
+            self.log("Neues Ei")
+
     def farewell(self):
         """Angel: let the one that is crying go (B) and begin the next generation (A and C)."""
-        self.log("Generation %d verabschiedet sich" % self.generation)
+        lucky = self.goal == self.model.growth.LUCKY
+        self.log("Generation %d verabschiedet sich" % self.generation if lucky
+                 else "Verabschiedet sich")
         for _ in range(3):
             yield from self.press(BTN_C, 1.0)
         yield 5.0
         yield from self.press(BTN_B, 40.0)
-        self.tama.button(BTN_A, True)
-        self.tama.button(BTN_C, True)
-        self.held = (BTN_A, BTN_C)
-        yield 0.3
-        self.tama.button(BTN_A, False)
-        self.tama.button(BTN_C, False)
-        self.held = None
-        yield 5.0
-        if self.tama.memory(MEM_ANGEL_STATE) != 0xC:
-            self.generation += 1
-            self.counted = None
+        if (yield from self.begin()):
+            if not lucky:
+                self.log("Neues Ei")
+                return
+            # After the fourth the programme is through: begin it again
+            self.generation = self.generation + 1 if self.generation < 4 else 1
             self.log("Generation %d beginnt" % self.generation)
 
     def scold(self, why="Schimpfen"):
@@ -617,7 +653,7 @@ class CareBot:
             if not self.dead_logged:
                 self.log("Das Tamagotchi ist gestorben.")
                 self.dead_logged = True
-            return None
+            return self.new_life() if self.restart else None
         self.dead_logged = False
 
         if not self.model.care or self.model.game == "jump":
@@ -626,7 +662,8 @@ class CareBot:
             if st["leaving"]:
                 # Its time is over. On the way to Lucky Unchi-Kun the next generation follows;
                 # otherwise the farewell is left to the user (B, then A and C for a new one)
-                if self.goal == self.model.growth.LUCKY and self.generation < 4:
+                # unless the bot has been told to begin again
+                if self.restart or (self.goal == self.model.growth.LUCKY and self.generation < 4):
                     return self.farewell()
                 if not self.leaving_logged:
                     self.leaving_logged = True

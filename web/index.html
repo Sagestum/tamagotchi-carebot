@@ -336,6 +336,10 @@
         <span>Darf schimpfen</span>
         <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
       </div>
+      <div class="row">
+        <span>Nach dem Ende neu beginnen</span>
+        <label class="switch"><input type="checkbox" id="restart"><b></b></label>
+      </div>
       <div class="row" id="goalRow">
         <span>Ziel</span>
         <span><b id="goal">keins</b> · <a href="/bot" id="botLink">Wachstum und Ziel</a></span>
@@ -584,6 +588,7 @@ window.addEventListener('blur', () => [...held].forEach((name) => setButton(name
 
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
 $('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
+$('restart').addEventListener('change', (e) => post('/api/config', {restart: e.target.checked}));
 $('paused').addEventListener('change', (e) => post('/api/config', {paused: e.target.checked}));
 $('speed').addEventListener('click', (e) => {
   if (e.target.dataset.speed) post('/api/config', {speed: Number(e.target.dataset.speed)});
@@ -641,6 +646,7 @@ function render(msg) {
   $('game').textContent = st.game ? 'wird gewonnen' : 'wird verloren';
   const flags = [];
   if (st.dead) flags.push(['Gestorben', true]);
+  if (st.leaving) flags.push([st.thanked ? 'Verabschiedet' : 'Seine Zeit ist um', true]);
   if (alive && msg.care && st.poop) flags.push([st.poop + '× Häufchen', true]);
   if (alive && msg.care && st.sick) flags.push(['Krank', true]);
   if (alive && st.attention) flags.push(['Ruft nach dir', true]);
@@ -652,6 +658,7 @@ function render(msg) {
   $('handsOff').hidden = !msg.handsOff;
   $('discipline').checked = msg.discipline;
   $('discipline').disabled = !!msg.goal;      // with a goal the bot decides that itself
+  $('restart').checked = msg.restart;
   $('goal').textContent = msg.goalName || 'keins';
   $('paused').checked = msg.paused;
   document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));
