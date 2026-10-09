@@ -8,7 +8,7 @@ RUN make
 FROM python:3.13-slim
 WORKDIR /app
 COPY --from=build /app/libtama.so ./
-COPY server.py engine.py tama.py carebot.py carebot_umino.py growth.py growth_angel.py growth_morino.py growth_umino.py models.py report.py ./
+COPY server.py engine.py tama.py carebot.py carebot_umino.py carebot_mothra.py growth.py growth_angel.py growth_morino.py growth_umino.py growth_mothra.py models.py report.py ./
 COPY web ./web
 RUN useradd -u 1000 -m tama && mkdir /data && chown tama /data
 USER tama

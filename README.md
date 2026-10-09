@@ -23,6 +23,7 @@ braucht seine eigene:
 | Tamagotchi Angel | `tamaang.bin` aus dem MAME-Romset `tamaang` | 16 384 Bytes | `f5899bb7717756ac581451cf16cf97d909961c5c` | `87bcb59f` |
 | Tamagotchi Morino | `TamagotchiMorino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `4b578ea5dd328fd49fc7a664abeca79e35d573b2` | `647ea772` |
 | Tamagotchi Umino | `TamagotchiUmino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `69d916819f8f4aa4be9194e6c78f099bf8199f37` | `baae4199` |
+| Tamagotchi Mothra | `tamamot.bin` aus dem MAME-Romset `tamamot` | 16 384 Bytes | `74c1f6761724b7cbda8bca3113db78586b786d2d` | `85e4bee9` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -231,6 +232,88 @@ nachgemessen und deckt sich mit dem Care Sheet von Gotchi Garden.
 Um 5:05 Uhr morgens schwimmt eine Minute lang ein Karpfenwimpel durchs Bild (Koinoboritchi),
 wenn in der Zeit keine Taste gedrückt wird. Der Bot lässt die Tasten so lange los.
 
+### Tamagotchi Mothra
+
+Das Mothra (Mothra no Tamagotch, Dezember 1997, zum Film „Rebirth of Mothra II“) ist das erste
+Lizenz-Tamagotchi und wieder ein eigenes Programm mit eigenem Bot (`carebot_mothra.py`). Es
+legt sich zwischen seinen Bildern schlafen und lässt sich nur per Tasten-Interrupt wecken; damit
+das im Emulator geht, war ein Fehler in TamaLIB zu beheben (siehe „Aufbau“).
+
+- **Turmangriff und Justice:** Ab und zu greift das Tier den Tokyo Tower an und ruft dabei.
+  Schimpfen füllt ein Viertel der Justice-Anzeige. Jede Figur ruft nur so oft, wie in der
+  Anzeige Platz ist; ein verpasster Ruf kommt nicht wieder. Die Rufe beginnen in derselben
+  Minute, in der stündlich ein Herz verloren geht, und ein Spiel oder eine Mahlzeit, die genau
+  dann beginnt, verschluckt den Ruf. Der Bot wartet deshalb nach jedem Herzverlust anderthalb
+  Minuten, bevor er etwas tut.
+- **Krankheit:** Ein krankes Tier nimmt kein Futter an. Die Medizin (Moll und Lora singen)
+  braucht zwei Gaben.
+- **Snacks gegen Krankheit:** Etwa einmal am Tag entscheidet das ROM, ob das Tier krank wird,
+  und die vierte Krankheit als dieselbe Figur ist sein Tod. Die Chance steigt mit den Snacks,
+  die es als diese Figur gefressen hat, aber bei genau einer Zahl ist sie null: Mothra Leo 39,
+  Fairy, Batora und Moll & Lora 33, beide Teenager 30, Ghogo 21. Einen Schritt weiter ist sie so
+  hoch wie nie. Der Bot füttert nach jeder Verwandlung in einem Zug bis zu dieser Zahl. Ohne das
+  starben Batora und Fairy in der Simulation nach 10 bis 18 Tagen, mit ihm lebten alle nach 25
+  Tagen ohne eine Krankheit. Mayura hat keine solche Zahl und stirbt nach gut drei Tagen, wenn
+  sie nicht Godzilla wird.
+- **Spiel:** Das Tier versteckt sich in einem von vier Löchern, fünf Runden lang. Welches Loch
+  man wählt, machte in den Messungen keinen Unterschied; jedes Spiel brachte ein bis zwei
+  Glücksherzen und nahm je Herz eine Tonne Gewicht.
+- **Kokon:** Zwischen Teenager und Erwachsenem hängt eine Stunde lang ein Kokon am Turm. Was
+  schlüpft, steht beim Einspinnen fest (RAM `0x63`).
+
+Über die Figur entscheiden die **Pflegefehler** der jeweiligen Stufe (ein Ruf wegen Hunger oder
+Glück bleibt eine Viertelstunde liegen, oder das Licht bleibt beim Schlafen eine Stunde an) und
+die **Justice**:
+
+| Verwandlung | Justice | Pflegefehler | wird zu |
+|---|---|---|---|
+| Mothra Larva | egal | 0–2 | Mothra Grub |
+| | | ab 3 | Batora Grub |
+| Mothra Grub | voll | 0 | Mothra Leo |
+| | | 1–3 | Fairy |
+| | | ab 4 | Mayura |
+| | halb oder drei Viertel | 0–3 | Fairy |
+| | | ab 4 | Mayura |
+| | weniger | 0–2 | Fairy |
+| | | ab 3 | Mayura |
+| Batora Grub | voll | 0–1 | Fairy |
+| | | 2–4 | Batora |
+| | | ab 5 | Mayura |
+| | halb oder drei Viertel | 0–4 | Batora |
+| | | ab 5 | Mayura |
+| | weniger | 0–3 | Batora |
+| | | ab 4 | Mayura |
+| Fairy | voll | 0 | Ghogo |
+| Mayura | voll | 0 | Godzilla |
+
+Mothra Larva greift dreimal an; sind zwei davon beantwortet, beginnt der Teenager mit halber
+Justice. Wählbar sind Mothra Leo, Fairy, Batora, Mayura, Ghogo, Godzilla und die beiden
+Figuren über mehrere Generationen (siehe unten). Für ein Ziel mit
+Pflegefehlern lässt der Bot das Tier hungrig, bis das ROM genug gezählt hat, und schimpft bei
+jedem Angriff. Ist Fairy oder Mayura selbst das Ziel, lässt er die Angriffe liegen, weil sonst Ghogo
+oder Godzilla daraus würde. Alles ist im Emulator nachgemessen (jede Kombination aus 0 bis 6
+Pflegefehlern und Justice kurz vor der Verwandlung ins RAM geschrieben) und deckt sich mit der
+Figurenliste des Tamagotchi-Wikis.
+
+**Moll & Lora und Lucky Haka-Kun.** Die Zwillinge galten 27 Jahre lang als nicht erreichbar;
+der Weg wurde erst im Juni 2024 aus dem ROM gelesen. RAM `0x16` zählt Generationen und bleibt
+erhalten, wenn mit A und C ein neues Ei beginnt:
+
+| Mothra Leo nach 75 wachen Stunden, ohne Pflegefehler, 70–79 t schwer | Ergebnis |
+|---|---|
+| Zähler 0 | bleibt Mothra Leo, Zähler 1 |
+| Zähler 1 bis 3 | wird Moll & Lora, Zähler eins höher |
+| Zähler 4 | wird Lucky Haka-Kun (die fünfte Generation in Folge) |
+| anderes Gewicht oder ein Pflegefehler | Zähler wieder 0 |
+
+Den Tod überlebt der Zähler nur, wenn das Tier ein Ei hinterlässt: Es muss alt genug sein
+(RAM `0x76` = 2: Mothra Leo nach 75, Moll & Lora nach 56 wachen Stunden) und dann an fünf
+Pflegefehlern sterben. Wer früher hungert, stirbt erst nach 15 Pflegefehlern, und der Zähler
+ist 0. Der Bot zieht dafür einen fehlerfreien Mothra Leo groß, hält ihn bei 70 bis 79 t, lässt
+ihn nach der Zählung hungern (Krankheit und Haufen versorgt er weiter), beginnt das nächste Ei
+selbst und wiederholt das. Moll & Lora dauern so gut drei Wochen, Lucky Haka-Kun etwa zehn.
+„Neues Ei“ setzt das Gerät zurück und damit auch den Zähler.
+
 ### Tamagotchi Angel
 
 Der Angel (Tenshitchi no Tamagotchi, hier die japanische Fassung) hat einen ersten Care-Bot.
@@ -354,12 +437,14 @@ Jede Adresse hält 4 Bit. Alles durch Beobachten und gezieltes Setzen im Emulato
 ## Aufbau
 
 ```
-src/tamalib/     TamaLIB, unverändert bis auf eine Zeile in cpu.c (i = 0xFF in cpu_step)
+src/tamalib/     TamaLIB mit zwei Korrekturen in cpu.c: i = 0xFF in cpu_step, und die Tasten lösen
+                 jetzt wirklich einen Interrupt aus (die Maske landete im falschen Register)
 src/tama_core.c  C-Hülle: ROM laden, Ticks laufen lassen, LCD/Ton/RAM auslesen, Zustand sichern
 tama.py          ctypes-Anbindung
-carebot.py       der Care-Bot
+carebot.py       der Care-Bot (P1, P2, Angel, Morino)
+carebot_umino.py, carebot_mothra.py   die Bots für Umino und Mothra
 growth.py        Wachstumsregeln und Planung für ein Ziel (P1, P2)
-growth_angel.py  dasselbe für den Angel
+growth_angel.py, growth_morino.py, growth_umino.py, growth_mothra.py   dasselbe für die anderen
 models.py        die bekannten ROMs und worin sie sich unterscheiden
 report.py        Tagesbericht per E-Mail
 engine.py        ein Tier: Emulator-Schleife und Care-Bot, als eigener Prozess

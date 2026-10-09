@@ -37,7 +37,7 @@ from report import smtp_from_env  # noqa: E402
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html", "/chronik": "chronik.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
-SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg")
+SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg")
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell

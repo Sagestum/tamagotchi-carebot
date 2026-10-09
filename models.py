@@ -11,6 +11,7 @@ import zlib
 import growth
 import growth_angel
 import growth_morino
+import growth_mothra
 import growth_umino
 
 
@@ -122,7 +123,18 @@ UMINO = Model(
     clock_m=("........", "##.###..", "#.#.##..", "#.#.##.."),
     icon_pins=((8, 0), (17, 0), (18, 0), (19, 0), (39, 15), (38, 15), (37, 15), (28, 15)))
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO)
+# Mothra no Tamagotch. The board of the Umino (the same wiring of the icons) and a program
+# of its own again, with a bot of its own (carebot_mothra.py). It attacks a tower and wants
+# to be told off for it; that fills the Justice, which decides with the care mistakes what
+# comes out of the cocoon (growth_mothra.py). No tap sensor.
+MOTHRA = Model(
+    "mothra", "Tamagotchi Mothra", "tamamot.bin aus dem MAME-Romset „tamamot“",
+    16384, "74c1f6761724b7cbda8bca3113db78586b786d2d", "85e4bee9",
+    growth_mothra.NAMES, (), "mothra",
+    icons=("status", "food", "game", "toilet", "discipline", "medicine", "light", "attention"),
+    unit="t", rules=growth_mothra, icon_pins=UMINO.icon_pins)
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA)
 BY_ID = {m.id: m for m in MODELS}
 
 

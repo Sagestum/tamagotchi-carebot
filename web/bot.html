@@ -233,7 +233,7 @@
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
       <div class="row" id="mistakesRow"><span>Pflegefehler</span><span id="mistakes">–</span></div>
       <div class="row" id="missedRow"><span id="missedLabel">Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
-      <div class="row" id="trainingRow"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
+      <div class="row" id="trainingRow"><span id="trainingLabel">Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
       <div class="row" id="powerRow" hidden><span id="powerLabel">Angel Power</span><span id="power">–</span></div>
       <div class="row" id="friendRow" hidden><span>Freundschaft (0–15)</span><span id="friend">–</span></div>
       <div class="row" id="sweetRow" hidden><span>Süße (Rest beim Teilen durch 4)</span><span id="sweet">–</span></div>
@@ -331,7 +331,23 @@ const CHARS_UMINO = {
   10: ['Ningyotchi', 'Die Meerjungfrau, die Geheimfigur. Kaitchi darf keinen Ruf verpassen und muss genau 10 g wiegen, leichter wird es nicht. Das wird ab etwa 25 Stunden immer wieder geprüft.'],
 };
 
-/* Four families: P1 and P2 share one tree, the Angel, the Morino and the Umino have their own */
+const CHARS_MOTHRA = {
+  1: ['Baby Mothra', 'Das Baby. Nach einer Stunde wird es Mothra Larva. Hier zählt noch nichts.'],
+  2: ['Mothra Larva', 'Das Kind, etwa zwei Tage lang. Mit höchstens zwei Pflegefehlern wird es Mothra Grub, sonst Batora Grub. Es greift dreimal den Turm an; zweimal geschimpft, und der Teenager beginnt mit halber Justice.'],
+  3: ['Mothra Grub', 'Der gut gepflegte Teenager. Aus ihm werden Mothra Leo, Fairy oder Mayura.'],
+  4: ['Batora Grub', 'Der Teenager nach drei Pflegefehlern. Aus ihm werden Fairy, Batora oder Mayura.'],
+  5: ['Kokon', 'Hängt eine Stunde am Tokyo Tower. Was schlüpft, steht beim Einspinnen schon fest.'],
+  7: ['Mothra Leo', 'Aus Mothra Grub ganz ohne Pflegefehler und mit voller Justice.'],
+  8: ['Fairy', 'Aus Mothra Grub mit ein bis drei Pflegefehlern (bei voller Justice) oder aus Batora Grub mit höchstens einem.'],
+  9: ['Batora', 'Nur aus Batora Grub: zwei bis vier Pflegefehler bei voller Justice.'],
+  10: ['Mayura', 'Aus einem Teenager mit vielen Pflegefehlern: ab vier bei Mothra Grub, ab fünf bei Batora Grub.'],
+  11: ['Ghogo', 'Die Geheimfigur aus Fairy: kein Pflegefehler und volle Justice.'],
+  12: ['Godzilla', 'Die Geheimfigur aus Mayura: kein Pflegefehler und volle Justice.'],
+  13: ['Moll & Lora', 'Die Zwillinge, 27 Jahre lang unentdeckt. Sie brauchen zwei Leben: Ein Mothra Leo ohne Pflegefehler wiegt nach 75 wachen Stunden 70 bis 79 t, stirbt danach an Pflegefehlern und hinterlässt ein Ei. Der Mothra Leo aus diesem Ei wird unter denselben Bedingungen zu Moll & Lora. Das dauert gut drei Wochen.'],
+  14: ['Lucky Haka-Kun', 'Der wandernde Grabstein: die fünfte Generation in Folge. Nach dem ersten Mothra Leo müssen dreimal Moll & Lora alt werden und ein Ei hinterlassen; der Mothra Leo danach wird Lucky Haka-Kun. Das dauert etwa zehn Wochen.'],
+};
+
+/* Five families: P1 and P2 share one tree, the Angel, the Morino, the Umino and the Mothra have their own */
 const TAMA = {
   pos: {
     1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
@@ -398,7 +414,27 @@ const UMINO = {
   },
   teenInReach: (n, st) => st.stage <= 2,
 };
+const MOTHRA = {
+  pos: {
+    1: [35, 250], 2: [110, 250], 3: [190, 150], 4: [190, 370], 5: [270, 250],
+    7: [355, 45], 8: [355, 200], 9: [355, 325], 10: [355, 455],
+    13: [445, 45], 14: [445, 118], 11: [445, 200], 12: [445, 455],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [3, 5], [4, 5], [5, 7], [5, 8], [5, 9], [5, 10], [8, 11], [10, 12], [7, 13], [7, 14]],
+  viaChild: false,
+  pick: (n) => n >= 7,
+  before(stage) {
+    if (stage === 13 || stage === 14) return [1, 2, 3, 5, 7];
+    if (stage === 11) return [1, 2, 5, 8];
+    if (stage === 12) return [1, 2, 5, 10];
+    if (stage === 7) return [1, 2, 3, 5];
+    if (stage === 9) return [1, 2, 4, 5];
+    return stage >= 7 ? [1, 2, 5] : stage === 5 ? [1, 2] : stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];
+  },
+  teenInReach: (n, st) => st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2),
+};
 const MODELS = {
+  mothra: [SPRITES_MOTHRA, CHARS_MOTHRA, MOTHRA],
   p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
   angel: [SPRITES_ANGEL, CHARS_ANGEL, ANGEL],
   morino: [SPRITES_MORINO, CHARS_MORINO, MORINO],
@@ -452,6 +488,38 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === MOTHRA) {
+    $('rulesIntro').innerHTML =
+      '<p>Es zählen zwei Dinge:</p>' +
+      '<p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Glück bleibt eine Viertelstunde unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an. Sie beginnen bei jeder Verwandlung wieder bei 0.<br>' +
+      '<b>Justice</b> – das Tier greift ab und zu den Turm an. Jedes Schimpfen dabei füllt ein Viertel der Anzeige. ' +
+      'Jede Figur ruft nur so oft, wie in der Anzeige noch Platz ist; ein verpasster Ruf kommt nicht wieder.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Justice</th><th>Pflegefehler</th><th>wird zu</th></tr>' + [
+        [[n(2), 2], ['egal', 2], ['0–2'], [n(3)]],
+        [['ab 3'], [n(4)]],
+        [[n(3), 7], ['voll', 3], ['0'], [n(7)]],
+        [['1–3'], [n(8)]],
+        [['ab 4'], [n(10)]],
+        [['halb oder drei Viertel', 2], ['0–3'], [n(8)]],
+        [['ab 4'], [n(10)]],
+        [['weniger', 2], ['0–2'], [n(8)]],
+        [['ab 3'], [n(10)]],
+        [[n(4), 7], ['voll', 3], ['0–1'], [n(8)]],
+        [['2–4'], [n(9)]],
+        [['ab 5'], [n(10)]],
+        [['halb oder drei Viertel', 2], ['0–4'], [n(9)]],
+        [['ab 5'], [n(10)]],
+        [['weniger', 2], ['0–3'], [n(9)]],
+        [['ab 4'], [n(10)]],
+        [[n(8)], ['voll'], ['0'], [n(11)]],
+        [[n(10)], ['voll'], ['0'], [n(12)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `Zwischen Teenager und Erwachsenem liegt eine Stunde als ${n(5)}; was schlüpft, steht beim Einspinnen fest. ` +
+      `Solange es krank ist, nimmt es kein Futter an. Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
     return;
   }
   if (FAMILY === UMINO) {
@@ -623,12 +691,14 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO;
+  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA;
   $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino;
+  if (mothra) $('missedRow').hidden = true;
+  $('trainingLabel').textContent = mothra ? 'Justice' : 'Disziplin-Anzeige';
   $('mistakesRow').hidden = morino;
-  $('powerRow').hidden = !angel && !morino && !umino;
-  $('powerLabel').textContent = morino || umino ? 'Gewicht' : 'Angel Power';
-  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : '') : '–';
+  $('powerRow').hidden = !angel && !morino && !umino && !mothra;
+  $('powerLabel').textContent = morino || umino || mothra ? 'Gewicht' : 'Angel Power';
+  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : mothra ? ' t' : '') : '–';
   $('waterRow').hidden = $('snacksRow').hidden = $('leftRow').hidden = !umino;
   $('missedLabel').textContent = umino ? 'Verpasste Rufe' : 'Verpasste Schimpf-Rufe';
   if (umino) {
@@ -641,7 +711,7 @@ function render(msg) {
   $('friend').textContent = alive ? st.friendship : '–';
   $('sweet').textContent = alive ? st.sweetness % 4 : '–';
   $('temp').textContent = alive ? st.temperature : '–';
-  $('forecastLabel').textContent = morino ? 'Aus dem Kokon käme jetzt' : umino ? 'So wie es jetzt steht' : 'Ohne weitere Fehler';
+  $('forecastLabel').textContent = morino ? 'Aus dem Kokon käme jetzt' : umino || mothra ? 'So wie es jetzt steht' : 'Ohne weitere Fehler';
   // the stream runs at up to 30 frames a second, the chart changes rarely
   const key = JSON.stringify([model, st.stage, st.dead, g, msg.goal]);
   if (key !== drawn) { drawn = key; drawChart(msg); }
@@ -683,6 +753,33 @@ function render(msg) {
   } else if (morino && msg.goal && alive && !g.plan && st.stage !== msg.goal) {
     plan = 'nicht mehr erreichbar';
     text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar' + (msg.goal === 5 ? ' (dafür hätte es das gefleckte Ei sein müssen)' : '') + '. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
+  } else if (mothra && !msg.goal) {
+    text = msg.discipline
+      ? 'Ohne Ziel pflegt der Bot fehlerfrei und schimpft bei jedem Turmangriff. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'
+      : 'Ohne Ziel und ohne Schimpfen bleibt die Justice leer. Bei fehlerfreier Pflege ergibt das ' + name(3) + ' und dann ' + name(8) + '.';
+  } else if (mothra && (msg.goal === 13 || msg.goal === 14)) {
+    const count = st.generation || 0, haka = msg.goal === 14;
+    const need = haka ? 4 : 1;      // the count the last Mothra Leo has to find
+    plan = !alive ? '–' : st.stage === msg.goal ? 'Ziel erreicht' : 'Generation ' + (count + 1) + ' von ' + (need + 1);
+    text = CHARS[msg.goal][1] + ' ' + (!alive ? 'Der Bot beginnt damit, sobald ein Tier lebt.'
+      : st.stage === msg.goal ? 'Ab jetzt wird einfach gut gepflegt.'
+      : st.stage === 13 ? (st.old ? 'Moll & Lora sind alt genug: Der Bot lässt sie hungern, bis sie sterben und ein Ei hinterlassen, und beginnt dann die nächste Generation.' : 'Der Bot pflegt Moll & Lora, bis sie alt genug sind (56 wache Stunden), und lässt sie dann für das nächste Ei gehen.')
+      : st.stage === 7 && st.old ? (count ? 'Mothra Leo ist gezählt. Der Bot lässt ihn hungern, bis er stirbt und ein Ei hinterlässt, und beginnt dann die nächste Generation.' : 'Mothra Leo wurde nicht gezählt. Der Bot lässt ihn gehen und beginnt von vorn.')
+      : st.stage === 7 ? 'Der Bot pflegt Mothra Leo fehlerfrei und hält ihn bei 70 bis 79 t, bis seine 75 wachen Stunden um sind.' + (count >= need ? ' Dann wird er zu ' + name(msg.goal) + '.' : ' Dann zählt er als Generation ' + (count + 1) + '.')
+      : g.plan && g.plan.length > 1 || st.cocoon ? 'Der Bot zieht fehlerfrei einen Mothra Leo groß und schimpft bei jedem Turmangriff.'
+      : 'Aus diesem Tier wird kein fehlerfreier Mothra Leo mehr. Der Bot lässt es gehen und beginnt mit dem nächsten Ei.')
+      + ' „Neues Ei“ darf dabei nicht gedrückt werden, sonst beginnt die Zählung von vorn.';
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (mothra && alive && (msg.goal === 8 || msg.goal === 10) && st.stage === msg.goal) {
+    plan = 'Ziel erreicht';
+    text = name(msg.goal) + ' ist erreicht. Der Bot pflegt gut weiter, lässt aber die Turmangriffe liegen: Mit voller Justice und ohne Pflegefehler würde daraus ' + name(msg.goal === 8 ? 11 : 12) + '.';
+  } else if (mothra && alive && g.plan && st.stage !== msg.goal) {
+    const cm = g.wanted.mistakes - st.mistakes;
+    plan = path(g.plan);
+    text = CHARS[msg.goal][1] + ' Als ' + name(st.stage) + (st.cocoon ? ' wartet der Bot nur ab.'
+      : counting && cm > 0 ? ' wird der Bot noch ' + cm + ' Pflegefehler machen (es bleibt dafür eine Weile hungrig) und bei jedem Turmangriff schimpfen.'
+      : ' pflegt der Bot fehlerfrei und schimpft bei jedem Turmangriff.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (umino && !msg.goal) {
     text = msg.discipline
       ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'

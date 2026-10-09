@@ -14,6 +14,7 @@ import time
 
 import models
 from carebot import CareBot
+from carebot_mothra import MothraBot
 from carebot_umino import UminoBot
 from report import DailyReport
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_H, LCD_W, TICK_HZ, Tama
@@ -46,7 +47,8 @@ class Engine:
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
         self.tama.icon_pins = model.icon_pins
-        self.bot = (UminoBot if model.game == "ocean" else CareBot)(self.tama, self.add_log, model=model)
+        bot = {"ocean": UminoBot, "mothra": MothraBot}.get(model.game, CareBot)
+        self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
