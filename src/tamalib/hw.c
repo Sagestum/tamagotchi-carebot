@@ -38,6 +38,12 @@ bool_t hw_init(void)
 	cpu_set_input_pin(PIN_K02, PIN_STATE_HIGH);
 	cpu_set_input_pin(PIN_K03, PIN_STATE_HIGH);
 
+	/* Nothing is wired to the second port: its pull-ups hold it HIGH */
+	cpu_set_input_pin(PIN_K10, PIN_STATE_HIGH);
+	cpu_set_input_pin(PIN_K11, PIN_STATE_HIGH);
+	cpu_set_input_pin(PIN_K12, PIN_STATE_HIGH);
+	cpu_set_input_pin(PIN_K13, PIN_STATE_HIGH);
+
 	return 0;
 }
 

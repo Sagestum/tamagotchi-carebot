@@ -306,9 +306,19 @@ static void generate_interrupt(int_slot_t slot, u8_t bit)
 	}
 }
 
+/* The input ports have one factor flag each (IK0, IK1), and only a pin that is let
+ * through by the mask register sets it */
+static void generate_input_interrupt(int_slot_t slot, u8_t bit)
+{
+	if (interrupts[slot].mask_reg & (0x1 << bit)) {
+		interrupts[slot].factor_flag_reg = 0x1;
+		interrupts[slot].triggered = 1;
+	}
+}
+
 void cpu_set_input_pin(pin_t pin, pin_state_t state)
 {
-	u4_t old_state = (inputs[pin & 0x4].states >> (pin & 0x3)) & 0x1;
+	u4_t old_state = (inputs[(pin & 0x4) >> 2].states >> (pin & 0x3)) & 0x1;
 
 	/* Trigger the interrupt if the state changed */
 	if (state != old_state) {
@@ -316,21 +326,21 @@ void cpu_set_input_pin(pin_t pin, pin_state_t state)
 			case 0:
 				/* Active HIGH/LOW depending on the relation register */
 				if (state != ((GET_IO_MEMORY(memory, REG_K00_K03_INPUT_RELATION) >> (pin & 0x3)) & 0x1)) {
-					generate_interrupt(INT_K00_K03_SLOT, pin & 0x3);
+					generate_input_interrupt(INT_K00_K03_SLOT, pin & 0x3);
 				}
 				break;
 
 			case 1:
 				/* Active LOW */
 				if (state == PIN_STATE_LOW) {
-					generate_interrupt(INT_K10_K13_SLOT, pin & 0x3);
+					generate_input_interrupt(INT_K10_K13_SLOT, pin & 0x3);
 				}
 				break;
 		}
 	}
 
 	/* Set the I/O */
-	inputs[pin & 0x4].states = (inputs[pin & 0x4].states & ~(0x1 << (pin & 0x3))) | (state << (pin & 0x3));
+	inputs[(pin & 0x4) >> 2].states = (inputs[(pin & 0x4) >> 2].states & ~(0x1 << (pin & 0x3))) | (state << (pin & 0x3));
 }
 
 void cpu_sync_ref_timestamp(void)
@@ -513,13 +523,12 @@ static void set_io(u12_t n, u4_t v)
 		case REG_SERIAL_INT_MASKS:
 			/* Serial interface interrupt masks */
 			/* Assume all INT disabled */
-			interrupts[INT_K10_K13_SLOT].mask_reg = v;
+			interrupts[INT_SERIAL_SLOT].mask_reg = v;
 			break;
 
 		case REG_K00_K03_INT_MASKS:
 			/* Input (K00-K03) interrupt masks */
-			/* Assume all INT disabled */
-			interrupts[INT_SERIAL_SLOT].mask_reg = v;
+			interrupts[INT_K00_K03_SLOT].mask_reg = v;
 			break;
 
 		case REG_K10_K13_INT_MASKS:
