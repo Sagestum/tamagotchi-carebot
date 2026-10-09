@@ -36,6 +36,8 @@ from report import smtp_from_env  # noqa: E402
 
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html", "/chronik": "chronik.html"}
+# The drawings of the devices, from BrickEmuPy (CC0)
+SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg")
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
@@ -372,6 +374,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_body(302, b"", "text/plain", [("Location", "/settings")])
             with open(os.path.join(HERE, "web", PAGES[url.path]), "rb") as f:
                 self.send_body(200, f.read(), "text/html; charset=utf-8")
+        elif url.path.startswith("/shells/") and url.path[8:] in SHELLS:
+            with open(os.path.join(HERE, "web", "shells", url.path[8:]), "rb") as f:
+                self.send_body(200, f.read(), "image/svg+xml")
         elif url.path == "/sprites.js":
             with open(os.path.join(HERE, "web", "sprites.js"), "rb") as f:
                 self.send_body(200, f.read(), "text/javascript; charset=utf-8")

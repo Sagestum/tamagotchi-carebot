@@ -374,5 +374,7 @@ GPL-2.0, wie TamaLIB (siehe `LICENSE`). Das Spiel-Icon ist „arrow-left-right�
 [coolicons](https://github.com/krystonschwarze/coolicons) von Kryston Schwarze (CC BY 4.0). Das
 Favicon ist das Icon
 [„Tamagotchi“, erstellt von Magnific – Flaticon](https://www.flaticon.com/de/kostenloses-icon/tamagotchi_743850);
-es steht unter der Flaticon-Lizenz und nicht unter der GPL. Tamagotchi ist eine Marke von Bandai;
+es steht unter der Flaticon-Lizenz und nicht unter der GPL. Die Zeichnungen der Geräte in
+`web/shells/` stammen aus [BrickEmuPy](https://github.com/azya52/BrickEmuPy) von azya52 (CC0).
+Tamagotchi ist eine Marke von Bandai;
 dieses Projekt hat mit Bandai nichts zu tun.

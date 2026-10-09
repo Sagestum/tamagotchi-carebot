@@ -74,6 +74,24 @@
     -webkit-user-select: none;
     touch-action: manipulation;
   }
+  /* The device as BrickEmuPy draws it; the colour of the pet is a rim around it */
+  .art {
+    width: min(100%, 500px);
+    margin: 0 auto;
+    padding: 6px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .shell[hidden] { display: none; }
+  .art svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .art .halo * { fill: var(--shell-b); stroke: var(--shell-b); stroke-width: 20px; stroke-linejoin: round; }
+  .art .seg { opacity: 0.06; transition: opacity 0.08s; }
+  .art .seg.on { opacity: 1; }
+  .art .seg.pick { cursor: pointer; }
+  .art .seg.pick:not(.on):hover { opacity: 0.3; }
+  .art [data-btn] { cursor: pointer; }
+  .art [data-btn].down { transform: translateY(4px); }
   .screen {
     width: 100%;
     background: var(--lcd);
@@ -307,7 +325,8 @@
   <div id="offline">Keine Verbindung zum Server – das Tamagotchi ist angehalten, bis <code>server.py</code> wieder läuft.</div>
 
   <div>
-    <div class="shell">
+    <div class="art" id="art" hidden></div>
+    <div class="shell" id="egg">
       <div class="screen">
         <div class="icons" id="iconsTop"></div>
         <canvas id="lcd" width="640" height="320" aria-label="Tamagotchi-Display"></canvas>
@@ -539,14 +558,93 @@ function drawIcons(names, model) {
     (i < 4 ? $('iconsTop') : $('iconsBottom')).insertAdjacentHTML('beforeend', svg);
   });
   iconEls = [...document.querySelectorAll('.icons svg')];
-  /* Clicking a menu icon walks there with A; the last one is the pet calling */
-  iconEls.slice(0, 7).forEach((el, i) => {
-    if (names[i] === 'predator') return;    // a warning light, not a menu entry
+  pickable(iconEls, names);
+  drawArt(names, model);
+}
+/* Clicking a menu icon walks there with A; the last one is the pet calling */
+function pickable(els, names) {
+  els.slice(0, 7).forEach((el, i) => {
+    if (!el || names[i] === 'predator') return;    // a warning light, not a menu entry
     el.classList.add('pick');
     el.addEventListener('click', () => post('/api/icon', {icon: i}));
   });
 }
-drawIcons(['food', 'light', 'game', 'medicine', 'toilet', 'status', 'discipline', 'attention']);
+
+/* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
+   element named after its place in the display memory, "nibble_bit" */
+const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino'};
+/* The picture printed behind the LCD in each drawing: shown at half its strength, so that
+   the pixels stay easy to read */
+const BACKDROP = {p1: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector']};
+const BACKDROP_OPACITY = 0.5;
+const SEG_X = [0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 31, 30, 29, 28, 27, 26,
+               25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39];
+const P1_PINS = [[8, 0], [8, 1], [8, 2], [8, 3], [28, 12], [28, 13], [28, 14], [28, 15]];
+const PINS = {umino: [[8, 0], [17, 0], [18, 0], [19, 0], [39, 15], [38, 15], [37, 15], [28, 15]]};
+let artOf = '', pixEls = null, pixOn = null;
+async function drawArt(names, model) {
+  artOf = model;
+  pixEls = null;
+  $('art').hidden = true;
+  $('egg').hidden = false;
+  if (!ART[model]) return;
+  let text;
+  try {
+    const res = await fetch('/shells/' + ART[model] + '.svg');
+    if (!res.ok) return;
+    text = await res.text();
+  } catch (e) { return; }
+  if (artOf !== model) return;      // another tab was opened meanwhile
+  const box = $('art');
+  box.innerHTML = text;
+  const svg = box.querySelector('svg');
+  const pins = PINS[model] || P1_PINS, pixels = new Array(512), icons = new Array(8);
+  for (const el of svg.querySelectorAll('[id]')) {
+    const m = /^(\d+)_(\d)$/.exec(el.id);
+    if (!m) continue;
+    const n = +m[1], seg = (n % 80) >> 1, com = (n >= 80 ? 8 : 0) + (n % 2) * 4 + +m[2];
+    const icon = pins.findIndex(([s, c]) => s === seg && c === com);
+    el.classList.add('seg');
+    if (icon >= 0) icons[icon] = el;
+    else if (SEG_X[seg] < 32) pixels[com * 32 + SEG_X[seg]] = el;
+  }
+  icons.forEach((el, i) => {
+    const [title] = (ICONS_OF[model] || {})[names[i]] || ICONS[names[i]];
+    el.insertAdjacentHTML('afterbegin', '<title></title>');
+    el.firstChild.textContent = title;
+  });
+  for (const [id, name] of [['btnLeft', 'A'], ['btnCenter', 'B'], ['btnRight', 'C']]) {
+    const el = svg.querySelector('#' + id);
+    if (!el) continue;
+    el.dataset.btn = name;
+    el.style.transformBox = 'fill-box';
+    bindButton(el);
+  }
+  for (const id of BACKDROP[ART[model]] || []) {
+    const el = svg.querySelector(`[id="${id}"]`);
+    if (el) el.setAttribute('opacity', (el.getAttribute('opacity') || 1) * BACKDROP_OPACITY);
+  }
+  /* The rim: the outline of the housing once more, thicker and in the colour of the pet */
+  const housing = svg.querySelector('#housing, #shell');
+  if (housing) {
+    const halo = housing.cloneNode(true);
+    halo.removeAttribute('id');
+    halo.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    halo.setAttribute('class', 'halo');
+    svg.prepend(halo);
+  }
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Tamagotchi');
+  pickable(icons, names);
+  iconEls = icons;
+  pixEls = pixels;
+  pixOn = new Uint8Array(512);
+  const lcd = lastLcd;
+  lastLcd = '';
+  drawLcd(lcd);
+  $('egg').hidden = true;
+  box.hidden = false;
+}
 
 /* LCD */
 const canvas = $('lcd');
@@ -563,12 +661,16 @@ function drawLcd(hex) {
   for (let y = 0; y < 16; y++) {
     const row = parseInt(hex.substr(y * 8, 8), 16);
     for (let x = 0; x < 32; x++) {
-      ctx.fillStyle = (row >>> (31 - x)) & 1 ? LCD_ON : LCD_OFF;
+      const on = (row >>> (31 - x)) & 1;
+      ctx.fillStyle = on ? LCD_ON : LCD_OFF;
       ctx.fillRect(x * cell + gap, y * cell + gap, cell - 2 * gap, cell - 2 * gap);
+      const i = y * 32 + x;
+      if (pixEls && pixEls[i] && pixOn[i] !== on) { pixOn[i] = on; pixEls[i].classList.toggle('on', !!on); }
     }
   }
 }
 drawLcd('0'.repeat(128));
+drawIcons(['food', 'light', 'game', 'medicine', 'toilet', 'status', 'discipline', 'attention']);
 
 /* Sound: the buzzer is a square wave that the ROM switches on and off */
 let audio = null, osc = null, gain = null;
@@ -608,17 +710,18 @@ const held = new Set();
 function setButton(name, down) {
   if (down === held.has(name)) return;
   down ? held.add(name) : held.delete(name);
-  document.querySelector(`[data-btn="${name}"]`).classList.toggle('down', down);
+  document.querySelectorAll(`[data-btn="${name}"]`).forEach((el) => el.classList.toggle('down', down));
   post('/api/button', {btn: name, down});
 }
-document.querySelectorAll('[data-btn]').forEach((el) => {
+function bindButton(el) {
   const name = el.dataset.btn;
   el.addEventListener('pointerdown', (e) => { e.preventDefault(); setButton(name, true); });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
     el.addEventListener(ev, () => setButton(name, false));
   }
   el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
-});
+}
+document.querySelectorAll('[data-btn]').forEach(bindButton);
 const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C', t: 'T'};
 window.addEventListener('keydown', (e) => {
   const name = KEYS[e.key];
@@ -677,7 +780,7 @@ function render(msg) {
   $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
   $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : 'Glück';
   drawLegend(msg);
-  iconEls.forEach((el, i) => el.classList.toggle('on', (msg.icons >> i) & 1));
+  iconEls.forEach((el, i) => el && el.classList.toggle('on', (msg.icons >> i) & 1));
 
   const st = msg.status;
   const alive = st.stage > 0 && !st.dead;
@@ -770,7 +873,7 @@ function openPet(p) {
   document.title = p.name + ' – Tamagotchi';
   $('botLink').href = '/bot?pet=' + p.id;
   $('livesLink').href = '/chronik?pet=' + p.id;
-  [...held].forEach((name) => { held.delete(name); document.querySelector(`[data-btn="${name}"]`).classList.remove('down'); });
+  [...held].forEach((name) => { held.delete(name); document.querySelectorAll(`[data-btn="${name}"]`).forEach((el) => el.classList.remove('down')); });
   if (events) events.close();
   $('offline').innerHTML = OFFLINE;
   $('offline').classList.remove('show');
