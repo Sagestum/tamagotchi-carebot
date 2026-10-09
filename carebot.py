@@ -133,6 +133,13 @@ class CareBot:
         self.heating = None             # Morino: the way the cocoon's temperature was sent
         self.warmth = None              # Morino: the cocoon's temperature last logged
 
+    def memo(self):
+        """What the bot has to keep over a restart of the server (kept in the state file)."""
+        return None
+
+    def recall(self, memo):
+        pass
+
     # -- state readers -----------------------------------------------------
 
     def screen(self):

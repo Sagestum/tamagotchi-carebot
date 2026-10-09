@@ -11,6 +11,7 @@ import zlib
 import growth
 import growth_angel
 import growth_morino
+import growth_umino
 
 
 P1_CLOCK_M = ("........", ".##.###.", ".#.#.##.", ".#.#.##.")
@@ -20,7 +21,7 @@ P1_ICONS = ("food", "light", "game", "medicine", "toilet", "status", "discipline
 class Model:
     def __init__(self, id, name, source, size, sha1, crc32, names, dead, game,
                  icons=P1_ICONS, care=True, tap=False, unit="oz", goals=True,
-                 clock_m=P1_CLOCK_M, rules=growth):
+                 clock_m=P1_CLOCK_M, rules=growth, icon_pins=None):
         self.id = id
         self.name = name
         self.source = source    # where the dump is known from, for the settings page
@@ -37,6 +38,7 @@ class Model:
         self.goals = goals      # the growth rules are known: a character can be chosen
         self.growth = rules     # the module with its growth rules (growth.py, growth_angel.py)
         self.clock_m = clock_m # the "M" of AM/PM in the clock view, LCD rows 12-15 from column 2
+        self.icon_pins = icon_pins  # [(segment, common)] where the LCD wires its icons unlike the P1
 
     def stage_name(self, stage):
         return self.names.get(stage, "Erwachsen" if self.goals else "Stufe %d" % stage)
@@ -107,7 +109,20 @@ MORINO = Model(
     icons=("status", "food", "game", "toilet", "predator", "medicine", "light", "attention"),
     tap=True, unit="mg", rules=growth_morino)
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO)
+# Umi de Hakken! Tamagotch, the Tamagotchi Ocean. Another program altogether: nothing sits
+# where the P1 has it, so it has a bot of its own (carebot_umino.py). The water gets dirty by
+# itself, a polar bear lies in wait, and two counters of mistakes decide what it becomes
+# (growth_umino.py). The fifth icon is a calling box: it tells the pet off.
+UMINO = Model(
+    "umino", "Tamagotchi Umino", "TamagotchiUmino.bin aus der Sammlung zu BrickEmuPy",
+    16384, "69d916819f8f4aa4be9194e6c78f099bf8199f37", "baae4199",
+    growth_umino.NAMES, (), "ocean",
+    icons=("status", "food", "game", "toilet", "discipline", "medicine", "light", "attention"),
+    tap=True, unit="g", rules=growth_umino,
+    clock_m=("........", "##.###..", "#.#.##..", "#.#.##.."),
+    icon_pins=((8, 0), (17, 0), (18, 0), (19, 0), (39, 15), (38, 15), (37, 15), (28, 15)))
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO)
 BY_ID = {m.id: m for m in MODELS}
 
 

@@ -14,6 +14,7 @@ import time
 
 import models
 from carebot import CareBot
+from carebot_umino import UminoBot
 from report import DailyReport
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_H, LCD_W, TICK_HZ, Tama
 
@@ -44,7 +45,8 @@ class Engine:
         self.log_id = 0
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
-        self.bot = CareBot(self.tama, self.add_log, model=model)
+        self.tama.icon_pins = model.icon_pins
+        self.bot = (UminoBot if model.game == "ocean" else CareBot)(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
@@ -95,6 +97,7 @@ class Engine:
         self.bot.restart = data.get("restart", False)
         self.bot.goal = data.get("goal") if data.get("goal") in self.model.growth.GOALS else None
         self.bot.generation = data.get("generation", 1)
+        self.bot.recall(data.get("memo"))
         self.speed = data.get("speed", 1) if data.get("speed", 1) in SPEEDS else 1
         self.report.from_dict(data.get("report", {}))
         self.lives = data.get("lives", [])
@@ -110,6 +113,7 @@ class Engine:
                 "restart": self.bot.restart,
                 "goal": self.bot.goal,
                 "generation": self.bot.generation,
+                "memo": self.bot.memo(),
                 "speed": self.speed,
                 "report": self.report.to_dict(),
                 "lives": self.lives,

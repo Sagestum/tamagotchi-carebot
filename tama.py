@@ -43,6 +43,8 @@ class Tama:
         self._frame = ctypes.create_string_buffer(LCD_W * LCD_H + ICONS)
         self._sound = (SoundEvent * 256)()
         self._state = ctypes.create_string_buffer(4096)
+        # [(segment, common)] of the eight icons on a model that wires them unlike the P1
+        self.icon_pins = None
 
     def run(self, ticks):
         self.lib.tama_run(ticks)
@@ -62,7 +64,14 @@ class Tama:
         """Returns (pixels, icons): 512 bytes row by row, and 8 icon bytes."""
         self.lib.tama_get_frame(self._frame)
         raw = self._frame.raw
+        if self.icon_pins:
+            return raw[:LCD_W * LCD_H], bytes(self.lit(seg, com) for seg, com in self.icon_pins)
         return raw[:LCD_W * LCD_H], raw[LCD_W * LCD_H:]
+
+    def lit(self, seg, com):
+        """One LCD segment, read from the display memory (0xE00: commons 0-7, 0xE80: 8-15)."""
+        nibble = (0xE00 if com < 8 else 0xE80) + 2 * seg + (com % 8) // 4
+        return self.memory(nibble) >> (com % 4) & 1
 
     def memory(self, addr):
         return self.lib.tama_get_memory(addr)

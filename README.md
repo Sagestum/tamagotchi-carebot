@@ -22,6 +22,7 @@ braucht seine eigene:
 | Tamagotchi P2 | `tamag2.bin` aus dem MAME-Romset `tamag2` | 12 288 Bytes | `09e5101b37636a314fc599d5d69b4846721b3c88` | `9f97539e` |
 | Tamagotchi Angel | `tamaang.bin` aus dem MAME-Romset `tamaang` | 16 384 Bytes | `f5899bb7717756ac581451cf16cf97d909961c5c` | `87bcb59f` |
 | Tamagotchi Morino | `TamagotchiMorino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `4b578ea5dd328fd49fc7a664abeca79e35d573b2` | `647ea772` |
+| Tamagotchi Umino | `TamagotchiUmino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `69d916819f8f4aa4be9194e6c78f099bf8199f37` | `baae4199` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -179,6 +180,56 @@ Bei Temperatur 0 oder 15 stirbt der Kokon. Helmetchi schlüpft aus Kokon D, wenn
 schon einmal aus Kokon A zurückgekommen ist. Die Temperatur ändert sich etwa alle zweieinhalb
 Stunden um 1 oder 2; für das schmale Fenster 7–9 kann der letzte Schritt danebengehen, Helmetchi
 gelingt deshalb nicht in jedem Anlauf.
+
+### Tamagotchi Umino
+
+Das Umino (Umi de Hakken! Tamagotch, außerhalb Japans Tamagotchi Ocean) ist ein eigenes Programm:
+Keine RAM-Zelle liegt dort, wo die anderen sie haben, deshalb hat es einen eigenen Bot
+(`carebot_umino.py`). Es gilt als das schwerste der Reihe, und das liegt an vier Dingen:
+
+- **Wasser statt Häufchen:** Etwa alle zwei Stunden kommt ein Totenkopf auf der Statusseite dazu,
+  bei vier ist der Bildschirm schwarz. Jedes Wasserwechseln nimmt einen weg.
+- **Fressfeind:** Ein Eisbär legt sich neben das dösende Tier. Eine Taste weckt es und er geht;
+  sonst ist es verletzt und braucht Medizin. Der Bot drückt A. Die Rufbox täte es auch, zählt
+  dabei aber als Schimpfen.
+- **Krake:** In etwa jedem zwölften Spiel bricht ein Krake herein, schwärzt das Wasser und nimmt
+  alle Glücksherzen. Dagegen hilft nichts.
+- **Krankheit:** Jeder Snack erhöht einen versteckten Zähler um 2 bis 6, nach 255 beginnt er
+  wieder bei 0. Alle zweieinhalb Stunden entscheidet sein Stand, ob das Tier krank wird; nahe 0
+  bleibt es gesund. Vier Krankheiten als dieselbe Figur sind tödlich. Der Bot füttert deshalb
+  nach jeder Verwandlung so lange Snacks, bis der Zähler wieder unter 10 steht.
+
+Im Spiel gewinnt, wer im richtigen Moment drückt, und der Moment steht in RAM `0x92`. Drei gewonnene Runden füllen ein Herz, jedes Spiel kostet 1 g.
+
+Über die Figur entscheiden zwei Zähler, die bei jeder Verwandlung wieder bei 0 beginnen:
+**Pflegefehler** (eine Herzreihe ist leer und bleibt es, je nach Lage alle 20 bis 45 Minuten einer) und
+**verpasste Rufe** (es ruft, obwohl nichts fehlt, und will mit der Rufbox geschimpft werden; bis
+dahin nimmt es weder Futter noch Spiel an). Dazu kommen Gewicht und Wasser im Moment der
+Verwandlung.
+
+| Verwandlung | Pflegefehler | verpasste Rufe | wird zu |
+|---|---|---|---|
+| Kuragetchi | egal | 0–1 | Otototchi |
+| | egal | ab 2 | Kingyotchi |
+| Otototchi | 0 | 0 | Keropyontchi |
+| | 0 | ab 1 | Taiyakitchi |
+| | 1–3 | 0–1 | Taiyakitchi |
+| | 1–3 | ab 2 | Kaitchi |
+| | ab 4 | egal | Kaitchi |
+| Kingyotchi | 0–3 | 0–3 | Taiyakitchi |
+| | ab 4, oder | ab 4 | Kaitchi |
+| Otototchi oder Kingyotchi | egal | egal | Kujiratchi, wenn es 99 g wiegt |
+| Kingyotchi | egal | egal | Ashigyotchi, wenn das Wasser schwarz ist |
+| Kaitchi | egal | 0 | Ningyotchi, wenn es genau 10 g wiegt |
+
+Ningyotchi, die Meerjungfrau, ist die Geheimfigur. Der Bot geht dafür über Otototchi und macht
+dort vier Pflegefehler, statt wie in den Anleitungen Rufe zu übergehen: Ein übergangener Ruf
+dauert zwischen einer Viertelstunde und zwei Stunden, und so lange frisst das Tier nicht. Als
+Kaitchi beantwortet er jeden Ruf und spielt das Gewicht auf 10 g herunter. Alles ist im Emulator
+nachgemessen und deckt sich mit dem Care Sheet von Gotchi Garden.
+
+Um 5:05 Uhr morgens schwimmt eine Minute lang ein Karpfenwimpel durchs Bild (Koinoboritchi),
+wenn in der Zeit keine Taste gedrückt wird. Der Bot lässt die Tasten so lange los.
 
 ### Tamagotchi Angel
 

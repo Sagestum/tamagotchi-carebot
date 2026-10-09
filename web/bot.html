@@ -232,12 +232,15 @@
       <h2>Stand</h2>
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
       <div class="row" id="mistakesRow"><span>Pflegefehler</span><span id="mistakes">–</span></div>
-      <div class="row" id="missedRow"><span>Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
+      <div class="row" id="missedRow"><span id="missedLabel">Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
       <div class="row" id="trainingRow"><span>Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
       <div class="row" id="powerRow" hidden><span id="powerLabel">Angel Power</span><span id="power">–</span></div>
       <div class="row" id="friendRow" hidden><span>Freundschaft (0–15)</span><span id="friend">–</span></div>
       <div class="row" id="sweetRow" hidden><span>Süße (Rest beim Teilen durch 4)</span><span id="sweet">–</span></div>
       <div class="row" id="tempRow" hidden><span>Temperatur im Kokon (0–15)</span><span id="temp">–</span></div>
+      <div class="row" id="waterRow" hidden><span>Wasser</span><span id="water">–</span></div>
+      <div class="row" id="snacksRow" hidden><span>Snack-Zähler (0–255)</span><span id="snacks">–</span></div>
+      <div class="row" id="leftRow" hidden><span>Nächste Verwandlung</span><span id="left">–</span></div>
       <div class="row tall"><span id="forecastLabel">Ohne weitere Fehler</span><span id="forecast">–</span></div>
       <div class="row tall"><span>Plan des Bots</span><span id="plan">–</span></div>
     </section>
@@ -315,7 +318,20 @@ const CHARS_MORINO = {
   5: ['Kabutotchi', 'Der Käfer aus dem gefleckten Ei. Dafür muss schon das Ei richtig gewählt sein: Der Bot nimmt bei diesem Ziel das gefleckte.'],
 };
 
-/* Three families: P1 and P2 share one tree, the Angel and the Morino have their own */
+const CHARS_UMINO = {
+  1: ['Planktontchi', 'Das Baby. Nach einer Stunde wird es Kuragetchi. Hier zählt noch nichts.'],
+  2: ['Kuragetchi', 'Das Kind, 22 wache Stunden lang. Mit zwei verpassten Rufen wird es Kingyotchi, sonst Otototchi.'],
+  3: ['Otototchi', 'Der gut gepflegte Teenager, 23 wache Stunden lang. Aus ihm kann alles werden außer Ashigyotchi.'],
+  4: ['Kingyotchi', 'Der Teenager nach zwei verpassten Rufen, 16 wache Stunden lang. Nur aus ihm wird Ashigyotchi.'],
+  7: ['Keropyontchi', 'Aus Otototchi ganz ohne Pflegefehler und ohne verpassten Ruf.'],
+  9: ['Taiyakitchi', 'Aus Otototchi mit ein bis drei Pflegefehlern oder einem verpassten Ruf, oder aus Kingyotchi mit weniger als vier von beidem.'],
+  6: ['Kaitchi', 'Aus einem Teenager mit vier Pflegefehlern (oder aus Kingyotchi mit vier verpassten Rufen). Nur aus Kaitchi wird die Meerjungfrau.'],
+  5: ['Kujiratchi', 'Der Wal: Der Teenager wiegt bei der Verwandlung 99 g. Dafür gibt es in den letzten Stunden Snacks.'],
+  8: ['Ashigyotchi', 'Aus Kingyotchi, wenn das Wasser bei der Verwandlung schwarz ist (vier Totenköpfe).'],
+  10: ['Ningyotchi', 'Die Meerjungfrau, die Geheimfigur. Kaitchi darf keinen Ruf verpassen und muss genau 10 g wiegen, leichter wird es nicht. Das wird ab etwa 25 Stunden immer wieder geprüft.'],
+};
+
+/* Four families: P1 and P2 share one tree, the Angel, the Morino and the Umino have their own */
 const TAMA = {
   pos: {
     1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
@@ -366,10 +382,27 @@ const MORINO = {
   before(stage) { return stage === 2 ? [1] : stage === 13 ? [1, 2] : stage >= 3 ? [1, 2, 13] : []; },
   teenInReach: () => true,
 };
+const UMINO = {
+  pos: {
+    1: [40, 250], 2: [125, 250], 3: [215, 150], 4: [215, 370],
+    7: [320, 45], 9: [320, 147], 6: [320, 250], 5: [320, 352], 8: [320, 455],
+    10: [430, 250],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [3, 7], [3, 9], [3, 6], [3, 5], [4, 9], [4, 6], [4, 5], [4, 8], [6, 10]],
+  viaChild: false,
+  before(stage) {
+    if (stage === 10) return [1, 2, 6];
+    if (stage === 7) return [1, 2, 3];
+    if (stage === 8) return [1, 2, 4];
+    return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];    // the others come from either teenager
+  },
+  teenInReach: (n, st) => st.stage <= 2,
+};
 const MODELS = {
   p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
   angel: [SPRITES_ANGEL, CHARS_ANGEL, ANGEL],
   morino: [SPRITES_MORINO, CHARS_MORINO, MORINO],
+  umino: [SPRITES_UMINO, CHARS_UMINO, UMINO],
 };
 let model = 'p1', [SPRITES, CHARS, FAMILY] = MODELS.p1;
 const BOX = 50;
@@ -419,6 +452,33 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === UMINO) {
+    $('rulesIntro').innerHTML =
+      '<p>Es zählen zwei Dinge, bei jeder Verwandlung wieder ab 0, dazu Gewicht und Wasser im Moment der Verwandlung:</p>' +
+      '<p><b>Pflegefehler</b> – eine Herzreihe ist leer und bleibt es; alle 20 bis 45 Minuten kommt einer dazu.<br>' +
+      '<b>Verpasste Rufe</b> – es ruft, obwohl nichts fehlt, und will geschimpft werden (die Rufbox). Bis dahin nimmt es weder Futter noch Spiel an. ' +
+      'Bleibt der Ruf liegen, zählt er nach einer Viertelstunde als verpasst, manchmal erst nach zwei Stunden.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Pflegefehler</th><th>verpasste Rufe</th><th>wird zu</th></tr>' + [
+        [[n(2), 2], ['egal'], ['0–1'], [n(3)]],
+        [['egal'], ['ab 2'], [n(4)]],
+        [[n(3), 5], ['0'], ['0'], [n(7)]],
+        [['0'], ['ab 1'], [n(9)]],
+        [['1–3'], ['0–1'], [n(9)]],
+        [['1–3'], ['ab 2'], [n(6)]],
+        [['ab 4'], ['egal'], [n(6)]],
+        [[n(4), 2], ['0–3'], ['0–3'], [n(9)]],
+        [['ab 4, oder'], ['ab 4'], [n(6)]],
+        [[n(3) + ' oder ' + n(4)], ['egal'], ['egal'], [n(5) + ', wenn es 99 g wiegt']],
+        [[n(4)], ['egal'], ['egal'], [n(8) + ', wenn das Wasser schwarz ist']],
+        [[n(6)], ['egal'], ['0'], [n(10) + ', wenn es genau 10 g wiegt']],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `Krank wird es durch einen versteckten Zähler, den jeder Snack um 2 bis 6 erhöht und der nach 255 wieder bei 0 beginnt: Nahe 0 bleibt es gesund. ` +
+      `Vier Krankheiten als dieselbe Figur sind tödlich. Der Bot füttert deshalb nach jeder Verwandlung Snacks, bis der Zähler wieder unter 10 steht. ` +
+      `Alles im Emulator nachgemessen; es deckt sich mit dem Care Sheet von Gotchi Garden.`;
     return;
   }
   if (FAMILY === ANGEL) {
@@ -563,18 +623,25 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO;
+  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO;
   $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino;
   $('mistakesRow').hidden = morino;
-  $('powerRow').hidden = !angel && !morino;
-  $('powerLabel').textContent = morino ? 'Gewicht' : 'Angel Power';
-  $('power').textContent = alive ? st.weight + (morino ? ' mg' : '') : '–';
+  $('powerRow').hidden = !angel && !morino && !umino;
+  $('powerLabel').textContent = morino || umino ? 'Gewicht' : 'Angel Power';
+  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : '') : '–';
+  $('waterRow').hidden = $('snacksRow').hidden = $('leftRow').hidden = !umino;
+  $('missedLabel').textContent = umino ? 'Verpasste Rufe' : 'Verpasste Schimpf-Rufe';
+  if (umino) {
+    $('water').textContent = alive ? (st.poop ? st.poop + ' von 4 Totenköpfen' + (st.poop >= 4 ? ' (schwarz)' : '') : 'sauber') : '–';
+    $('snacks').textContent = alive ? st.snacks + (st.snacks < 10 ? ' (sicher)' : ' (kann krank werden)') : '–';
+    $('left').textContent = alive && g.hoursLeft !== null && g.hoursLeft !== undefined ? 'in etwa ' + String(g.hoursLeft).replace('.', ',') + ' wachen Stunden' : '–';
+  }
   $('friendRow').hidden = $('sweetRow').hidden = !morino;
   $('tempRow').hidden = !(morino && st.cocoon);
   $('friend').textContent = alive ? st.friendship : '–';
   $('sweet').textContent = alive ? st.sweetness % 4 : '–';
   $('temp').textContent = alive ? st.temperature : '–';
-  $('forecastLabel').textContent = morino ? 'Aus dem Kokon käme jetzt' : 'Ohne weitere Fehler';
+  $('forecastLabel').textContent = morino ? 'Aus dem Kokon käme jetzt' : umino ? 'So wie es jetzt steht' : 'Ohne weitere Fehler';
   // the stream runs at up to 30 frames a second, the chart changes rarely
   const key = JSON.stringify([model, st.stage, st.dead, g, msg.goal]);
   if (key !== drawn) { drawn = key; drawChart(msg); }
@@ -616,6 +683,22 @@ function render(msg) {
   } else if (morino && msg.goal && alive && !g.plan && st.stage !== msg.goal) {
     plan = 'nicht mehr erreichbar';
     text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar' + (msg.goal === 5 ? ' (dafür hätte es das gefleckte Ei sein müssen)' : '') + '. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
+  } else if (umino && !msg.goal) {
+    text = msg.discipline
+      ? 'Ohne Ziel pflegt der Bot so gut er kann und schimpft bei jedem Ruf. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'
+      : 'Ohne Ziel und ohne Schimpfen lässt der Bot die Rufe liegen, solange beide Herzreihen reichen; danach schimpft er doch, weil das Tier sonst nicht frisst.';
+  } else if (umino && alive && g.plan && st.stage !== msg.goal) {
+    const w = g.wanted, todo = [];
+    const cm = w.mistakes - st.mistakes, dm = w.missed - st.missed;
+    if (counting && cm > 0) todo.push('noch ' + cm + ' Pflegefehler machen (es bleibt dafür eine Weile hungrig)');
+    if (counting && dm > 0) todo.push('noch ' + dm + (dm === 1 ? ' Ruf' : ' Rufe') + ' übergehen, solange die Herzen reichen');
+    if (w.weight === 99) todo.push('es in den letzten Stunden mit Snacks auf 99 g bringen');
+    if (w.weight === 10) todo.push('jeden Ruf beantworten und das Gewicht mit Spielen auf genau 10 g halten');
+    if (w.water) todo.push('das Wasser nicht mehr wechseln, bis es schwarz ist');
+    plan = path(g.plan);
+    text = CHARS[msg.goal][1] + ' ' + (todo.length ? 'Als ' + name(st.stage) + ' wird der Bot ' + todo.join(' und ') + '.'
+      : 'Als ' + name(st.stage) + ' pflegt der Bot fehlerfrei und schimpft bei jedem Ruf.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (!msg.goal) {
     text = angel ? 'Ohne Ziel pflegt der Bot fehlerfrei. Das ergibt ' + name(6) + ' und danach ' + name(5) + '.'
       : msg.discipline
