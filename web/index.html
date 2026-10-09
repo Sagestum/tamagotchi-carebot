@@ -352,7 +352,7 @@
         <label class="switch"><input type="checkbox" id="bot"><b></b></label>
       </div>
       <div class="row" id="disciplineRow">
-        <span>Darf schimpfen</span>
+        <span id="disciplineLabel">Darf schimpfen</span>
         <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
       </div>
       <div class="row">
@@ -483,6 +483,11 @@ const JP = {
     status: [['おなか', 'onaka', 'Bauch: Hunger'], ['ごきげん', 'gokigen', 'Laune: Glück'],
              ['才', 'sai', 'Alter in Jahren, darunter das Gewicht in mg']],
   },
+  genjin: {
+    food: [['', '', 'oben die Mahlzeit (Hähnchen: füllt den Hunger, +1 kg), darunter der Snack (Pilz: füllt das Glück, +2 kg)']],
+    light: [['', '', 'oben Licht an, darunter Licht aus']],
+    status: [['', '', 'vier Seiten: Alter in Tagen und Gewicht in kg, Hunger, Glück, Evolutionsanzeige (ein Viertel je Lob)']],
+  },
   mothra: {
     food: [['', '', 'oben die Mahlzeit (füllt den Hunger, +1 t), darunter der Snack (füllt das Glück, +2 t)']],
     light: [['', '', 'oben Licht an, darunter Licht aus']],
@@ -577,17 +582,18 @@ function pickable(els, names) {
 
 /* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
    element named after its place in the display memory, "nibble_bit" */
-const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra'};
+const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
+             genjin: 'genjin'};
 /* The picture printed behind the LCD in each drawing: shown at half its strength, so that
    the pixels stay easy to read */
 const BACKDROP = {p1: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
-                  mothra: ['Vector_4']};
+                  mothra: ['Vector_4'], genjin: ['reflector']};
 const BACKDROP_OPACITY = 0.5;
 const SEG_X = [0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 31, 30, 29, 28, 27, 26,
                25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39];
 const P1_PINS = [[8, 0], [8, 1], [8, 2], [8, 3], [28, 12], [28, 13], [28, 14], [28, 15]];
 const UMINO_PINS = [[8, 0], [17, 0], [18, 0], [19, 0], [39, 15], [38, 15], [37, 15], [28, 15]];
-const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS};
+const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS};
 let artOf = '', pixEls = null, pixOn = null;
 async function drawArt(names, model) {
   artOf = model;
@@ -783,7 +789,8 @@ function render(msg) {
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care;
   $('goalRow').hidden = !msg.goals;
-  $('disciplineRow').hidden = !msg.goals || !msg.menu.includes('discipline');
+  $('disciplineRow').hidden = !msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin');
+  $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';
   $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
   $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : 'Glück';
   drawLegend(msg);
@@ -807,6 +814,7 @@ function render(msg) {
   if (alive && st.attack) flags.push([umino ? 'Fressfeind lauert: Taste drücken!' : 'Fressfeind: klopfen!', true]);
   if (alive && st.cocoon) flags.push([st.temperature === null ? 'Kokon' : 'Kokon, Temperatur ' + st.temperature + ' von 15', false]);
   if (alive && msg.model === 'mothra' && st.scold) flags.push(['Greift den Turm an: schimpfen!', true]);
+  else if (alive && msg.model === 'genjin' && st.scold) flags.push(['Töpfert: loben!', true]);
   else if (alive && st.attention) flags.push([umino && st.scold ? 'Will geschimpft werden' : 'Ruft nach dir', true]);
   if (alive && msg.care && st.asleep) flags.push(['Schläft', false]);
   if (alive && !st.light) flags.push(['Licht aus', false]);

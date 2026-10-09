@@ -52,16 +52,19 @@ GENERATIONS = (MOLL_LORA, HAKA)     # goals that take more than one life
 ADULTS = (LEO, FAIRY, BATORA, MAYURA)
 TEENS = (MOTHRA_GRUB, BATORA_GRUB)
 FULL = 4            # the Justice meter when it is full
+METER_STEP = 1      # what RAM 0x3B goes up by for every telling off
+CALLING = (8, 9)    # RAM 0x0C while it attacks the tower
 TWIN_WEIGHT = (70, 79)  # t: what Mothra Leo has to weigh after 75 waking hours
 HAKA_AT = 4         # the generation counter at which Mothra Leo becomes Lucky Haka-Kun
 
 # Illness: about once a day the ROM decides whether it falls ill, and the fourth illness as
 # the same character is its death. The chance depends on the snacks eaten as this character
-# (RAM 0x62 counts them in threes): it rises with them, but at exactly this count there is
-# none at all, and one step further it is as high as it gets. Measured over 12 days for
-# every count; the Tamagotchi wiki calls it immortality. Mayura has no such count.
-SAFE_SNACKS = {MOTHRA_GRUB: 10, BATORA_GRUB: 10, LEO: 13, FAIRY: 11, BATORA: 11, GHOGO: 7,
-               MOLL_LORA: 11}
+# (RAM 0x62 counts them in threes): it rises with them, but at one exact count there is none
+# at all, and one step further it is as high as it gets. Measured over 12 days for every
+# count: both grubs 10, Mothra Leo 13, Fairy, Batora, Godzilla, Moll & Lora and Lucky
+# Haka-Kun 11, Ghogo 7. That is 14 less the character's own number in RAM 0x6B, which is
+# what the bot goes by (carebot_mothra.py); Mayura's number is 15, so it has no such count.
+# The Tamagotchi wiki calls it immortality.
 
 
 def teen(mistakes):

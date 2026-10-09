@@ -1,9 +1,13 @@
-"""Care-Bot for the Mothra (Mothra no Tamagotch).
+"""Care-Bot for the Mothra (Mothra no Tamagotch) and the Genjintch.
 
 Another program again: nothing sits where the P1 or the Umino have it. It sleeps between
 its pictures and only a button wakes it, it attacks a tower and wants to be told off for
 that, and it turns food down while it is ill. Built on the buttons and the scheduler of
 carebot.py.
+
+The Genjintch runs the same program with other characters: it makes pottery instead of
+attacking a tower and wants to be praised for it. Every cell sits where the Mothra has it;
+what differs is in the growth modules (growth_mothra.py, growth_genjin.py).
 """
 import time
 
@@ -32,15 +36,16 @@ MEM_HOLE = 0x50                         # game: the hole the arrow is at
 MEM_WEIGHT_LO, MEM_WEIGHT_HI = 0x56, 0x57  # BCD, tons
 MEM_SNACKS = 0x62                       # snacks eaten as this character, in threes (0x3C
                                         # counts the single ones)
+MEM_ILLNESS = 0x6B                      # how easily this character falls ill, 1 to 15
 MEM_DESTINED = 0x63                     # in the cocoon: the character that will come out
 MEM_OLD = 0x76                          # 2 once it is old enough to leave an egg when it dies
 MEM_ROUNDS = 0x9B                       # game: rounds still to come
 
 FLAG_SICK, FLAG_ASLEEP = 1, 4
+SAFE_SUM = 14           # MEM_ILLNESS and MEM_SNACKS together: at this it does not fall ill
 CLOCK_M = ("........", ".###.##.", ".##.#.#.", ".##.#.#.")     # the M of AM and PM
 CLOCK_SET = (".##..###.###", "#..#.#....#.", "#....#....#.")  # the top of the word SET
 SETTLE = 90             # seconds to wait after a heart has gone before doing anything about it
-ATTACKING = (8, 9)
 DEAD = 15
 
 
@@ -79,7 +84,8 @@ class MothraBot(CareBot):
             "poop": m(MEM_POOP),
             "mistakes": m(MEM_MISTAKES),
             "missed": 0,
-            "training": m(MEM_JUSTICE),
+            "meter": m(MEM_JUSTICE),                    # as the rules count it
+            "training": min(4, m(MEM_JUSTICE) * 4 // self.model.growth.FULL),   # in quarters
             "kind": 0,
             "sick": alive and bool(flags & FLAG_SICK),
             "asleep": alive and bool(flags & FLAG_ASLEEP),
@@ -91,7 +97,7 @@ class MothraBot(CareBot):
             # the light only counts while it sleeps; in the morning it comes on by itself
             "light": not flags & FLAG_ASLEEP or bool(m(MEM_LIGHT) & 1),
             "attention": alive and bool(self.tama.frame()[1][7]),
-            "scold": alive and m(MEM_STATE) in ATTACKING,    # it attacks the tower
+            "scold": alive and m(MEM_STATE) in self.model.growth.CALLING,   # it wants an answer
             "dead": dead,
             "game": None,
             "clock": "%02d:%d%d" % (self.hour(), m(MEM_MIN_HI), m(MEM_MIN_LO)),
@@ -222,12 +228,12 @@ class MothraBot(CareBot):
         yield from self.home()
         return ((m(MEM_HAPPY) if snack else m(MEM_HUNGER)), self.weight()) != before
 
-    def feed(self):
+    def feed(self, meals=4):
         m = self.tama.memory
         self.log("Füttern (Hunger %d/4)" % m(MEM_HUNGER))
-        for _ in range(4):
+        for _ in range(meals):
             if m(MEM_HUNGER) >= 4 or m(MEM_FLAGS) & (FLAG_SICK | FLAG_ASLEEP) \
-                    or m(MEM_STATE) in ATTACKING:
+                    or m(MEM_STATE) in self.model.growth.CALLING:
                 break
             if not (yield from self.eat(False)):
                 break
@@ -236,7 +242,8 @@ class MothraBot(CareBot):
         m = self.tama.memory
         self.log(why)
         for _ in range(count):
-            if m(MEM_FLAGS) & (FLAG_SICK | FLAG_ASLEEP) or m(MEM_STATE) in ATTACKING \
+            if m(MEM_FLAGS) & (FLAG_SICK | FLAG_ASLEEP) \
+                    or m(MEM_STATE) in self.model.growth.CALLING \
                     or (until and until()):
                 break
             yield from self.eat(True)
@@ -309,10 +316,13 @@ class MothraBot(CareBot):
             if bool(m(MEM_LIGHT) & 1) == on or not m(MEM_FLAGS) & FLAG_ASLEEP:
                 break
 
-    def scold(self, why="Schimpfen"):
-        self.log(why)
+    def scold(self, why=None):
+        """Answer the call that fills the meter: telling the Mothra off at the tower,
+        praising the Genjintch at its pottery. The fifth icon on both."""
+        praise = "praise" in self.model.icons
+        self.log(why or ("Loben" if praise else "Schimpfen"))
         yield from self.home()
-        if (yield from self.select(self.model.icon("discipline"))):
+        if (yield from self.select(self.model.icon("praise" if praise else "discipline"))):
             yield from self.press(BTN_B, 8.0)
         yield from self.home()
 
@@ -327,7 +337,7 @@ class MothraBot(CareBot):
         characters to come) or None."""
         if self.goal is None or st["stage"] == 0:
             return None
-        return self.model.growth.plan(self.goal, st["stage"], st["mistakes"], st["training"])
+        return self.model.growth.plan(self.goal, st["stage"], st["mistakes"], st["meter"])
 
     def let_go(self, st):
         """The twins and Lucky Haka-Kun take several lives (growth_mothra.py). Returns why
@@ -350,6 +360,11 @@ class MothraBot(CareBot):
             return "Aus diesem Tier wird kein fehlerfreier Mothra Leo mehr: neuer Anlauf"
         return None
 
+    def weight_wish(self, st):
+        """Genjintch: (weight, whether to hold it or to keep away from it), or None."""
+        wish = getattr(self.model.growth, "weight_goal", None)
+        return wish(self.goal, st["stage"]) if wish and self.goal else None
+
     def growth(self, st):
         if st["dead"]:
             return None
@@ -359,16 +374,19 @@ class MothraBot(CareBot):
         if st["cocoon"]:
             forecast = [st["destined"]]
         else:
-            forecast = rules.forecast(st["stage"], st["mistakes"], st["training"]) if alive else []
+            more = (st["weight"],) if hasattr(rules, "weight_goal") else ()
+            forecast = rules.forecast(st["stage"], st["mistakes"], st["meter"], *more) \
+                if alive else []
         return {
             "forecast": forecast,
-            "reachable": rules.reachable(st["stage"], st["mistakes"], st["training"]),
+            "reachable": rules.reachable(st["stage"], st["mistakes"], st["meter"]),
             "plan": way[1] if way else None,
-            "wanted": {"mistakes": way[0], "justice": rules.FULL} if way else None,
+            "wanted": {"mistakes": way[0], "justice": rules.FULL,
+                       "weight": self.weight_wish(st)} if way else None,
         }
 
     def watch(self, st):
-        seen = st["stage"], st["mistakes"], st["training"]
+        seen = st["stage"], st["mistakes"], st["meter"]
         if self.counted and st["stage"] > 0:
             stage, mistakes, justice = self.counted
             if stage != st["stage"] and stage > 0:
@@ -421,7 +439,15 @@ class MothraBot(CareBot):
             # Fairy and Mayura turn into Ghogo and Godzilla once their Justice is full
             # and no mistake has been made. If they are the goal, the calls are left alone
             rules = self.model.growth
-            stay = self.goal == st["stage"] and rules.adult(st["stage"], 0, rules.FULL)
+            stay = self.goal == st["stage"] and rules.adult(st["stage"], 0, rules.FULL) \
+                and not getattr(rules, "STAY_BY_MISTAKES", False)
+            answer = getattr(rules, "answer", None)
+            if answer and self.goal and not answer(self.goal, st["stage"]):
+                # Genjintch: only a Genjintchi that was never praised goes back to Ukitchi
+                if not self.ignoring:
+                    self.ignoring = True
+                    self.log("Töpfern wird nicht gelobt, damit es wieder Ukitchi wird")
+                return None
             if stay and not self.ignoring:
                 self.ignoring = True
                 self.log("Turmangriff wird übergangen, damit es %s bleibt" % st["name"])
@@ -468,15 +494,20 @@ class MothraBot(CareBot):
                 return self.play()
             return None
         self.neglecting = False
-        if st["hunger"] < self.feed_below:
-            return self.feed()
+        # Genjintch: a weight to be at when the change comes (Gaikotchi), or to stay away
+        # from. A meal adds 1 kg, a game takes 1 or 2 off: at the weight, feed and play as
+        # late as the hearts allow, and put right at once what a meal or a game has moved
+        wish = self.weight_wish(st)
+        held = wish and wish[1] and st["weight"] == wish[0]
+        if st["hunger"] < (2 if held else self.feed_below):
+            return self.feed(1 if wish and wish[1] else 4)
         # The fourth illness as the same character is its death, and at one exact count
         # of snacks it does not fall ill at all (growth_mothra.py). Eat up to there in
-        # one go: on the way the chance is at its highest
+        # one go: on the way the chance is at its highest. The baby is over in an hour
         rules = self.model.growth
         m = self.tama.memory
-        safe = rules.SAFE_SNACKS.get(st["stage"])
-        if safe and m(MEM_SNACKS) < safe:
+        safe = SAFE_SUM - m(MEM_ILLNESS) if st["stage"] > rules.BABY else 0
+        if safe > 0 and m(MEM_SNACKS) < safe:
             return self.sweets("Snacks, bis es nicht mehr krank wird (%d von %d)"
                                % (st["snacks"], safe * 3), count=12,
                                until=lambda: m(MEM_SNACKS) >= safe)
@@ -488,7 +519,21 @@ class MothraBot(CareBot):
                 return self.play("Spielen, damit er %d bis %d t wiegt (%d t)" % (low, high, st["weight"]))
             if st["weight"] < low + 2 and m(MEM_SNACKS) != safe:
                 return self.sweets("Snack, damit er %d bis %d t wiegt (%d t)" % (low, high, st["weight"]))
-        if st["happy"] < self.play_below:
+        if wish:
+            goal_weight, wanted = wish
+            unit = self.model.unit
+            if wanted and st["weight"] > goal_weight:
+                return self.play("Spielen, damit es %d %s wiegt (%d %s)"
+                                 % (goal_weight, unit, st["weight"], unit))
+            if wanted and st["weight"] < goal_weight and st["hunger"] < 4:
+                return self.feed(1)     # every meal is a kilo
+            if wanted and st["weight"] < goal_weight - 1 \
+                    and m(MEM_SNACKS) != safe:
+                return self.sweets("Snack, damit es %d %s wiegt (%d %s)"
+                                   % (goal_weight, unit, st["weight"], unit))
+            if not wanted and st["weight"] == goal_weight:
+                return self.play("Spielen, damit es nicht %d %s wiegt" % (goal_weight, unit))
+        if st["happy"] < (2 if held else self.play_below):
             return self.play()
 
         if self.realtime and st["stage"] >= 2 and now >= self.clock_check:

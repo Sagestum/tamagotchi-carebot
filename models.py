@@ -10,6 +10,7 @@ import zlib
 
 import growth
 import growth_angel
+import growth_genjin
 import growth_morino
 import growth_mothra
 import growth_umino
@@ -134,7 +135,17 @@ MOTHRA = Model(
     icons=("status", "food", "game", "toilet", "discipline", "medicine", "light", "attention"),
     unit="t", rules=growth_mothra, icon_pins=UMINO.icon_pins)
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA)
+# Genjintch no Tamagotch, the cave man. The program of the Mothra with other characters, so
+# the same bot looks after it. It makes pottery and wants to be praised for it; that fills
+# the Evolution meter (growth_genjin.py).
+GENJIN = Model(
+    "genjin", "Tamagotchi Genjintch", "TamagotchiGenjintch.bin aus der Sammlung zu BrickEmuPy",
+    16384, "e317eac80c3360b766b92a2da253bda32fd50273", "bbf6b4fe",
+    growth_genjin.NAMES, (), "mothra",
+    icons=("status", "food", "game", "toilet", "praise", "medicine", "light", "attention"),
+    unit="kg", rules=growth_genjin, icon_pins=UMINO.icon_pins)
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN)
 BY_ID = {m.id: m for m in MODELS}
 
 

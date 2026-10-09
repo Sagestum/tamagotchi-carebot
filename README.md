@@ -24,6 +24,7 @@ braucht seine eigene:
 | Tamagotchi Morino | `TamagotchiMorino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `4b578ea5dd328fd49fc7a664abeca79e35d573b2` | `647ea772` |
 | Tamagotchi Umino | `TamagotchiUmino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `69d916819f8f4aa4be9194e6c78f099bf8199f37` | `baae4199` |
 | Tamagotchi Mothra | `tamamot.bin` aus dem MAME-Romset `tamamot` | 16 384 Bytes | `74c1f6761724b7cbda8bca3113db78586b786d2d` | `85e4bee9` |
+| Tamagotchi Genjintch | `TamagotchiGenjintch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `e317eac80c3360b766b92a2da253bda32fd50273` | `bbf6b4fe` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -250,8 +251,10 @@ das im Emulator geht, war ein Fehler in TamaLIB zu beheben (siehe „Aufbau“).
 - **Snacks gegen Krankheit:** Etwa einmal am Tag entscheidet das ROM, ob das Tier krank wird,
   und die vierte Krankheit als dieselbe Figur ist sein Tod. Die Chance steigt mit den Snacks,
   die es als diese Figur gefressen hat, aber bei genau einer Zahl ist sie null: Mothra Leo 39,
-  Fairy, Batora und Moll & Lora 33, beide Teenager 30, Ghogo 21. Einen Schritt weiter ist sie so
-  hoch wie nie. Der Bot füttert nach jeder Verwandlung in einem Zug bis zu dieser Zahl. Ohne das
+  Fairy, Batora, Godzilla und Moll & Lora 33, beide Teenager 30, Ghogo 21. Einen Schritt weiter
+  ist sie so hoch wie nie. Die Zahl steht im RAM: Der Snack-Zähler `0x62` (in Dreierschritten)
+  und der Grundwert der Figur in `0x6B` müssen zusammen 14 ergeben. Der Bot füttert nach jeder
+  Verwandlung in einem Zug bis dorthin. Ohne das
   starben Batora und Fairy in der Simulation nach 10 bis 18 Tagen, mit ihm lebten alle nach 25
   Tagen ohne eine Krankheit. Mayura hat keine solche Zahl und stirbt nach gut drei Tagen, wenn
   sie nicht Godzilla wird.
@@ -313,6 +316,39 @@ ist 0. Der Bot zieht dafür einen fehlerfreien Mothra Leo groß, hält ihn bei 7
 ihn nach der Zählung hungern (Krankheit und Haufen versorgt er weiter), beginnt das nächste Ei
 selbst und wiederholt das. Moll & Lora dauern so gut drei Wochen, Lucky Haka-Kun etwa zehn.
 „Neues Ei“ setzt das Gerät zurück und damit auch den Zähler.
+
+### Tamagotchi Genjintch
+
+Das Genjintch (Genjintch no Tamagotch, November 1997, zum Film „Peking Man“) läuft auf dem
+Programm des Mothra: Jede RAM-Zelle liegt an derselben Stelle, und derselbe Bot versorgt beide
+(`carebot_mothra.py`). Statt den Turm anzugreifen töpfert es und will dafür gelobt werden. Jedes
+Lob erhöht die **Evolutionsanzeige** (RAM `0x3B`) um 2, ab 14 gilt sie als voll; Dotetchi beginnt
+bei 6, Ukitchi bei 4.
+
+| Verwandlung | Anzeige | Pflegefehler | wird zu |
+|---|---|---|---|
+| Kuromarutchi | egal | 0–2 | Dotetchi |
+| | | ab 3 | Ukitchi |
+| Dotetchi | voll | 0–1 | Genjintchi |
+| | voll | 2–3 | GenjinGaltchi |
+| | nicht voll | 0–3 | GenjinGaltchi |
+| | egal | ab 4 | Hanitchi |
+| Ukitchi | voll | 0 | Dotetchi (holt auf) |
+| | voll | 1–3 | Manmotchi |
+| | nicht voll | 0–3 | Manmotchi |
+| | egal | ab 4 | Hanitchi |
+| Genjintchi | voll | 0 | Ibatchi |
+| | voll | ab 1 | Gaikotchi, wenn er genau 60 kg wiegt |
+| | nie gelobt (6) | 0 | zurück zu Ukitchi |
+| | sonst | egal | reist mit der Rakete ab |
+| Hanitchi | voll | 0–1 | Dogutchi |
+
+Genjintchi ist die einzige Figur, deren Zeit abläuft: Rund fünf Tage nach dem Erwachsenwerden
+verwandelt er sich, oder das Leben ist zu Ende. Wer ihn behalten will, lobt ihn nie und pflegt
+fehlerfrei; dann wird er wieder Ukitchi, holt zu Dotetchi auf und ist erneut Genjintchi. Der Bot
+macht das beim Ziel „Genjintchi“ von selbst, beliebig oft. Für Gaikotchi hält er das Gewicht bei
+genau 60 kg. Alles ist im Emulator nachgemessen und deckt sich mit der Figurenliste des
+Tamagotchi-Wikis; die Rakete als Regelfall steht dort nicht.
 
 ### Tamagotchi Angel
 

@@ -222,7 +222,7 @@
         <span><b id="goalName">–</b> <button class="plain" id="noGoal">Kein Ziel</button></span>
       </div>
       <div class="row" id="disciplineRow">
-        <span>Darf schimpfen (nur ohne Ziel)</span>
+        <span id="disciplineLabel">Darf schimpfen (nur ohne Ziel)</span>
         <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
       </div>
       <p class="note" id="goalText" style="margin:10px 0 0"></p>
@@ -347,7 +347,21 @@ const CHARS_MOTHRA = {
   14: ['Lucky Haka-Kun', 'Der wandernde Grabstein: die fünfte Generation in Folge. Nach dem ersten Mothra Leo müssen dreimal Moll & Lora alt werden und ein Ei hinterlassen; der Mothra Leo danach wird Lucky Haka-Kun. Das dauert etwa zehn Wochen.'],
 };
 
-/* Five families: P1 and P2 share one tree, the Angel, the Morino, the Umino and the Mothra have their own */
+const CHARS_GENJIN = {
+  1: ['DNAtchi', 'Das Baby. Nach einer Stunde wird es Kuromarutchi. Hier zählt noch nichts.'],
+  2: ['Kuromarutchi', 'Das Kind. Mit höchstens zwei Pflegefehlern wird es Dotetchi, sonst Ukitchi.'],
+  3: ['Dotetchi', 'Der gut gepflegte Teenager. Aus ihm werden Genjintchi, GenjinGaltchi oder Hanitchi.'],
+  4: ['Ukitchi', 'Der Teenager nach drei Pflegefehlern. Aus ihm werden Manmotchi oder Hanitchi; ohne Pflegefehler und mit voller Anzeige holt er auf und wird Dotetchi.'],
+  5: ['Genjintchi', 'Der Urmensch: aus Dotetchi mit voller Evolutionsanzeige und höchstens einem Pflegefehler. Nach rund fünf Tagen läuft seine Zeit ab: Er wird Ibatchi, Gaikotchi oder wieder Ukitchi, sonst reist er mit der Rakete ab. Als Ziel hält der Bot ihn deshalb in der Schleife: nie loben und fehlerfrei pflegen, dann wird er Ukitchi, holt zu Dotetchi auf und ist wieder Genjintchi.'],
+  6: ['GenjinGaltchi', 'Aus Dotetchi mit zwei oder drei Pflegefehlern, oder mit weniger, wenn die Anzeige nicht voll ist.'],
+  7: ['Manmotchi', 'Das Mammut, nur aus Ukitchi: ein bis drei Pflegefehler.'],
+  8: ['Hanitchi', 'Die Tonfigur: aus einem Teenager mit vier oder mehr Pflegefehlern. Damit sie es bleibt, macht der Bot als Hanitchi zwei Pflegefehler.'],
+  9: ['Ibatchi', 'Die Geheimfigur aus Genjintchi: volle Anzeige und kein Pflegefehler.'],
+  10: ['Gaikotchi', 'Das Skelett, aus Genjintchi: volle Anzeige, mindestens ein Pflegefehler und genau 60 kg (59 oder 61 reichen nicht).'],
+  11: ['Dogutchi', 'Die Geheimfigur aus Hanitchi: volle Anzeige und höchstens ein Pflegefehler.'],
+};
+
+/* Six families: P1 and P2 share one tree, the Angel, the Morino, the Umino, the Mothra and the Genjintch have their own */
 const TAMA = {
   pos: {
     1: [45, 250], 2: [135, 250], 3: [235, 150], 4: [235, 370],
@@ -433,7 +447,25 @@ const MOTHRA = {
   },
   teenInReach: (n, st) => st.stage <= 2 && (n !== 3 || st.stage < 2 || st.mistakes <= 2),
 };
+const GENJIN = {
+  pos: {
+    1: [40, 250], 2: [125, 250], 3: [215, 150], 4: [215, 370],
+    5: [320, 60], 6: [320, 185], 8: [320, 320], 7: [320, 455],
+    9: [430, 25], 10: [430, 100], 11: [430, 320],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [4, 3], [3, 5], [3, 6], [3, 8], [4, 8], [4, 7], [5, 9], [5, 10], [8, 11]],
+  viaChild: false,
+  before(stage) {
+    if (stage === 9 || stage === 10) return [1, 2, 3, 5];
+    if (stage === 5 || stage === 6) return [1, 2, 3];
+    if (stage === 7) return [1, 2, 4];
+    if (stage === 11) return [1, 2, 8];
+    return stage >= 3 ? [1, 2] : stage === 2 ? [1] : [];
+  },
+  teenInReach: (n, st) => st.stage <= 2 || (n === 3 && st.stage === 4 && st.mistakes === 0),
+};
 const MODELS = {
+  genjin: [SPRITES_GENJIN, CHARS_GENJIN, GENJIN],
   mothra: [SPRITES_MOTHRA, CHARS_MOTHRA, MOTHRA],
   p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
   angel: [SPRITES_ANGEL, CHARS_ANGEL, ANGEL],
@@ -488,6 +520,33 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === GENJIN) {
+    $('rulesIntro').innerHTML =
+      '<p>Es zählen zwei Dinge:</p>' +
+      '<p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Glück bleibt eine Viertelstunde unbeantwortet, oder das Licht bleibt beim Schlafen eine Stunde an. Sie beginnen bei jeder Verwandlung wieder bei 0.<br>' +
+      '<b>Evolutionsanzeige</b> – das Tier töpfert ab und zu und ruft dabei. Jedes Lob füllt ein Viertel der Anzeige.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Anzeige</th><th>Pflegefehler</th><th>wird zu</th></tr>' + [
+        [[n(2), 2], ['egal', 2], ['0–2'], [n(3)]],
+        [['ab 3'], [n(4)]],
+        [[n(3), 4], ['voll', 2], ['0–1'], [n(5)]],
+        [['2–3'], [n(6)]],
+        [['nicht voll'], ['0–3'], [n(6)]],
+        [['egal'], ['ab 4'], [n(8)]],
+        [[n(4), 4], ['voll', 2], ['0'], [n(3)]],
+        [['1–3'], [n(7)]],
+        [['nicht voll'], ['0–3'], [n(7)]],
+        [['egal'], ['ab 4'], [n(8)]],
+        [[n(5), 4], ['voll', 2], ['0'], [n(9)]],
+        [['ab 1'], [n(10) + ', wenn er genau 60 kg wiegt']],
+        [['nie gelobt'], ['0'], ['zurück zu ' + n(4)]],
+        [['sonst'], ['egal'], ['reist mit der Rakete ab']],
+        [[n(8)], ['voll'], ['0–1'], [n(11)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `Die Anzeige gilt ab sieben Loben als voll; ${n(3)} bringt schon drei mit, ${n(4)} zwei. ${n(5)} ist die einzige Figur, deren Zeit abläuft, und die einzige, die sich zurückentwickeln kann. Solange das Tier krank ist, nimmt es kein Futter an. Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis, die Rakete steht dort nicht.`;
     return;
   }
   if (FAMILY === MOTHRA) {
@@ -691,14 +750,16 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA;
+  const genjin = FAMILY === GENJIN;
+  const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA || genjin;
   $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino;
   if (mothra) $('missedRow').hidden = true;
-  $('trainingLabel').textContent = mothra ? 'Justice' : 'Disziplin-Anzeige';
+  $('disciplineLabel').textContent = genjin ? 'Darf loben (nur ohne Ziel)' : 'Darf schimpfen (nur ohne Ziel)';
+  $('trainingLabel').textContent = genjin ? 'Evolutionsanzeige' : mothra ? 'Justice' : 'Disziplin-Anzeige';
   $('mistakesRow').hidden = morino;
   $('powerRow').hidden = !angel && !morino && !umino && !mothra;
   $('powerLabel').textContent = morino || umino || mothra ? 'Gewicht' : 'Angel Power';
-  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : mothra ? ' t' : '') : '–';
+  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : genjin ? ' kg' : mothra ? ' t' : '') : '–';
   $('waterRow').hidden = $('snacksRow').hidden = $('leftRow').hidden = !umino;
   $('missedLabel').textContent = umino ? 'Verpasste Rufe' : 'Verpasste Schimpf-Rufe';
   if (umino) {
@@ -753,10 +814,23 @@ function render(msg) {
   } else if (morino && msg.goal && alive && !g.plan && st.stage !== msg.goal) {
     plan = 'nicht mehr erreichbar';
     text = name(msg.goal) + ' ist von hier aus nicht mehr erreichbar' + (msg.goal === 5 ? ' (dafür hätte es das gefleckte Ei sein müssen)' : '') + '. Der Bot pflegt gut weiter, bis ein anderes Ziel gewählt wird.';
-  } else if (mothra && !msg.goal) {
+  } else if (mothra && !genjin && !msg.goal) {
     text = msg.discipline
       ? 'Ohne Ziel pflegt der Bot fehlerfrei und schimpft bei jedem Turmangriff. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'
       : 'Ohne Ziel und ohne Schimpfen bleibt die Justice leer. Bei fehlerfreier Pflege ergibt das ' + name(3) + ' und dann ' + name(8) + '.';
+  } else if (genjin && !msg.goal) {
+    text = msg.discipline
+      ? 'Ohne Ziel pflegt der Bot fehlerfrei und lobt bei jedem Töpfern.'
+      : 'Ohne Ziel und ohne Loben bleibt die Evolutionsanzeige, wie sie ist.';
+  } else if (genjin && alive && g.plan) {
+    const cm = g.wanted.mistakes - st.mistakes, here = st.stage === msg.goal;
+    plan = here && !g.plan.length ? 'Ziel erreicht' : path(g.plan);
+    text = CHARS[msg.goal][1] + ' Als ' + name(st.stage) + (counting && cm > 0
+      ? ' wird der Bot noch ' + cm + ' Pflegefehler machen (es bleibt dafür eine Weile hungrig) und bei jedem Töpfern loben.'
+      : st.stage === 5 && msg.goal !== 9 && msg.goal !== 10 ? ' pflegt der Bot fehlerfrei und lobt nie, damit er wieder ' + name(4) + ' wird.'
+      : ' pflegt der Bot fehlerfrei und lobt bei jedem Töpfern.')
+      + (g.wanted.weight ? (g.wanted.weight[1] ? ' Das Gewicht hält er bei ' : ' Vom Gewicht hält er Abstand zu ') + g.wanted.weight[0] + ' kg.' : '');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (mothra && (msg.goal === 13 || msg.goal === 14)) {
     const count = st.generation || 0, haka = msg.goal === 14;
     const need = haka ? 4 : 1;      // the count the last Mothra Leo has to find
