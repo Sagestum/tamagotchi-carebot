@@ -23,7 +23,8 @@ P1_ICONS = ("food", "light", "game", "medicine", "toilet", "status", "discipline
 class Model:
     def __init__(self, id, name, source, size, sha1, crc32, names, dead, game,
                  icons=P1_ICONS, care=True, tap=False, unit="oz", goals=True,
-                 clock_m=P1_CLOCK_M, rules=growth, icon_pins=None):
+                 clock_m=P1_CLOCK_M, rules=growth, icon_pins=None, hold=0.1,
+                 rattle=0):
         self.id = id
         self.name = name
         self.source = source    # where the dump is known from, for the settings page
@@ -41,6 +42,8 @@ class Model:
         self.growth = rules     # the module with its growth rules (growth.py, growth_angel.py)
         self.clock_m = clock_m # the "M" of AM/PM in the clock view, LCD rows 12-15 from column 2
         self.icon_pins = icon_pins  # [(segment, common)] where the LCD wires its icons unlike the P1
+        self.hold = hold        # seconds a button has to be held for the ROM to take it
+        self.rattle = rattle    # pulses of 5 ms a tap on the case is made of (0: one press)
 
     def stage_name(self, stage):
         return self.names.get(stage, "Erwachsen" if self.goals else "Stufe %d" % stage)
@@ -145,7 +148,18 @@ GENJIN = Model(
     icons=("status", "food", "game", "toilet", "praise", "medicine", "light", "attention"),
     unit="kg", rules=growth_genjin, icon_pins=UMINO.icon_pins)
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN)
+# Tamaotch, after the actress Tamao Nakamura. A program of its own once more, with training
+# games that are answered by tapping the case. No Care-Bot yet (carebot_tamaotch.py reads
+# what is known), and no drawing of it in BrickEmuPy: web/shells/tamaotch.svg is ours.
+TAMAOTCH = Model(
+    "tamaotch", "Tamagotchi Tamaotch", "TamagotchiTamaotch.bin aus der Sammlung zu BrickEmuPy",
+    16384, "d4ea15fa2abb16bd844c79e3b095a6f6cf21a98f", "a491fb55",
+    {0: "Ei"}, (), "tamaotch",
+    icons=("status", "food", "game", "training", "toilet", "medicine", "light", "discipline"),
+    care=False, tap=True, unit="g", goals=False, icon_pins=UMINO.icon_pins, hold=0.35,
+    rattle=400)
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH)
 BY_ID = {m.id: m for m in MODELS}
 
 

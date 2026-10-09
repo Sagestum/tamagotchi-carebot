@@ -507,17 +507,20 @@ class MothraBot(CareBot):
         rules = self.model.growth
         m = self.tama.memory
         safe = SAFE_SUM - m(MEM_ILLNESS) if st["stage"] > rules.BABY else 0
-        if safe > 0 and m(MEM_SNACKS) < safe:
+        # (not the Mothra Leo of the twins: he needs his few snacks for his weight, and
+        # with few he rarely falls ill in the six days he has)
+        twin = self.goal in rules.GENERATIONS and st["stage"] == rules.LEO
+        if safe > 0 and m(MEM_SNACKS) < safe and not twin:
             return self.sweets("Snacks, bis es nicht mehr krank wird (%d von %d)"
                                % (st["snacks"], safe * 3), count=12,
                                until=lambda: m(MEM_SNACKS) >= safe)
         # Mothra Leo has to weigh 70 to 79 t when his 75 waking hours are over. A game
-        # takes 1 or 2 t off, a snack would add 2 but must not be eaten any more
-        if self.goal in rules.GENERATIONS and st["stage"] == rules.LEO:
+        # takes 1 or 2 t off, a snack adds 2
+        if twin:
             low, high = rules.TWIN_WEIGHT
             if st["weight"] > high - 2:
                 return self.play("Spielen, damit er %d bis %d t wiegt (%d t)" % (low, high, st["weight"]))
-            if st["weight"] < low + 2 and m(MEM_SNACKS) != safe:
+            if st["weight"] < low + 3:
                 return self.sweets("Snack, damit er %d bis %d t wiegt (%d t)" % (low, high, st["weight"]))
         if wish:
             goal_weight, wanted = wish

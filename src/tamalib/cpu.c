@@ -129,6 +129,7 @@
 #define REG_SW_TIMER_CTRL			0xF77
 #define REG_PROG_TIMER_CTRL			0xF78
 #define REG_PROG_TIMER_CLK_SEL			0xF79
+#define REG_PROG_TIMER_CLK_SET			0xF7C // not a register of the MCU: REG_PROG_TIMER_CLK_SEL has been written
 #define REG_SERIAL_IF_CLK_SEL			0xF7A
 #define REG_HIGH_IMPEDANCE_OUTPUT_CTRL		0xF7B
 #define REG_IO_CTRL				0xF7D
@@ -316,12 +317,38 @@ static void generate_input_interrupt(int_slot_t slot, u8_t bit)
 	}
 }
 
+/* The clock of the prog timer: 0 the K03 input, else its period in ticks */
+static u32_t prog_timer_period(void)
+{
+	u4_t sel = GET_IO_MEMORY(memory, REG_PROG_TIMER_CLK_SEL) & 0x7;
+
+	if (!GET_IO_MEMORY(memory, REG_PROG_TIMER_CLK_SET)) {
+		return TIMER_256HZ_PERIOD;
+	}
+	return (sel < 2) ? 0 : (TIMER_256HZ_PERIOD >> (sel - 2));
+}
+
+static void prog_timer_count(void)
+{
+	prog_timer_data--;
+
+	if (prog_timer_data == 0) {
+		prog_timer_data = prog_timer_rld;
+		generate_interrupt(INT_PROG_TIMER_SLOT, 0);
+	}
+}
+
 void cpu_set_input_pin(pin_t pin, pin_state_t state)
 {
 	u4_t old_state = (inputs[(pin & 0x4) >> 2].states >> (pin & 0x3)) & 0x1;
 
 	/* Trigger the interrupt if the state changed */
 	if (state != old_state) {
+		/* K03 as the clock of the prog timer: every falling edge counts */
+		if (pin == PIN_K03 && state == PIN_STATE_LOW && prog_timer_enabled && prog_timer_period() == 0) {
+			prog_timer_count();
+		}
+
 		switch ((pin & 0x4) >> 2) {
 			case 0:
 				/* Active HIGH/LOW depending on the relation register */
@@ -491,7 +518,7 @@ static u4_t get_io(u12_t n)
 
 		case REG_PROG_TIMER_CLK_SEL:
 			/* Prog timer clock selection */
-			break;
+			return GET_IO_MEMORY(memory, n);
 
 		default:
 			g_hal->log(LOG_ERROR, "Read from unimplemented I/O 0x%03X - PC = 0x%04X\n", n, pc);
@@ -635,8 +662,12 @@ static void set_io(u12_t n, u4_t v)
 			break;
 
 		case REG_PROG_TIMER_CLK_SEL:
-			/* Prog timer clock selection */
-			/* Assume 256Hz, output disabled */
+			/* Prog timer clock selection: 0 and 1 the K03 input (an event counter: the
+			 * Tamaotch counts taps and noises with it), 2 to 7 256Hz to 8192Hz.
+			 * Kept in the I/O memory, so that it is part of a saved state; the marker
+			 * tells it from a state saved before this was emulated (256Hz then) */
+			SET_IO_MEMORY(memory, n, v);
+			SET_IO_MEMORY(memory, REG_PROG_TIMER_CLK_SET, 0x1);
 			break;
 
 		default:
@@ -1795,6 +1826,8 @@ static void print_state(u8_t op_num, u12_t op, u13_t addr)
 
 static void handle_timers(void)
 {
+	u32_t period;
+
 	/* Handle timers using the internal tick counter */
 	if (tick_counter - clk_timer_2hz_timestamp >= TIMER_2HZ_PERIOD) {
 		do {
@@ -1888,16 +1921,14 @@ static void handle_timers(void)
 		SET_IO_MEMORY(memory, REG_CLOCK_TIMER_DATA_1, GET_IO_MEMORY(memory, REG_CLOCK_TIMER_DATA_1) ^ (0x1 << 0));
 	}
 
-	if (prog_timer_enabled && tick_counter - prog_timer_timestamp >= TIMER_256HZ_PERIOD) {
+	period = prog_timer_period();
+	if (period == 0) {
+		prog_timer_timestamp = tick_counter;	/* clocked by K03, not by the time */
+	} else if (prog_timer_enabled && tick_counter - prog_timer_timestamp >= period) {
 		do {
-			prog_timer_timestamp += TIMER_256HZ_PERIOD;
-			prog_timer_data--;
-
-			if (prog_timer_data == 0) {
-				prog_timer_data = prog_timer_rld;
-				generate_interrupt(INT_PROG_TIMER_SLOT, 0);
-			}
-		} while (tick_counter - prog_timer_timestamp >= TIMER_256HZ_PERIOD);
+			prog_timer_timestamp += period;
+			prog_timer_count();
+		} while (tick_counter - prog_timer_timestamp >= period);
 	}
 }
 

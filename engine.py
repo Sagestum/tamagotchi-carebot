@@ -15,6 +15,7 @@ import time
 import models
 from carebot import CareBot
 from carebot_mothra import MothraBot
+from carebot_tamaotch import TamaotchBot
 from carebot_umino import UminoBot
 from report import DailyReport
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_H, LCD_W, TICK_HZ, Tama
@@ -47,7 +48,7 @@ class Engine:
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
         self.tama.icon_pins = model.icon_pins
-        bot = {"ocean": UminoBot, "mothra": MothraBot}.get(model.game, CareBot)
+        bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0
@@ -139,12 +140,23 @@ class Engine:
         with self.lock:
             self.take_over()
             now = self.tama.ticks
+            if btn == BTN_TAP and self.model.rattle:
+                # A sensor for knocks and noise: it takes a rattle, not a single tap
+                if down:
+                    pulse = TICK_HZ // 200
+                    for _ in range(self.model.rattle):
+                        self.tama.button(btn, True)
+                        self.tama.run(pulse)
+                        self.tama.button(btn, False)
+                        self.tama.run(pulse)
+                return
             if down:
                 self.tama.button(btn, True)
                 self.pressed[btn] = now
                 self.release.pop(btn, None)
             elif btn in self.pressed:
-                self.release[btn] = max(now, self.pressed[btn] + MIN_HOLD)
+                hold = max(MIN_HOLD, int(self.model.hold * TICK_HZ))
+                self.release[btn] = max(now, self.pressed[btn] + hold)
 
     def icon(self, index):
         with self.lock:

@@ -527,6 +527,17 @@ function drawLegend(msg) {
 
 /* Where a model's shell shows another picture for the same thing */
 const ICONS_OF = {
+  /* drawn after photos of the original, as far as its icons can be made out */
+  tamaotch: {
+    status: ['Status', '<path d="M3 17a9 9 0 0 1 18 0zM12 17l4-5M6 17v-1M18 17v-1M12 8v1.5"/>'],
+    food: ['Essen: Mahlzeit, Snack oder Fanpost', '<path d="M4 8l8-3 8 3v9l-8 3-8-3zM4 8l8 3 8-3M12 11v9M8 6.5l8 3"/>'],
+    game: ['Einarmiger Bandit', '<path d="M5 5h14v10H5zM9.7 5v10M14.3 5v10M7 19h10M12 15v4M7 9.5h1M11.5 9.5h1M16 9.5h1"/>'],
+    training: ['Schauspiel-Training: Ausdruck, Tanz, Drama', '<path d="M5 5h14v7a7 7 0 0 1-14 0zM8.5 9.5h2M13.5 9.5h2M9 14c2 1.6 4 1.6 6 0"/>'],
+    toilet: ['Toilette', '<path d="M6 4h4v7M6 11h12a6 6 0 0 1-12 0zM10 17l-1 3h6l-1-3"/>'],
+    medicine: ['Medizin', '<path d="M4 20l5-5M8 12l4 4M10 10l7-7 4 4-7 7zM14 6l4 4"/>'],
+    light: ['Licht (nur wählbar, wenn es schläft)', '<path d="M9 4h6M12 2v2M8 6h8a5 5 0 0 1 0 12H8a5 5 0 0 1 0-12zM10 20h4M12 18v2M12 6v12"/>'],
+    discipline: ['Schimpfen', '<path d="M4 10v4h3l6 4V6l-6 4zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/>'],
+  },
   angel: {
     game: ['Spielen', '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>'],
     praise: ['Loben', '<path d="M12 3v3M8 17c0-5 1-9 4-9s4 4 4 9M6 17h12M12 20v.5"/>'],
@@ -583,17 +594,17 @@ function pickable(els, names) {
 /* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
    element named after its place in the display memory, "nibble_bit" */
 const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
-             genjin: 'genjin'};
+             genjin: 'genjin', tamaotch: 'tamaotch'};
 /* The picture printed behind the LCD in each drawing: shown at half its strength, so that
    the pixels stay easy to read */
 const BACKDROP = {p1: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
-                  mothra: ['Vector_4'], genjin: ['reflector']};
+                  mothra: ['Vector_4'], genjin: ['reflector'], tamaotch: ['backdrop']};
 const BACKDROP_OPACITY = 0.5;
 const SEG_X = [0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 31, 30, 29, 28, 27, 26,
                25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39];
 const P1_PINS = [[8, 0], [8, 1], [8, 2], [8, 3], [28, 12], [28, 13], [28, 14], [28, 15]];
 const UMINO_PINS = [[8, 0], [17, 0], [18, 0], [19, 0], [39, 15], [38, 15], [37, 15], [28, 15]];
-const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS};
+const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS, tamaotch: UMINO_PINS};
 let artOf = '', pixEls = null, pixOn = null;
 async function drawArt(names, model) {
   artOf = model;
