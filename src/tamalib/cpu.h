@@ -204,6 +204,11 @@ state_t * cpu_get_state(void);
 u32_t cpu_get_depth(void);
 
 void cpu_set_input_pin(pin_t pin, pin_state_t state);
+u4_t cpu_get_io_port(u8_t port);
+void cpu_set_io_port(u8_t port, u4_t states);
+u4_t cpu_get_io_input(u8_t port);
+u32_t cpu_get_io_edges(u32_t *ticks, u4_t *values, u32_t max);
+void cpu_set_io_wave(const u32_t *ticks, const u4_t *states, u32_t n);
 
 void cpu_sync_ref_timestamp(void);
 

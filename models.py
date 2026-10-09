@@ -10,6 +10,7 @@ import zlib
 
 import growth
 import growth_angel
+import growth_digimon
 import growth_genjin
 import growth_morino
 import growth_mothra
@@ -24,7 +25,7 @@ class Model:
     def __init__(self, id, name, source, size, sha1, crc32, names, dead, game,
                  icons=P1_ICONS, care=True, tap=False, unit="oz", goals=True,
                  clock_m=P1_CLOCK_M, rules=growth, icon_pins=None, hold=0.1,
-                 rattle=0):
+                 rattle=0, lcd=None):
         self.id = id
         self.name = name
         self.source = source    # where the dump is known from, for the settings page
@@ -44,6 +45,7 @@ class Model:
         self.icon_pins = icon_pins  # [(segment, common)] where the LCD wires its icons unlike the P1
         self.hold = hold        # seconds a button has to be held for the ROM to take it
         self.rattle = rattle    # pulses of 5 ms a tap on the case is made of (0: one press)
+        self.lcd = lcd          # (column of every segment, row of every common) if unlike the P1
 
     def stage_name(self, stage):
         return self.names.get(stage, "Erwachsen" if self.goals else "Stufe %d" % stage)
@@ -159,7 +161,21 @@ TAMAOTCH = Model(
     care=False, tap=True, unit="g", goals=False, icon_pins=UMINO.icon_pins, hold=0.35,
     rattle=400)
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH)
+# Digital Monster, the first Digimon (1997). The same MCU as the Tamagotchis of its time
+# with the LCD turned round: segments and commons run the other way. Two of them can be
+# joined at a pin (P20) to fight. Its program is of the Mothra's family (carebot_digimon.py).
+DIGIMON_LCD = ((None, 31, 30, 29, 28, 27, 26, 25, 24, None, None, None, 23, 22, 21, 20, 19, 18, 17,
+                16, 0, 1, 2, 3, 4, 5, 6, 7, None, 8, 9, 10, 11, 12, 13, 14, 15, None, None, None),
+               (15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0))
+DIGIMON = Model(
+    "digimon", "Digimon V1", "digimon.bin aus dem MAME-Romset „digimon“",
+    16384, "1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7", "08ffac1b",
+    growth_digimon.NAMES, (), "digimon",
+    icons=("status", "food", "training", "battle", "toilet", "light", "medicine", "attention"),
+    unit="G", rules=growth_digimon, lcd=DIGIMON_LCD,
+    icon_pins=((28, 15), (37, 15), (38, 15), (39, 15), (11, 0), (10, 0), (9, 0), (0, 0)))
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON)
 BY_ID = {m.id: m for m in MODELS}
 
 

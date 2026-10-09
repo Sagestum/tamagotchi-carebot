@@ -34,6 +34,12 @@ class Tama:
         lib.tama_save.restype = ctypes.c_uint32
         lib.tama_load.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
         lib.tama_reset.restype = None
+        lib.tama_link_edges.argtypes = [ctypes.POINTER(ctypes.c_uint32),
+                                        ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32]
+        lib.tama_link_edges.restype = ctypes.c_uint32
+        lib.tama_link_wave.argtypes = [ctypes.POINTER(ctypes.c_uint32),
+                                       ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32]
+        lib.tama_link_wave.restype = None
 
         with open(rom_path, "rb") as f:
             rom = f.read()
@@ -43,8 +49,12 @@ class Tama:
         self._frame = ctypes.create_string_buffer(LCD_W * LCD_H + ICONS)
         self._sound = (SoundEvent * 256)()
         self._state = ctypes.create_string_buffer(4096)
+        self._edge_ticks = (ctypes.c_uint32 * 512)()
+        self._edge_values = (ctypes.c_uint8 * 512)()
         # [(segment, common)] of the eight icons on a model that wires them unlike the P1
         self.icon_pins = None
+        # (column of every segment, row of every common) of an LCD wired unlike the P1's
+        self.lcd = None
 
     def run(self, ticks):
         self.lib.tama_run(ticks)
@@ -62,6 +72,19 @@ class Tama:
 
     def frame(self):
         """Returns (pixels, icons): 512 bytes row by row, and 8 icon bytes."""
+        if self.lcd:
+            cols, rows = self.lcd
+            pixels = bytearray(LCD_W * LCD_H)
+            for seg, col in enumerate(cols):
+                if col is None:
+                    continue
+                for half, base in ((0, 0xE00), (8, 0xE80)):
+                    for k in (0, 1):
+                        nibble = self.memory(base + 2 * seg + k)
+                        for bit in range(4):
+                            if nibble >> bit & 1:
+                                pixels[rows[half + 4 * k + bit] * LCD_W + col] = 1
+            return bytes(pixels), bytes(self.lit(seg, com) for seg, com in self.icon_pins)
         self.lib.tama_get_frame(self._frame)
         raw = self._frame.raw
         if self.icon_pins:
@@ -91,6 +114,20 @@ class Tama:
 
     def reset(self):
         self.lib.tama_reset()
+
+    def link_edges(self):
+        """The changes of what the link port (P2) puts out since the last call:
+        [(tick, state of its four pins)]."""
+        n = self.lib.tama_link_edges(self._edge_ticks, self._edge_values, 512)
+        return [(self._edge_ticks[i], self._edge_values[i]) for i in range(n)]
+
+    def link_wave(self, wave):
+        """Play [(ticks, state of the four pins)] to the link port, beginning now; after
+        the last the pins are released."""
+        n = len(wave)
+        ticks = (ctypes.c_uint32 * n)(*[w[0] for w in wave])
+        states = (ctypes.c_uint8 * n)(*[w[1] for w in wave])
+        self.lib.tama_link_wave(ticks, states, n)
 
 
 def ascii_frame(pixels, icons=None):

@@ -193,6 +193,35 @@ void tama_button(int btn, int pressed)
 	tamalib_set_button((button_t) btn, pressed ? BTN_STATE_PRESSED : BTN_STATE_RELEASED);
 }
 
+/* The I/O ports P0-P3: what the MCU puts on the four pins of one, and what comes from
+ * outside (two Digimon fight over a wire between their P20) */
+uint8_t tama_port_out(int port)
+{
+	return cpu_get_io_port((u8_t) port);
+}
+
+uint8_t tama_port_read(int port)
+{
+	return cpu_get_io_input((u8_t) port);
+}
+
+void tama_port_in(int port, uint8_t states)
+{
+	cpu_set_io_port((u8_t) port, states);
+}
+
+/* The link port (P2): the changes of what it puts out since the last call, and a wave for
+ * it to read (see cpu.c) */
+uint32_t tama_link_edges(uint32_t *ticks, uint8_t *values, uint32_t max)
+{
+	return cpu_get_io_edges((u32_t *) ticks, (u4_t *) values, max);
+}
+
+void tama_link_wave(const uint32_t *ticks, const uint8_t *states, uint32_t n)
+{
+	cpu_set_io_wave((const u32_t *) ticks, (const u4_t *) states, n);
+}
+
 /* out: LCD_HEIGHT * LCD_WIDTH pixels (row by row) followed by ICON_NUM icons */
 void tama_get_frame(uint8_t *out)
 {

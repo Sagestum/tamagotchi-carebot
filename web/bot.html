@@ -234,6 +234,8 @@
       <div class="row" id="mistakesRow"><span>Pflegefehler</span><span id="mistakes">–</span></div>
       <div class="row" id="missedRow"><span id="missedLabel">Verpasste Schimpf-Rufe</span><span id="missed">–</span></div>
       <div class="row" id="trainingRow"><span id="trainingLabel">Disziplin-Anzeige</span><span class="bars" id="training">–</span></div>
+      <div class="row" id="trainingsRow" hidden><span>Trainings</span><span id="trainings">–</span></div>
+      <div class="row" id="fightsRow" hidden><span>Kämpfe</span><span id="fights">–</span></div>
       <div class="row" id="powerRow" hidden><span id="powerLabel">Angel Power</span><span id="power">–</span></div>
       <div class="row" id="friendRow" hidden><span>Freundschaft (0–15)</span><span id="friend">–</span></div>
       <div class="row" id="sweetRow" hidden><span>Süße (Rest beim Teilen durch 4)</span><span id="sweet">–</span></div>
@@ -345,6 +347,23 @@ const CHARS_MOTHRA = {
   12: ['Godzilla', 'Die Geheimfigur aus Mayura: kein Pflegefehler und volle Justice.'],
   13: ['Moll & Lora', 'Die Zwillinge, 27 Jahre lang unentdeckt. Sie brauchen zwei Leben: Ein Mothra Leo ohne Pflegefehler wiegt nach 75 wachen Stunden 70 bis 79 t, stirbt danach an Pflegefehlern und hinterlässt ein Ei. Der Mothra Leo aus diesem Ei wird unter denselben Bedingungen zu Moll & Lora. Das dauert gut drei Wochen.'],
   14: ['Lucky Haka-Kun', 'Der wandernde Grabstein: die fünfte Generation in Folge. Nach dem ersten Mothra Leo müssen dreimal Moll & Lora alt werden und ein Ei hinterlassen; der Mothra Leo danach wird Lucky Haka-Kun. Das dauert etwa zehn Wochen.'],
+};
+
+const CHARS_DIGIMON = {
+  1: ['Botamon', 'Das Baby. Nach einer Stunde wird es Koromon. Hier zählt noch nichts.'],
+  2: ['Koromon', 'Die zweite Stufe, 44 Stunden lang. Mit höchstens drei Pflegefehlern wird es Agumon, sonst Betamon.'],
+  3: ['Agumon', 'Die dritte Stufe aus guter Pflege, 76 Stunden lang. Ab hier kann es kämpfen.'],
+  4: ['Betamon', 'Die dritte Stufe nach vier oder mehr Pflegefehlern, 76 Stunden lang.'],
+  5: ['Greymon', 'Aus Agumon mit höchstens drei Pflegefehlern und mindestens 32 Trainings.'],
+  6: ['Tyranomon', 'Aus Agumon mit vier oder mehr Pflegefehlern, 5 bis 15 Trainings und Überfütterung. Der Bot steuert das noch nicht an.'],
+  7: ['Devimon', 'Aus Agumon mit höchstens drei Pflegefehlern und weniger als 32 Trainings, oder aus Betamon mit mindestens 48 Trainings.'],
+  8: ['Meramon', 'Aus Betamon mit höchstens drei Pflegefehlern und weniger als 48 Trainings.'],
+  9: ['Airdramon', 'Aus Betamon mit vier oder mehr Pflegefehlern, 8 bis 31 Trainings und vielen Schlafstörungen. Der Bot steuert das noch nicht an.'],
+  10: ['Seadramon', 'Aus Betamon mit vier oder mehr Pflegefehlern, 8 bis 31 Trainings und Überfütterung. Der Bot steuert das noch nicht an.'],
+  11: ['Numemon', 'Aus einem kaum trainierten Agumon oder Betamon mit vier oder mehr Pflegefehlern.'],
+  12: ['Metal Greymon', 'Die fünfte Stufe aus Greymon, Devimon oder Airdramon: 15 Kämpfe auf der dritten Stufe und eine gute Siegbilanz. Selbst dann ist es Glückssache; der Bot holt die Siege über das Sparring.'],
+  13: ['Mamemon', 'Die fünfte Stufe aus Tyranomon, Meramon oder Seadramon: 15 Kämpfe auf der dritten Stufe und eine gute Siegbilanz, dazu Glück.'],
+  14: ['Monzaemon', 'Die fünfte Stufe aus Numemon: 15 Kämpfe auf der dritten Stufe und eine gute Siegbilanz, dazu Glück.'],
 };
 
 const CHARS_GENJIN = {
@@ -464,7 +483,21 @@ const GENJIN = {
   },
   teenInReach: (n, st) => st.stage <= 2 || (n === 3 && st.stage === 4 && st.mistakes === 0),
 };
+const DIGIMON = {
+  pos: {
+    1: [35, 240], 2: [110, 240], 3: [195, 135], 4: [195, 345],
+    5: [300, 30], 6: [300, 100], 7: [300, 170], 11: [300, 240], 8: [300, 310], 9: [300, 380], 10: [300, 450],
+    12: [420, 135], 14: [420, 240], 13: [420, 345],
+  },
+  edges: [[1, 2], [2, 3], [2, 4], [3, 5], [3, 6], [3, 7], [3, 11], [4, 7], [4, 8], [4, 9], [4, 10], [4, 11],
+          [5, 12], [7, 12], [9, 12], [6, 13], [8, 13], [10, 13], [11, 14]],
+  viaChild: false,
+  pick: (n) => [5, 7, 8, 11, 12, 13, 14].includes(n),
+  before(stage) { return stage >= 3 ? [1, 2] : stage === 2 ? [1] : []; },
+  teenInReach: (n, st) => st.stage <= 2,
+};
 const MODELS = {
+  digimon: [SPRITES_DIGIMON, CHARS_DIGIMON, DIGIMON],
   genjin: [SPRITES_GENJIN, CHARS_GENJIN, GENJIN],
   mothra: [SPRITES_MOTHRA, CHARS_MOTHRA, MOTHRA],
   p1: [SPRITES_P1, CHARS_P1, TAMA], p1j: [SPRITES_P1, CHARS_P1, TAMA], p2: [SPRITES_P2, CHARS_P2, TAMA],
@@ -520,6 +553,27 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === DIGIMON) {
+    $('rulesIntro').innerHTML =
+      '<p>Jede Stufe zählt für sich:</p>' +
+      '<p><b>Pflegefehler</b> – ein Ruf wegen Hunger oder Stärke bleibt 19 Minuten unbeantwortet.<br>' +
+      '<b>Training</b> – jede Trainingsrunde zählt, ob gewonnen oder nicht.<br>' +
+      '<b>Kämpfe</b> – für die fünfte Stufe: 15 Kämpfe auf der dritten Stufe und eine Siegbilanz ab 9. Der Bot kämpft dafür gegen einen gedachten Gegner, der immer verliert.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Pflegefehler</th><th>Trainings</th><th>wird zu</th></tr>' + [
+        [[n(2), 2], ['0–3'], ['egal'], [n(3)]],
+        [['ab 4'], ['egal'], [n(4)]],
+        [[n(3), 3], ['0–3'], ['ab 32'], [n(5)]],
+        [['0–3'], ['0–31'], [n(7)]],
+        [['ab 4'], ['0–4'], [n(11)]],
+        [[n(4), 3], ['0–3'], ['ab 48'], [n(7)]],
+        [['0–3'], ['0–47'], [n(8)]],
+        [['ab 4'], ['0–7'], [n(11)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      `${n(6)}, ${n(9)} und ${n(10)} verlangen zusätzlich Überfütterung oder Schlafstörungen; diese Wege geht der Bot noch nicht. Die fünfte Stufe würfelt das Gerät aus: Auch mit 15 Kämpfen und voller Siegbilanz bleibt etwa jedes vierte Digimon auf der vierten Stufe stehen. Die Regeln stammen von humulos.com/digimon/dm.`;
     return;
   }
   if (FAMILY === GENJIN) {
@@ -750,16 +804,18 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const genjin = FAMILY === GENJIN;
+  const genjin = FAMILY === GENJIN, digimon = FAMILY === DIGIMON;
   const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA || genjin;
-  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino;
+  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino || digimon;
   if (mothra) $('missedRow').hidden = true;
+  $('fightsRow').hidden = $('trainingsRow').hidden = !digimon;
+  if (digimon) { $('trainings').textContent = alive ? st.trainings : '–'; $('fights').textContent = alive ? st.fights + ' Kämpfe, ' + st.wins + ' Siege' : '–'; }
   $('disciplineLabel').textContent = genjin ? 'Darf loben (nur ohne Ziel)' : 'Darf schimpfen (nur ohne Ziel)';
   $('trainingLabel').textContent = genjin ? 'Evolutionsanzeige' : mothra ? 'Justice' : 'Disziplin-Anzeige';
   $('mistakesRow').hidden = morino;
-  $('powerRow').hidden = !angel && !morino && !umino && !mothra;
-  $('powerLabel').textContent = morino || umino || mothra ? 'Gewicht' : 'Angel Power';
-  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : genjin ? ' kg' : mothra ? ' t' : '') : '–';
+  $('powerRow').hidden = !angel && !morino && !umino && !mothra && !digimon;
+  $('powerLabel').textContent = morino || umino || mothra || digimon ? 'Gewicht' : 'Angel Power';
+  $('power').textContent = alive ? st.weight + (morino ? ' mg' : umino ? ' g' : genjin ? ' kg' : mothra ? ' t' : digimon ? ' G' : '') : '–';
   $('waterRow').hidden = $('snacksRow').hidden = $('leftRow').hidden = !umino;
   $('missedLabel').textContent = umino ? 'Verpasste Rufe' : 'Verpasste Schimpf-Rufe';
   if (umino) {
@@ -818,6 +874,16 @@ function render(msg) {
     text = msg.discipline
       ? 'Ohne Ziel pflegt der Bot fehlerfrei und schimpft bei jedem Turmangriff. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'
       : 'Ohne Ziel und ohne Schimpfen bleibt die Justice leer. Bei fehlerfreier Pflege ergibt das ' + name(3) + ' und dann ' + name(8) + '.';
+  } else if (digimon && !msg.goal) {
+    text = 'Ohne Ziel pflegt der Bot fehlerfrei, ohne Training und ohne Kämpfe. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.';
+  } else if (digimon && alive && g.plan) {
+    const w = g.wanted, todo = [];
+    if (counting && w.mistakes > st.mistakes) todo.push('noch ' + (w.mistakes - st.mistakes) + ' Pflegefehler machen (es bleibt dafür eine Weile hungrig)');
+    if (w.trainings > st.trainings) todo.push('noch ' + (w.trainings - st.trainings) + '-mal trainieren');
+    if (w.battles > st.fought) todo.push('noch ' + (w.battles - st.fought) + ' Sparringskämpfe gewinnen');
+    plan = st.stage === msg.goal ? 'Ziel erreicht' : path(g.plan);
+    text = CHARS[msg.goal][1] + ' Als ' + name(st.stage) + (todo.length ? ' wird der Bot ' + todo.join(' und ') + '.' : ' pflegt der Bot fehlerfrei.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (genjin && !msg.goal) {
     text = msg.discipline
       ? 'Ohne Ziel pflegt der Bot fehlerfrei und lobt bei jedem Töpfern.'

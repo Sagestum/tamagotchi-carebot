@@ -38,7 +38,7 @@ PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html", "/chronik": "chronik.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
 SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genjin.svg",
-          "tamaotch.svg")
+          "tamaotch.svg", "digimon.svg")
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
@@ -455,6 +455,8 @@ class Handler(BaseHTTPRequestHandler):
                 if data["btn"] not in engine.BUTTONS:
                     raise ValueError
                 app.pet(data["pet"]).send("button", data["btn"], bool(data["down"]))
+            elif self.path == "/api/spar":
+                app.pet(data["pet"]).send("spar")
             elif self.path == "/api/icon":
                 if data["icon"] not in range(7):    # the eighth is the pet calling, not a menu entry
                     raise Refused("Dieses Icon lässt sich nicht anwählen.")

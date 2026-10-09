@@ -339,6 +339,8 @@
       </div>
     </div>
     <div id="legend" hidden></div>
+    <p class="hint" id="sparRow" hidden><button class="plain" id="spar">Sparring</button>
+      – ein Kampf gegen einen gedachten Gegner (ab der dritten Stufe)</p>
     <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
       – der Sensor im Gehäuse, Taste <kbd>T</kbd></p>
     <p class="hint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
@@ -527,6 +529,16 @@ function drawLegend(msg) {
 
 /* Where a model's shell shows another picture for the same thing */
 const ICONS_OF = {
+  digimon: {
+    status: ['Status', '<path d="M4 20h16M12 4v16M5 8h14M5 8l-2.5 6a3 3 0 0 0 5 0zM19 8l-2.5 6a3 3 0 0 0 5 0z"/>'],
+    food: ['Füttern', '<path d="M7 3v7a2 2 0 0 0 4 0V3M9 12v9M17 3c-2 2-2 7 0 9v9"/>'],
+    training: ['Training', '<path d="M3 9v6M6 6v12M18 6v12M21 9v6M6 12h12"/>'],
+    battle: ['Kampf: zwei Digimon verbinden', '<path d="M4 4l10 10M4 4v4M4 4h4M20 4L10 14M20 4v4M20 4h-4M7 17l-3 3M17 17l3 3"/>'],
+    toilet: ['Spülen', '<path d="M6 4h4v7M6 11h12a6 6 0 0 1-12 0zM10 17l-1 3h6l-1-3"/>'],
+    light: ['Licht', '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.500 10.900c.6.500 1 1.300 1 2.100h5c0-.8.4-1.600 1-2.100A6 6 0 0 0 12 3z"/>'],
+    medicine: ['Verarzten', '<path d="M4 9h16v6H4zM9 9v6M15 9v6M11 12h2"/>'],
+    attention: ['Ruft nach dir', '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>'],
+  },
   /* drawn after photos of the original, as far as its icons can be made out */
   tamaotch: {
     status: ['Status', '<path d="M3 17a9 9 0 0 1 18 0zM12 17l4-5M6 17v-1M18 17v-1M12 8v1.5"/>'],
@@ -594,7 +606,7 @@ function pickable(els, names) {
 /* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
    element named after its place in the display memory, "nibble_bit" */
 const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
-             genjin: 'genjin', tamaotch: 'tamaotch'};
+             genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon'};
 /* The picture printed behind the LCD in each drawing: shown at half its strength, so that
    the pixels stay easy to read */
 const BACKDROP = {p1: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
@@ -604,7 +616,11 @@ const SEG_X = [0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34,
                25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39];
 const P1_PINS = [[8, 0], [8, 1], [8, 2], [8, 3], [28, 12], [28, 13], [28, 14], [28, 15]];
 const UMINO_PINS = [[8, 0], [17, 0], [18, 0], [19, 0], [39, 15], [38, 15], [37, 15], [28, 15]];
-const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS, tamaotch: UMINO_PINS};
+const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS, tamaotch: UMINO_PINS,
+              digimon: [[28, 15], [37, 15], [38, 15], [39, 15], [11, 0], [10, 0], [9, 0], [0, 0]]};
+/* The Digimon's LCD is turned round: the column of every segment, and the commons run upwards */
+const LCD_OF = {digimon: {seg: [-1, 31, 30, 29, 28, 27, 26, 25, 24, -1, -1, -1, 23, 22, 21, 20, 19, 18, 17, 16, 0, 1, 2, 3, 4, 5, 6, 7, -1,
+                               8, 9, 10, 11, 12, 13, 14, 15, -1, -1, -1], flip: true}};
 let artOf = '', pixEls = null, pixOn = null;
 async function drawArt(names, model) {
   artOf = model;
@@ -622,7 +638,7 @@ async function drawArt(names, model) {
   const box = $('art');
   box.innerHTML = text;
   const svg = box.querySelector('svg');
-  const pins = PINS[model] || P1_PINS, pixels = new Array(512), icons = new Array(8);
+  const pins = PINS[model] || P1_PINS, pixels = new Array(512), icons = new Array(8), wiring = LCD_OF[model];
   for (const el of svg.querySelectorAll('[id]')) {
     const m = /^(\d+)_(\d)$/.exec(el.id);
     if (!m) continue;
@@ -630,6 +646,7 @@ async function drawArt(names, model) {
     const icon = pins.findIndex(([s, c]) => s === seg && c === com);
     el.classList.add('seg');
     if (icon >= 0) icons[icon] = el;
+    else if (wiring) { if (wiring.seg[seg] >= 0) pixels[(15 - com) * 32 + wiring.seg[seg]] = el; }
     else if (SEG_X[seg] < 32) pixels[com * 32 + SEG_X[seg]] = el;
   }
   icons.forEach((el, i) => {
@@ -637,7 +654,7 @@ async function drawArt(names, model) {
     el.insertAdjacentHTML('afterbegin', '<title></title>');
     el.firstChild.textContent = title;
   });
-  for (const [id, name] of [['btnLeft', 'A'], ['btnCenter', 'B'], ['btnRight', 'C']]) {
+  for (const [id, name] of [['btnLeft', 'A'], ['btnCenter', 'B'], ['btnRight', 'C'], ['btnTop', 'A'], ['btnBottom', 'C']]) {
     const el = svg.querySelector('#' + id);
     if (!el) continue;
     el.dataset.btn = name;
@@ -746,6 +763,7 @@ function bindButton(el) {
   el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
 }
 document.querySelectorAll('[data-btn]').forEach(bindButton);
+$('spar').addEventListener('click', () => post('/api/spar', {}));
 const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C', t: 'T'};
 window.addEventListener('keydown', (e) => {
   const name = KEYS[e.key];
@@ -797,13 +815,14 @@ function render(msg) {
   drawLcd(msg.lcd);
   if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
   $('tapRow').hidden = !msg.tap;
+  $('sparRow').hidden = msg.model !== 'digimon';
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care;
   $('goalRow').hidden = !msg.goals;
   $('disciplineRow').hidden = !msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin');
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';
   $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
-  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : 'Glück';
+  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : msg.model === 'digimon' ? 'Stärke' : 'Glück';
   drawLegend(msg);
   iconEls.forEach((el, i) => el && el.classList.toggle('on', (msg.icons >> i) & 1));
 

@@ -15,6 +15,7 @@ import time
 import models
 from carebot import CareBot
 from carebot_mothra import MothraBot
+from carebot_digimon import DigimonBot
 from carebot_tamaotch import TamaotchBot
 from carebot_umino import UminoBot
 from report import DailyReport
@@ -32,7 +33,7 @@ GONE_AFTER = 60                 # emulated seconds without a character until a l
 LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP}
-COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp")
+COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar")
 
 
 class Engine:
@@ -48,7 +49,9 @@ class Engine:
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
         self.tama.icon_pins = model.icon_pins
-        bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot}.get(model.game, CareBot)
+        self.tama.lcd = model.lcd
+        bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot,
+               "digimon": DigimonBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0
@@ -162,6 +165,13 @@ class Engine:
         with self.lock:
             self.take_over()
             self.bot.request(index)
+
+    def spar(self):
+        """Digimon: a fight against an opponent that is not there."""
+        with self.lock:
+            if hasattr(self.bot, "request_spar"):
+                self.take_over()
+                self.bot.request_spar()
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
                   restart=None):

@@ -25,6 +25,8 @@ braucht seine eigene:
 | Tamagotchi Umino | `TamagotchiUmino.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `69d916819f8f4aa4be9194e6c78f099bf8199f37` | `baae4199` |
 | Tamagotchi Mothra | `tamamot.bin` aus dem MAME-Romset `tamamot` | 16 384 Bytes | `74c1f6761724b7cbda8bca3113db78586b786d2d` | `85e4bee9` |
 | Tamagotchi Genjintch | `TamagotchiGenjintch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `e317eac80c3360b766b92a2da253bda32fd50273` | `bbf6b4fe` |
+| Tamagotchi Tamaotch | `TamagotchiTamaotch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `d4ea15fa2abb16bd844c79e3b095a6f6cf21a98f` | `a491fb55` |
+| Digimon V1 | `digimon.bin` aus dem MAME-Romset `digimon` | 16 384 Bytes | `1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7` | `08ffac1b` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -349,6 +351,29 @@ fehlerfrei; dann wird er wieder Ukitchi, holt zu Dotetchi auf und ist erneut Gen
 macht das beim Ziel „Genjintchi“ von selbst, beliebig oft. Für Gaikotchi hält er das Gewicht bei
 genau 60 kg. Alles ist im Emulator nachgemessen und deckt sich mit der Figurenliste des
 Tamagotchi-Wikis; die Rakete als Regelfall steht dort nicht.
+
+### Digimon V1
+
+Das erste Digital Monster (1997) läuft auf demselben Chip und gehört zur Programmfamilie des
+Mothra; sein Display ist um 180° gedreht verdrahtet. Das Gehäuse ist BrickEmuPys Zeichnung
+mit einer größeren Käfigtür, damit der Bildschirm anderthalbmal so groß sein kann.
+
+Gekämpft wird über eine einzige Leitung (Pin P20): Zwei Geräte tauschen vier Wörter zu 16 Bit
+aus, je eines über sich selbst und eines mit dem Ergebnis. Der Emulatorkern bildet dafür die
+I/O-Ports nach, schreibt die Flanken an P20 tickgenau mit und kann eine Pulsfolge anlegen
+(`link.py`). Der Knopf „Sparring“ lässt das Digimon so gegen einen gedachten Gegner antreten,
+ab der dritten Stufe. Der gedachte Gegner eröffnet und meldet seine eigene Niederlage; jeder
+Kampf, der zustande kommt, ist damit ein Sieg.
+
+Der Care-Bot (`carebot_digimon.py`, Regeln in `growth_digimon.py`) füttert, gibt Vitamine,
+räumt auf, heilt, schaltet das Licht und steuert ein Ziel an: Greymon, Devimon, Meramon und
+Numemon über Pflegefehler und Training, Metal Greymon, Mamemon und Monzaemon zusätzlich über
+15 Sparringskämpfe auf der dritten Stufe. In 38 simulierten Leben kam jedes Ziel der vierten
+Stufe jedes Mal heraus, die fünfte Stufe in 15 von 22 Leben: Das Gerät würfelt sie aus, mehr
+als drei von vier sind nicht zu holen. Tyranomon, Airdramon und Seadramon (Überfütterung,
+Schlafstörungen) steuert der Bot noch nicht an. Die Regeln stammen von humulos.com/digimon/dm.
+
+Ein Tamaotch ist ebenfalls spielbar, ohne Bot.
 
 ### Tamagotchi Angel
 

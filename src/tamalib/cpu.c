@@ -166,6 +166,24 @@ static MEM_BUFFER_TYPE memory[MEM_BUFFER_SIZE];
 
 static input_port_t inputs[INPUT_PORT_NUM] = {{0}};
 
+/* What is put on the I/O ports P0-P3 from outside (pulled up: HIGH if nothing is) */
+static u4_t io_inputs[4] = {0xF, 0xF, 0xF, 0xF};
+
+/* The link of the Digimon is its P20: two of them send each other words of 16 bits as
+ * pulses of well under a millisecond. So that the host need not step tick by tick, what
+ * port P2 puts out is logged with the tick of every change, and what it is to read can be
+ * handed over as a wave that is played by the tick. */
+#define IO_LINK_PORT				2
+#define IO_EDGES_MAX				512
+#define IO_WAVE_MAX				64
+static u32_t io_edge_ticks[IO_EDGES_MAX];
+static u4_t io_edge_values[IO_EDGES_MAX];
+static u32_t io_edge_num = 0;
+static u4_t io_link_out = 0xF;
+static u32_t io_wave_ticks[IO_WAVE_MAX];
+static u4_t io_wave_states[IO_WAVE_MAX];
+static u32_t io_wave_num = 0, io_wave_pos = 0, io_wave_since = 0;
+
 /* Interrupts (in priority order) */
 static interrupt_t interrupts[INT_SLOT_NUM] = {
 	{0x0, 0x0, 0, 0x0C}, // Prog timer
@@ -338,6 +356,72 @@ static void prog_timer_count(void)
 	}
 }
 
+/* What port P0-P3 puts on its four pins: its latch while it is an output, HIGH else */
+u4_t cpu_get_io_port(u8_t port)
+{
+	if ((GET_IO_MEMORY(memory, REG_IO_CTRL) >> (port & 0x3)) & 0x1) {
+		return GET_IO_MEMORY(memory, REG_P00_P03_IO_PORT + (port & 0x3));
+	}
+	return 0xF;
+}
+
+/* What is put on the four pins of port P0-P3 from outside */
+void cpu_set_io_port(u8_t port, u4_t states)
+{
+	io_inputs[port & 0x3] = states & 0xF;
+}
+
+/* What is on the four pins of port P0-P3 from outside just now */
+u4_t cpu_get_io_input(u8_t port)
+{
+	return io_inputs[port & 0x3];
+}
+
+/* Called when the latch or the direction of an I/O port has been written */
+static void io_link_changed(void)
+{
+	u4_t out = cpu_get_io_port(IO_LINK_PORT);
+
+	if (out != io_link_out) {
+		io_link_out = out;
+		if (io_edge_num < IO_EDGES_MAX) {
+			io_edge_ticks[io_edge_num] = tick_counter;
+			io_edge_values[io_edge_num] = out;
+			io_edge_num++;
+		}
+	}
+}
+
+/* The changes of what the link port puts out since the last call: the tick and the new
+ * state of each. Returns their number */
+u32_t cpu_get_io_edges(u32_t *ticks, u4_t *values, u32_t max)
+{
+	u32_t i, n = (io_edge_num < max) ? io_edge_num : max;
+
+	for (i = 0; i < n; i++) {
+		ticks[i] = io_edge_ticks[i];
+		values[i] = io_edge_values[i];
+	}
+	io_edge_num = 0;
+	return n;
+}
+
+/* A wave for the link port to read: n states, each held for its number of ticks, beginning
+ * now; after the last the pins are released (HIGH) */
+void cpu_set_io_wave(const u32_t *ticks, const u4_t *states, u32_t n)
+{
+	u32_t i;
+
+	io_wave_num = (n < IO_WAVE_MAX) ? n : IO_WAVE_MAX;
+	for (i = 0; i < io_wave_num; i++) {
+		io_wave_ticks[i] = ticks[i];
+		io_wave_states[i] = states[i] & 0xF;
+	}
+	io_wave_pos = 0;
+	io_wave_since = tick_counter;
+	io_inputs[IO_LINK_PORT] = io_wave_num ? io_wave_states[0] : 0xF;
+}
+
 void cpu_set_input_pin(pin_t pin, pin_state_t state)
 {
 	u4_t old_state = (inputs[(pin & 0x4) >> 2].states >> (pin & 0x3)) & 0x1;
@@ -480,6 +564,20 @@ static u4_t get_io(u12_t n)
 			/* Output port (R40-R43) */
 			return GET_IO_MEMORY(memory, n);
 
+		case REG_P00_P03_IO_PORT:
+		case REG_P10_P13_IO_PORT:
+		case REG_P20_P23_IO_PORT:
+		case REG_P30_P33_IO_PORT:
+			/* I/O port: its own latch while it is an output, the pins while an input */
+			if ((GET_IO_MEMORY(memory, REG_IO_CTRL) >> (n - REG_P00_P03_IO_PORT)) & 0x1) {
+				return GET_IO_MEMORY(memory, n);
+			}
+			return io_inputs[n - REG_P00_P03_IO_PORT];
+
+		case REG_IO_CTRL:
+		case REG_IO_PULLUP_CFG:
+			return GET_IO_MEMORY(memory, n);
+
 		case REG_CPU_OSC3_CTRL:
 			/* CPU/OSC3 clocks switch, CPU voltage switch */
 			return GET_IO_MEMORY(memory, n);
@@ -597,6 +695,18 @@ static void set_io(u12_t n, u4_t v)
 			/* Output port (R40-R43) */
 			//g_hal->log(LOG_INFO, "Output/Buzzer: 0x%X\n", v);
 			hw_enable_buzzer(!(v & 0x8));
+			break;
+
+		case REG_P00_P03_IO_PORT:
+		case REG_P10_P13_IO_PORT:
+		case REG_P20_P23_IO_PORT:
+		case REG_P30_P33_IO_PORT:
+		case REG_IO_CTRL:
+		case REG_IO_PULLUP_CFG:
+			/* I/O ports, their direction (a bit per port) and pull-ups: kept in the
+			 * I/O memory */
+			SET_IO_MEMORY(memory, n, v);
+			io_link_changed();
 			break;
 
 		case REG_CPU_OSC3_CTRL:
@@ -1919,6 +2029,13 @@ static void handle_timers(void)
 
 		/* Update clock timer data for 128Hz */
 		SET_IO_MEMORY(memory, REG_CLOCK_TIMER_DATA_1, GET_IO_MEMORY(memory, REG_CLOCK_TIMER_DATA_1) ^ (0x1 << 0));
+	}
+
+	/* The wave played to the link port */
+	while (io_wave_pos < io_wave_num && tick_counter - io_wave_since >= io_wave_ticks[io_wave_pos]) {
+		io_wave_since += io_wave_ticks[io_wave_pos];
+		io_wave_pos++;
+		io_inputs[IO_LINK_PORT] = (io_wave_pos < io_wave_num) ? io_wave_states[io_wave_pos] : 0xF;
 	}
 
 	period = prog_timer_period();
