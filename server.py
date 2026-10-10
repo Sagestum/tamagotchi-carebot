@@ -397,6 +397,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.close_connection = True
         seen, log_seen, lives_seen = -1, -1, -1
+        pet.send("wake")                    # the tab was opened
         try:
             while pet.alive and pet.id in self.app.pets:
                 with pet.changed:

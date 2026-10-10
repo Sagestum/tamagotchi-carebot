@@ -33,7 +33,7 @@ GONE_AFTER = 60                 # emulated seconds without a character until a l
 LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP}
-COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar")
+COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake")
 
 
 class Engine:
@@ -165,6 +165,18 @@ class Engine:
         with self.lock:
             self.take_over()
             self.bot.request(index)
+
+    def wake(self):
+        """Someone looks at the pet: a press of A takes the screen saver away (the Morino
+        has one; there A does nothing else). Not while the bot or the user is at work."""
+        with self.lock:
+            if self.pressed or getattr(self.bot, "task", None) is not None \
+                    or not self.bot.status().get("saver"):
+                return
+            now = self.tama.ticks
+            self.tama.button(BTN_A, True)
+            self.pressed[BTN_A] = now
+            self.release[BTN_A] = now + int(max(self.model.hold, 0.2) * TICK_HZ)
 
     def spar(self):
         """Digimon: a fight against an opponent that is not there."""

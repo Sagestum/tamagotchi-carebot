@@ -49,6 +49,17 @@ MEM_CURSOR = 0x75                       # the entry a menu's arrow is at, and th
 MEM_LEAF = 0x80                         # game: the leaf is under this hat and the next one
 MEM_HATCHING = 0x76                     # 0 while the egg waits to be chosen
 MORINO_ATTACK, MORINO_INJURED, MORINO_ASLEEP, MORINO_DEAD = 7, 8, 6, 0xC
+# The Morino's screen saver: left alone for ten seconds it shows the forest from afar, two
+# trees with the pet a dot between them. No cell says so, but the trees are always the same
+TREE = ("...##...", "..#..#..", ".#....#.", ".#....#.", ".#..#.#.", ".#.##.#.", "#...#..#", "#...#..#",
+        "#.#.##.#", "#..##..#", "#...#..#", ".#..#.#.", "..####..", "....#...", "...###..", "..#.###.")
+
+
+def forest(pixels):
+    """Whether the picture is the Morino's forest (one of the two trees is enough: the dot
+    may stand in front of the other)."""
+    return any(all(bool(pixels[y * 32 + x0 + x]) == (TREE[y][x] == "#")
+                   for y in range(16) for x in range(8)) for x0 in (0, 24))
 EGG_WHITE, EGG_SPOTTED = 1, 3
 
 ICON_ATTENTION = 7      # the menu icons are in another order on each model (models.py)
@@ -194,6 +205,7 @@ class CareBot:
             else top_right in (Z_SMALL, Z_BIG) or (dark and s.lit() < len(s.pixels)),
             # Morino: something is after it; the cocoon and what decides the adult
             "attack": morino and state == MORINO_ATTACK,
+            "saver": morino and forest(self.tama.frame()[0]),
             "cocoon": morino and stage == self.model.growth.MAYUTCHI,
             "temperature": m(MEM_TEMPERATURE) if morino else None,
             "friendship": m(MEM_FRIENDSHIP) if morino else None,

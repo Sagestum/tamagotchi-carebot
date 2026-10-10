@@ -113,7 +113,7 @@ class DailyReport:
             self.stats["happy"] += max(0, hearts[1] - self.prev_hearts[1])
         self.prev_hearts = hearts
 
-        if not st["asleep"] and st["light"] and not any(icons[:7]):
+        if not st["asleep"] and st["light"] and not any(icons[:7]) and not st.get("saver"):
             self.picture = bytes(pixels)
 
         if st["asleep"] == self.asleep:
