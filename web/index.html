@@ -473,6 +473,34 @@ const JP_P1 = {
            ['おなか', 'onaka', 'Bauch: Hunger'], ['ごきげん', 'gokigen', 'Laune: Glück']],
 };
 const JP = {
+  p1: {
+    hint: 'Englische Fassung: Bei Essen, Licht und Status steht hier, was die Wörter bedeuten.',
+    food: [['MEAL', '', 'Mahlzeit, füllt den Hunger'], ['SNACK', '', 'Süßes, füllt das Glück']],
+    light: [['ON', '', 'Licht an'], ['OFF', '', 'Licht aus']],
+    status: [['yr / oz', '', 'erste Seite: Alter in Jahren und Gewicht in Unzen'], ['DISCIPLINE', '', 'Erziehung'],
+             ['HUNGRY', '', 'Hunger'], ['HAPPY', '', 'Glück']],
+  },
+  tamaotch: {
+    hint: 'Japanische Fassung: Bei Essen, Übung, Licht und Status steht hier, was zu sehen ist.',
+    food: [['', '', 'drei Einträge: die Mahlzeit (füllt den Hunger, +1 g), der Snack (füllt das Glück, +2 g, bringt die nächste Krankheit eine Stunde näher) und die Fanpost (statt Schimpfen, wenn es ruft und eine Anzeige leer ist)']],
+    game: [['', '', 'Einarmiger Bandit: A hält die erste Walze an, B die zweite, die dritte das Tier. Drei gleiche Bilder füllen das Glück, drei Totenköpfe nicht.']],
+    training: [['あどりぶ', 'adoribu', 'Ad-lib: A fragend schauen, B überrascht schauen'],
+               ['おどり', 'odori', 'Tanz: A nach links, B nach rechts'],
+               ['しばい', 'shibai', 'Schauspiel: A traurig, B glücklich'],
+               ['', '', 'Dreimal drei Posen vorgeben. Macht es die dritte richtig nach, klopfen, sonst A.']],
+    light: [['', '', 'nur im Schlaf: oben Licht an, darunter Licht aus']],
+    status: [['才', 'sai', 'Alter in Jahren, darunter das Gewicht in g'], ['しつけ', 'shitsuke', 'Erziehung'],
+             ['おなか', 'onaka', 'Bauch: Hunger'], ['ごきげん', 'gokigen', 'Laune: Glück'],
+             ['おけいこ', 'okeiko', 'Übung: steigt mit gewonnenen Übungsspielen']],
+  },
+  digimon: {
+    hint: 'Bei Status, Essen, Training, Kampf und Licht steht hier, was zu sehen ist.',
+    status: [['', '', 'mehrere Seiten, mit B weiter: Alter und Gewicht (G), Hunger, Stärke']],
+    food: [['', '', 'oben das Fleisch (füllt den Hunger, +1 G), darunter das Vitamin (füllt die Stärke, +2 G)']],
+    training: [['', '', 'fünf Runden gegen den eigenen Schatten: A schlägt oben, B unten. Jede Runde nimmt 1 G und zählt als Training.']],
+    battle: [['', '', 'wartet auf ein zweites Gerät. Der Knopf „Sparring“ unter dem Gehäuse schickt einen gedachten Gegner, der verliert.']],
+    light: [['', '', 'oben Licht an, darunter Licht aus']],
+  },
   p1j: JP_P1,
   p2: JP_P1,
   angel: {
@@ -516,9 +544,9 @@ function drawLegend(msg) {
   box.hidden = !words;
   box.textContent = '';
   if (!words) return;
-  const rows = words[open];
+  const rows = open === 'hint' ? null : words[open];
   if (!rows) {
-    box.textContent = 'Japanische Fassung: Bei Essen, Licht und Status steht hier, was die Wörter bedeuten.';
+    box.textContent = words.hint || 'Japanische Fassung: Bei Essen, Licht und Status steht hier, was die Wörter bedeuten.';
     return;
   }
   const table = document.createElement('table');
