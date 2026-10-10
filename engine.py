@@ -16,6 +16,8 @@ import models
 from carebot import CareBot
 from carebot_mothra import MothraBot
 from carebot_digimon import DigimonBot
+from carebot_plain import PlainBot
+from carebot_yasashii import YasashiiBot
 from carebot_tamaotch import TamaotchBot
 from carebot_umino import UminoBot
 from report import DailyReport
@@ -32,7 +34,8 @@ HANDS_OFF = 60                  # real seconds the bot waits after the user's la
 GONE_AFTER = 60                 # emulated seconds without a character until a life counts as over
 LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
-BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP}
+# K, H, S, F: the inputs K10 to K13, the Yasashii's buttons for cleaning, the heart, play and food
+BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7}
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake")
 
 
@@ -51,7 +54,7 @@ class Engine:
         self.tama.icon_pins = model.icon_pins
         self.tama.lcd = model.lcd
         bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot,
-               "digimon": DigimonBot}.get(model.game, CareBot)
+               "digimon": DigimonBot, "yasashii": YasashiiBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.reborn
         self.slices = 0

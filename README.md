@@ -26,6 +26,7 @@ braucht seine eigene:
 | Tamagotchi Mothra | `tamamot.bin` aus dem MAME-Romset `tamamot` | 16 384 Bytes | `74c1f6761724b7cbda8bca3113db78586b786d2d` | `85e4bee9` |
 | Tamagotchi Genjintch | `TamagotchiGenjintch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `e317eac80c3360b766b92a2da253bda32fd50273` | `bbf6b4fe` |
 | Tamagotchi Tamaotch | `TamagotchiTamaotch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `d4ea15fa2abb16bd844c79e3b095a6f6cf21a98f` | `a491fb55` |
+| Tamagotchi Yasashii | `TamagotchiYasashii.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `dc713b7eb4cbc5d9e921fe3bd97662c72bc68534` | `0549477a` |
 | Digimon V1 | `digimon.bin` aus dem MAME-Romset `digimon` | 16 384 Bytes | `1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7` | `08ffac1b` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
@@ -406,6 +407,44 @@ Der Care-Bot (`carebot_tamaotch.py`, Regeln und Wegplaner in `growth_tamaotch.py
 
 Die Regeln stammen aus der Figurenliste des Tamagotchi-Wikis (ausgelesene ROM-Daten von
 Rhubarb Pie); die Wege, die der Bot geht, sind im Emulator nachgelaufen.
+
+### Yasashii
+
+Das Yasashii Tamagotch (1997, für kleine Kinder) läuft auf dem größeren Chip E0C6S48, den der
+Kern ohnehin nachbildet, und hat statt eines Menüs eine Taste für jede Aktion: Essen, Laune,
+Zuneigung, Toilette, Licht und Anzeige, dazu Auswählen und Abbrechen. Vier davon hängen an den
+Eingängen K10 bis K13, die der Kern dafür als Tasten 4 bis 7 annimmt. Das Display hat wie bei
+den anderen 32×16 Punkte, nur andersherum verdrahtet, und sechs Symbole außerhalb der
+Punktmatrix. Das Gehäuse ist die Zeichnung aus BrickEmuPy.
+
+Der Care-Bot (`carebot_yasashii.py`, Regeln in `growth_yasashii.py`):
+
+- **Bedienung:** Die Taste einer Aktion öffnet deren Bild, „Auswählen“ wechselt darin, dieselbe
+  Taste bestätigt, „Abbrechen“ führt zurück. Die Uhr stellt man am Ei: Auswählen zählt die
+  Stunden, die Anzeige-Taste wechselt zu den Minuten, Abbrechen übernimmt.
+- **Unartig:** Hat es etwas ausgefressen, nimmt es weder Essen noch Snack und zählt solange
+  auch keine Pflegefehler. Zu sehen ist das erst, wenn es ein Essen abgelehnt hat; der Bot
+  bietet deshalb eines an und schimpft dann mit der Herz-Taste.
+- **Pflegefehler:** Ein leerer Hunger oder ein leeres Glück zählt, wenn das nächste Herz fällig
+  wäre (beim Teenager nach gut einer Stunde). Drei Stunden ganz ohne Essen überlebt es nicht.
+  Für absichtliche Fehler lässt der Bot es deshalb einzeln hungern und gibt nach jedem
+  gezählten Fehler einen Happen.
+- **Krankheit:** Ab dem dritten Pflegefehler einer Figur wird es krank, sofort und danach jeden
+  Morgen wieder, und die dritte Krankheit einer Figur ist sein Ende (nach jeder Verwandlung
+  wird neu gezählt). Der dritte Fehler fällt deshalb erst in den letzten 30 Stunden der Stufe.
+  Für die elf Fehler, die Micheltchi verlangt, bleibt dann auch ein Häufchen liegen.
+- **Ziele:** Die Pflegefehler des Kindes bestimmen den Teenager und dessen Sorte (zwei je
+  Teenager, äußerlich gleich; der Bot merkt sie sich), die des Teenagers zusammen mit der
+  Sorte zwei mögliche Erwachsene, zwischen denen das Gerät mit gleicher Chance wählt. Sicher
+  ansteuern lässt sich also keiner; der Bot sorgt dafür, dass das Ziel einer der beiden ist.
+- **Neues Leben:** Am Ende fliegt es davon und lässt ein Ei zurück, das nur der Reset-Knopf
+  weckt. Der Bot setzt dafür das Gerät zurück (das Album der früheren Tiere geht dabei verloren)
+  und stellt die Uhr neu.
+
+Die Regeln stammen aus der Figurenliste des Tamagotchi-Wikis. In rund 70 simulierten Leben
+passte jede Verwandlung dazu, und alle sieben Erwachsenen sind entstanden. Mit Ziel traf der
+Bot die nötigen Pflegefehler; das Ziel selbst kam, wie der Münzwurf erwarten lässt, in etwa
+jedem dritten bis zweiten Leben heraus (Micheltchi in 3 von 8).
 
 ### Tamagotchi Angel
 

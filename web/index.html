@@ -343,7 +343,7 @@
       – ein Kampf gegen einen gedachten Gegner (ab der dritten Stufe)</p>
     <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
       – der Sensor im Gehäuse, Taste <kbd>T</kbd></p>
-    <p class="hint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
+    <p class="hint" id="keysHint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
   </div>
 
   <aside>
@@ -473,6 +473,11 @@ const JP_P1 = {
            ['おなか', 'onaka', 'Bauch: Hunger'], ['ごきげん', 'gokigen', 'Laune: Glück']],
 };
 const JP = {
+  yasashii: {
+    hint: 'Die Tasten, oben von links: しょくじ (shokuji) Essen · ごきげん (gokigen) Laune: spielen · あいじょう (aijō) Zuneigung. ' +
+          'Unten: トイレ (toire) Toilette · でんき (denki) Licht · チェックメーター Anzeige: Alter, Gewicht und Herzen. ' +
+          'Darunter えらぶ (erabu) auswählen und とりけし (torikeshi) abbrechen.',
+  },
   p1: {
     hint: 'Englische Fassung: Bei Essen, Licht und Status steht hier, was die Wörter bedeuten.',
     food: [['MEAL', '', 'Mahlzeit, füllt den Hunger'], ['SNACK', '', 'Süßes, füllt das Glück']],
@@ -635,22 +640,26 @@ function pickable(els, names) {
 
 /* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
    element named after its place in the display memory, "nibble_bit" */
-const ART = {p1: 'p1', p1j: 'p1', p2: 'p1', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
-             genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon'};
+const ART = {p1: 'p1w', p1j: 'p1', p2: 'p2', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
+             genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon', yasashii: 'yasashii'};
 /* The picture printed behind the LCD in each drawing: shown at half its strength, so that
    the pixels stay easy to read */
-const BACKDROP = {p1: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
-                  mothra: ['Vector_4'], genjin: ['reflector'], tamaotch: ['backdrop']};
+const BACKDROP = {p1: ['layout'], p1w: ['layout'], p2: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
+                  mothra: ['Vector_4'], genjin: ['reflector'], tamaotch: ['backdrop'], yasashii: ['reflector']};
 const BACKDROP_OPACITY = 0.5;
 const SEG_X = [0, 1, 2, 3, 4, 5, 6, 7, 32, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 31, 30, 29, 28, 27, 26,
                25, 24, 36, 23, 22, 21, 20, 19, 18, 17, 16, 37, 38, 39];
 const P1_PINS = [[8, 0], [8, 1], [8, 2], [8, 3], [28, 12], [28, 13], [28, 14], [28, 15]];
 const UMINO_PINS = [[8, 0], [17, 0], [18, 0], [19, 0], [39, 15], [38, 15], [37, 15], [28, 15]];
 const PINS = {umino: UMINO_PINS, mothra: UMINO_PINS, genjin: UMINO_PINS, tamaotch: UMINO_PINS,
-              digimon: [[28, 15], [37, 15], [38, 15], [39, 15], [11, 0], [10, 0], [9, 0], [0, 0]]};
+              digimon: [[28, 15], [37, 15], [38, 15], [39, 15], [11, 0], [10, 0], [9, 0], [0, 0]],
+              // six icons beyond the dot matrix (the last two pins are never lit)
+              yasashii: [[40, 8], [40, 12], [41, 8], [43, 8], [42, 12], [42, 8], [50, 8], [50, 12]]};
 /* The Digimon's LCD is turned round: the column of every segment, and the commons run upwards */
 const LCD_OF = {digimon: {seg: [-1, 31, 30, 29, 28, 27, 26, 25, 24, -1, -1, -1, 23, 22, 21, 20, 19, 18, 17, 16, 0, 1, 2, 3, 4, 5, 6, 7, -1,
-                               8, 9, 10, 11, 12, 13, 14, 15, -1, -1, -1], flip: true}};
+                               8, 9, 10, 11, 12, 13, 14, 15, -1, -1, -1], flip: true},
+                yasashii: {seg: [31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
+                                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], flip: true}};
 let artOf = '', pixEls = null, pixOn = null;
 async function drawArt(names, model) {
   artOf = model;
@@ -672,7 +681,7 @@ async function drawArt(names, model) {
   for (const el of svg.querySelectorAll('[id]')) {
     const m = /^(\d+)_(\d)$/.exec(el.id);
     if (!m) continue;
-    const n = +m[1], seg = (n % 80) >> 1, com = (n >= 80 ? 8 : 0) + (n % 2) * 4 + +m[2];
+    const n = +m[1], seg = (n < 80 ? n : n - 80) >> 1, com = (n >= 80 ? 8 : 0) + (n % 2) * 4 + +m[2];
     const icon = pins.findIndex(([s, c]) => s === seg && c === com);
     el.classList.add('seg');
     if (icon >= 0) icons[icon] = el;
@@ -684,7 +693,10 @@ async function drawArt(names, model) {
     el.insertAdjacentHTML('afterbegin', '<title></title>');
     el.firstChild.textContent = title;
   });
-  for (const [id, name] of [['btnLeft', 'A'], ['btnCenter', 'B'], ['btnRight', 'C'], ['btnTop', 'A'], ['btnBottom', 'C']]) {
+  for (const [id, name] of [['btnLeft', 'A'], ['btnCenter', 'B'], ['btnRight', 'C'], ['btnTop', 'A'], ['btnBottom', 'C'],
+                            // the Yasashii: a button for every action
+                            ['btnFood', 'F'], ['btnSmile', 'S'], ['btnHeart', 'H'], ['btnClean', 'K'],
+                            ['btnBulb', 'T'], ['btnWeight', 'A'], ['btnSelect', 'B'], ['btnCancel', 'C']]) {
     const el = svg.querySelector('#' + id);
     if (!el) continue;
     el.dataset.btn = name;
@@ -845,6 +857,7 @@ function render(msg) {
   drawLcd(msg.lcd);
   if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
   $('tapRow').hidden = !msg.tap;
+  $('keysHint').hidden = msg.model === 'yasashii';     // a button for every action there
   $('sparRow').hidden = msg.model !== 'digimon';
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care;

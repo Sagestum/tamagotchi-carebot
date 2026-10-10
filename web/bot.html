@@ -366,6 +366,20 @@ const CHARS_DIGIMON = {
   14: ['Monzaemon', 'Die fünfte Stufe aus Numemon: 15 Kämpfe auf der dritten Stufe und eine gute Siegbilanz, dazu Glück.'],
 };
 
+const CHARS_YASASHII = {
+  1: ['Chikachikababytchi', 'Das Baby. Nach einer Stunde wird es Hoppetchi. Hier zählt noch nichts.'],
+  2: ['Hoppetchi', 'Das Kind, zwei Tage lang. Seine Pflegefehler entscheiden über den Teenager und dessen Sorte.'],
+  3: ['Meruhetchi', 'Der Teenager aus guter Pflege: mit 0 oder 1 Pflegefehlern als Kind von der ersten Sorte, mit 2 oder 3 von der zweiten. Bleibt drei Tage.'],
+  4: ['Mayumarutchi', 'Der Teenager aus nachlässiger Pflege: mit 4 bis 6 Pflegefehlern als Kind von der ersten Sorte, ab 7 von der zweiten. Bleibt drei Tage.'],
+  5: ['Oshamatchi', 'Der beste Erwachsene: nur aus einem Teenager der ersten Sorte mit höchstens einem Pflegefehler, und auch dann nur in jedem zweiten Fall.'],
+  6: ['Jr. Mametchi', 'Aus einem Teenager der ersten Sorte mit höchstens 4 Pflegefehlern oder der zweiten Sorte mit höchstens einem.'],
+  7: ['Tamabetchi', 'Aus einem Teenager der ersten Sorte mit 2 bis 7 Pflegefehlern oder der zweiten Sorte mit höchstens 4.'],
+  8: ['Pantarotchi', 'Aus einem Teenager der ersten Sorte mit 5 bis 10 Pflegefehlern oder der zweiten Sorte mit 2 bis 7.'],
+  9: ['Jr. Ginjirotchi', 'Aus einem Teenager der ersten Sorte ab 8 Pflegefehlern oder der zweiten Sorte mit 5 bis 10.'],
+  10: ['Kabuto Oyajitchi', 'Aus einem Teenager der ersten Sorte ab 11 Pflegefehlern oder der zweiten Sorte ab 8.'],
+  11: ['Micheltchi', 'Nur aus einem Teenager der zweiten Sorte ab 11 Pflegefehlern, und auch dann nur in jedem zweiten Fall.'],
+};
+
 const CHARS_TAMAOTCH = {
   1: ['Ashitchi', 'Das Vorsprechen: schlüpft aus dem Ei und bleibt einen Tag. Mit guter Pflege und Schauspiel (oder schlechter Pflege und Ad-lib) wird es AsaDoratchi, sonst Mochimotchi.'],
   2: ['AsaDoratchi', 'Das Debüt, einen Tag lang. Von hier geht es zu Tamaotchi, zum älteren Mochimotchi oder zu Kakuretchi.'],
@@ -528,7 +542,19 @@ const TAMAOTCH = {
   before(stage) { return stage > 1 ? [1] : []; },
   teenInReach: (n, st) => st.stage <= 1,
 };
+const YASASHII = {
+  pos: {
+    1: [55, 240], 2: [140, 240], 3: [240, 135], 4: [240, 345],
+    5: [400, 30], 6: [400, 100], 7: [400, 170], 8: [400, 240], 9: [400, 310], 10: [400, 380], 11: [400, 450],
+  },
+  edges: [[1, 2], [2, 3], [2, 4]].concat([5, 6, 7, 8, 9, 10, 11].flatMap(a => [[3, a], [4, a]])),
+  viaChild: false,
+  pick: (n) => n >= 5,
+  before(stage) { return stage >= 5 ? [1, 2] : stage >= 3 ? [1, 2] : stage === 2 ? [1] : []; },
+  teenInReach: (n, st) => st.stage <= 2,
+};
 const MODELS = {
+  yasashii: [SPRITES_YASASHII, CHARS_YASASHII, YASASHII],
   tamaotch: [SPRITES_TAMAOTCH, CHARS_TAMAOTCH, TAMAOTCH],
   digimon: [SPRITES_DIGIMON, CHARS_DIGIMON, DIGIMON],
   genjin: [SPRITES_GENJIN, CHARS_GENJIN, GENJIN],
@@ -586,6 +612,33 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === YASASHII) {
+    $('rulesIntro').innerHTML =
+      '<p>Es zählen nur die Pflegefehler, und sie beginnen mit jeder Verwandlung wieder bei 0:</p>' +
+      '<p><b>Pflegefehler</b> – Hunger oder Glück sind leer und bleiben es, bis das nächste Herz fällig wäre (etwa eine Stunde); ein Häufchen bleibt liegen; es schläft bei Licht; es ist krank und bekommt nichts.<br>' +
+      '<b>Sorte</b> – jeder Teenager kommt in zwei Sorten, die gleich aussehen. Die Sorte hängt an den Pflegefehlern des Kindes; der Bot merkt sie sich.<br>' +
+      '<b>Münzwurf</b> – der Teenager hat immer zwei mögliche Erwachsene, und das Gerät wählt mit gleicher Chance einen davon. Sicher ansteuern lässt sich also keiner.</p>';
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Pflegefehler</th><th>wird zu</th></tr>' + [
+        [[n(2), 4], ['0–1'], [n(3) + ', erste Sorte']],
+        [['2–3'], [n(3) + ', zweite Sorte']],
+        [['4–6'], [n(4) + ', erste Sorte']],
+        [['ab 7'], [n(4) + ', zweite Sorte']],
+        [['Teenager, erste Sorte', 5], ['0–1'], [n(5) + ' oder ' + n(6)]],
+        [['2–4'], [n(6) + ' oder ' + n(7)]],
+        [['5–7'], [n(7) + ' oder ' + n(8)]],
+        [['8–10'], [n(8) + ' oder ' + n(9)]],
+        [['ab 11'], [n(9) + ' oder ' + n(10)]],
+        [['Teenager, zweite Sorte', 5], ['0–1'], [n(6) + ' oder ' + n(7)]],
+        [['2–4'], [n(7) + ' oder ' + n(8)]],
+        [['5–7'], [n(8) + ' oder ' + n(9)]],
+        [['8–10'], [n(9) + ' oder ' + n(10)]],
+        [['ab 11'], [n(10) + ' oder ' + n(11)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      'Die dritte Krankheit ist sein Ende, und mit vielen Pflegefehlern wird es täglich krank; der Bot macht absichtliche Fehler deshalb erst in den letzten Tagen einer Stufe. Die Regeln stammen aus der Figurenliste des Tamagotchi-Wikis.';
     return;
   }
   if (FAMILY === TAMAOTCH) {
@@ -865,9 +918,9 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const genjin = FAMILY === GENJIN, digimon = FAMILY === DIGIMON, otch = FAMILY === TAMAOTCH;
+  const genjin = FAMILY === GENJIN, digimon = FAMILY === DIGIMON, otch = FAMILY === TAMAOTCH, yasa = FAMILY === YASASHII;
   const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA || genjin;
-  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino || digimon;
+  $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino || digimon || yasa;
   if (mothra) $('missedRow').hidden = true;
   $('fightsRow').hidden = $('trainingsRow').hidden = !digimon && !otch;
   $('trainingsRow').firstElementChild.textContent = otch ? 'Gewonnene Spiele (Vorsprung)' : 'Trainings';
@@ -952,6 +1005,19 @@ function render(msg) {
         ' als meistgewonnenes Spiel vorn und ' + (w.popular ? 'macht es beliebt (abends krank werden lassen, heilen, dabei klopfen).' : 'lässt es unbeliebt.');
     }
     if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (yasa && !msg.goal) {
+    text = 'Ohne Ziel pflegt der Bot fehlerfrei. Das ergibt ' + name(3) + ' und dann ' + name(5) + ' oder ' + name(6) + '.';
+  } else if (yasa && alive && g.plan) {
+    const w = g.wanted, cm = w.mistakes - st.mistakes, here = st.stage === msg.goal;
+    plan = here ? 'Ziel erreicht' : path(g.plan);
+    text = CHARS[msg.goal][1] + (here ? '' : ' Als ' + name(st.stage) +
+      (st.stage >= 3 ? ' (' + (w.kind === 2 ? 'zweite' : 'erste') + ' Sorte)' : '') +
+      (counting && cm > 0 ? ' wird der Bot noch ' + cm + ' Pflegefehler machen (es bleibt dafür gegen Ende der Stufe stundenweise hungrig).' : ' pflegt der Bot fehlerfrei.') +
+      ' Am Ende wirft das Gerät eine Münze: Die Chance liegt bei 50 %.');
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
+  } else if (yasa && alive && msg.goal) {
+    text = st.stage === msg.goal ? CHARS[msg.goal][1] : CHARS[msg.goal][1] + ' Von ' + name(st.stage) + ' aus ist das nicht mehr zu erreichen; der Bot pflegt fehlerfrei weiter.';
+    plan = st.stage === msg.goal ? 'Ziel erreicht' : '–';
   } else if (digimon && !msg.goal) {
     text = 'Ohne Ziel pflegt der Bot fehlerfrei, ohne Training und ohne Kämpfe. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.';
   } else if (digimon && alive && g.plan) {

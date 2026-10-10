@@ -560,6 +560,14 @@ static u4_t get_io(u12_t n)
 			/* Input port (K10-K13) */
 			return inputs[1].states;
 
+		case REG_R00_R03_OUTPUT_PORT:
+		case REG_R10_R13_OUTPUT_PORT:
+		case REG_R20_R23_OUTPUT_PORT:
+		case REG_R30_R33_OUTPUT_PORT:
+		case REG_HIGH_IMPEDANCE_OUTPUT_CTRL:
+			/* Output ports (R00-R33): the lamps behind the Yasashii's buttons */
+			return GET_IO_MEMORY(memory, n);
+
 		case REG_R40_R43_BZ_OUTPUT_PORT:
 			/* Output port (R40-R43) */
 			return GET_IO_MEMORY(memory, n);
@@ -689,6 +697,14 @@ static void set_io(u12_t n, u4_t v)
 
 		case REG_K00_K03_INPUT_RELATION:
 			/* Input relation register (K00-K03) */
+			break;
+
+		case REG_R00_R03_OUTPUT_PORT:
+		case REG_R10_R13_OUTPUT_PORT:
+		case REG_R20_R23_OUTPUT_PORT:
+		case REG_R30_R33_OUTPUT_PORT:
+		case REG_HIGH_IMPEDANCE_OUTPUT_CTRL:
+			/* Output ports (R00-R33): the lamps behind the Yasashii's buttons */
 			break;
 
 		case REG_R40_R43_BZ_OUTPUT_PORT:

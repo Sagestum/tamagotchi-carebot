@@ -183,9 +183,14 @@ uint64_t tama_ticks(void)
 	return total_ticks;
 }
 
-/* btn: 0 = left (A), 1 = middle (B), 2 = right (C), 3 = tap sensor (Angel) */
+/* btn: 0 = left (A), 1 = middle (B), 2 = right (C), 3 = tap sensor (Angel); these are the
+ * inputs K02, K01, K00 and K03. 4 to 7 are K10 to K13 (the Yasashii has eight buttons) */
 void tama_button(int btn, int pressed)
 {
+	if (btn >= 4 && btn <= 7) {
+		cpu_set_input_pin((pin_t) (PIN_K10 + btn - 4), pressed ? PIN_STATE_LOW : PIN_STATE_HIGH);
+		return;
+	}
 	if (btn < 0 || btn > 3) {
 		return;
 	}

@@ -14,6 +14,7 @@ import growth_digimon
 import growth_genjin
 import growth_morino
 import growth_tamaotch
+import growth_yasashii
 import growth_mothra
 import growth_umino
 
@@ -26,7 +27,7 @@ class Model:
     def __init__(self, id, name, source, size, sha1, crc32, names, dead, game,
                  icons=P1_ICONS, care=True, tap=False, unit="oz", goals=True,
                  clock_m=P1_CLOCK_M, rules=growth, icon_pins=None, hold=0.1,
-                 rattle=0, lcd=None, rattle_ticks=164):
+                 rattle=0, lcd=None, rattle_ticks=164, buttons=("A", "B", "C")):
         self.id = id
         self.name = name
         self.source = source    # where the dump is known from, for the settings page
@@ -47,6 +48,7 @@ class Model:
         self.hold = hold        # seconds a button has to be held for the ROM to take it
         self.rattle = rattle    # pulses a tap on the case is made of (0: one press)
         self.rattle_ticks = rattle_ticks    # how long each of them and each gap lasts (5 ms)
+        self.buttons = buttons  # the buttons it has, by the names of engine.BUTTONS
         self.lcd = lcd          # (column of every segment, row of every common) if unlike the P1
 
     def stage_name(self, stage):
@@ -177,7 +179,21 @@ DIGIMON = Model(
     unit="G", rules=growth_digimon, lcd=DIGIMON_LCD,
     icon_pins=((28, 15), (37, 15), (38, 15), (39, 15), (11, 0), (10, 0), (9, 0), (0, 0)))
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON)
+# Yasashii Tamagotch (1997), the gentle one for small children: the first generation's pet on
+# the larger MCU (E0C6S48), with a button for every action instead of a menu. Four of the
+# buttons are on the inputs K10 to K13. Its LCD is wired the other way round, and its six
+# icons lie beyond the dot matrix. Its Care-Bot is carebot_yasashii.py.
+YASASHII_LCD = (tuple(range(31, 15, -1)) + tuple(range(16)), tuple(range(15, -1, -1)))
+YASASHII = Model(
+    "yasashii", "Tamagotchi Yasashii", "TamagotchiYasashii.bin aus der Sammlung zu BrickEmuPy",
+    16384, "dc713b7eb4cbc5d9e921fe3bd97662c72bc68534", "0549477a",
+    growth_yasashii.NAMES, (), "yasashii",
+    icons=("food", "game", "praise", "toilet", "light", "status", "attention", "attention"),
+    care=True, unit="g", goals=True, lcd=YASASHII_LCD, hold=0.2, rules=growth_yasashii,
+    icon_pins=((40, 8), (40, 12), (41, 8), (43, 8), (42, 12), (42, 8), (50, 8), (50, 12)),
+    buttons=("F", "S", "H", "K", "T", "A", "B", "C"))
+
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, YASASHII)
 BY_ID = {m.id: m for m in MODELS}
 
 
