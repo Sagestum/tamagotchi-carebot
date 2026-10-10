@@ -146,7 +146,7 @@ class Engine:
             if btn == BTN_TAP and self.model.rattle:
                 # A sensor for knocks and noise: it takes a rattle, not a single tap
                 if down:
-                    pulse = TICK_HZ // 200
+                    pulse = self.model.rattle_ticks
                     for _ in range(self.model.rattle):
                         self.tama.button(btn, True)
                         self.tama.run(pulse)

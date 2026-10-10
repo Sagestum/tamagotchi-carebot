@@ -366,6 +366,23 @@ const CHARS_DIGIMON = {
   14: ['Monzaemon', 'Die fünfte Stufe aus Numemon: 15 Kämpfe auf der dritten Stufe und eine gute Siegbilanz, dazu Glück.'],
 };
 
+const CHARS_TAMAOTCH = {
+  1: ['Ashitchi', 'Das Vorsprechen: schlüpft aus dem Ei und bleibt einen Tag. Mit guter Pflege und Schauspiel (oder schlechter Pflege und Ad-lib) wird es AsaDoratchi, sonst Mochimotchi.'],
+  2: ['AsaDoratchi', 'Das Debüt, einen Tag lang. Von hier geht es zu Tamaotchi, zum älteren Mochimotchi oder zu Kakuretchi.'],
+  3: ['Mochimotchi', 'Das Debüt, 37 Stunden lang. Von hier geht es zu Tamaotchi, zum älteren AsaDoratchi oder zu Kakuretchi.'],
+  4: ['Tamaotchi', 'Aus AsaDoratchi mit guter Pflege und Schauspiel (unbeliebt) oder Tanz (beliebt), aus Mochimotchi mit guter Pflege, Schauspiel und Beliebtheit. Bleibt fünf Tage.'],
+  5: ['Kakuretchi', 'Was aus AsaDoratchi oder Mochimotchi wird, wenn nichts anderes passt. Bleibt drei Tage.'],
+  6: ['Hariutchi', 'Die Reife. Aus Tamaotchi mit guter Pflege und Schauspiel (unbeliebt) oder Tanz (beliebt); aus den älteren AsaDoratchi und Mochimotchi mit guter Pflege, Beliebtheit und Ad-lib bzw. Tanz.'],
+  7: ['Baradorutchi', 'Die Reife, und der einzige Weg zu TamaOtchi. Aus dem älteren AsaDoratchi mit guter Pflege, Tanz und Beliebtheit, aus dem älteren Mochimotchi mit Ad-lib, aus Tamaotchi mit schlechter Pflege, Ad-lib und Beliebtheit.'],
+  8: ['Tabakotchi', 'Die Reife, wenn nichts anderes passt.'],
+  9: ['TamaOtchi', 'Der Star. Aus Baradorutchi mit guter Pflege.'],
+  10: ['Sendatchi', 'Aus dem älteren Kakuretchi mit schlechter Pflege.'],
+  11: ['AsaDoratchi', 'Das ältere AsaDoratchi: aus Mochimotchi mit Beliebtheit und Tanz (gute Pflege) oder Schauspiel (schlechte Pflege).'],
+  12: ['Mochimotchi', 'Das ältere Mochimotchi: aus AsaDoratchi mit Beliebtheit und Ad-lib (gute Pflege) oder Tanz (schlechte Pflege).'],
+  13: ['Tamaotchi', 'Das ältere Tamaotchi der Reife.'],
+  14: ['Kakuretchi', 'Das ältere Kakuretchi der Reife. Mit schlechter Pflege wird es Sendatchi.'],
+};
+
 const CHARS_GENJIN = {
   1: ['DNAtchi', 'Das Baby. Nach einer Stunde wird es Kuromarutchi. Hier zählt noch nichts.'],
   2: ['Kuromarutchi', 'Das Kind. Mit höchstens zwei Pflegefehlern wird es Dotetchi, sonst Ukitchi.'],
@@ -496,7 +513,23 @@ const DIGIMON = {
   before(stage) { return stage >= 3 ? [1, 2] : stage === 2 ? [1] : []; },
   teenInReach: (n, st) => st.stage <= 2,
 };
+const TAMAOTCH = {
+  pos: {
+    1: [35, 240], 2: [125, 150], 3: [125, 330],
+    4: [225, 60], 12: [225, 180], 11: [225, 300], 5: [225, 420],
+    7: [335, 40], 6: [335, 140], 13: [335, 240], 14: [335, 340], 8: [335, 440],
+    9: [440, 40], 10: [440, 340],
+  },
+  edges: [[1, 2], [1, 3], [2, 4], [2, 12], [2, 5], [3, 4], [3, 11], [3, 5],
+          [4, 7], [4, 6], [4, 14], [4, 8], [11, 7], [11, 6], [11, 13], [11, 14], [11, 8],
+          [12, 7], [12, 6], [12, 13], [12, 14], [12, 8], [5, 13], [5, 8], [7, 9], [14, 10]],
+  viaChild: false,
+  pick: (n) => n >= 4 && n <= 10,
+  before(stage) { return stage > 1 ? [1] : []; },
+  teenInReach: (n, st) => st.stage <= 1,
+};
 const MODELS = {
+  tamaotch: [SPRITES_TAMAOTCH, CHARS_TAMAOTCH, TAMAOTCH],
   digimon: [SPRITES_DIGIMON, CHARS_DIGIMON, DIGIMON],
   genjin: [SPRITES_GENJIN, CHARS_GENJIN, GENJIN],
   mothra: [SPRITES_MOTHRA, CHARS_MOTHRA, MOTHRA],
@@ -553,6 +586,34 @@ function drawRules() {
       `Bei Temperatur 0 oder 15 stirbt der Kokon. ${n(9)} entsteht statt ${n(6)}, wenn die Süße (Kirschen und Körner +1, Eis +2) beim Teilen durch 4 den Rest 3 lässt. ` +
       `${n(12)} schlüpft aus Kokon D, wenn die ${n(2)} vorher schon einmal aus Kokon A zurückgekommen ist. ` +
       `Alles im Emulator nachgemessen; es deckt sich mit der Figurenliste des Tamagotchi-Wikis.`;
+    return;
+  }
+  if (FAMILY === TAMAOTCH) {
+    $('rulesIntro').innerHTML =
+      '<p>Drei Dinge entscheiden, so wie sie im Augenblick der Verwandlung stehen:</p>' +
+      '<p><b>Pflege</b> – gut mit höchstens 2 Pflegefehlern als diese Figur, schlecht ab 3. Ein Fehler zählt, wenn Hunger, Glück oder Übung eine Viertelstunde leer sind, und danach jede weitere Viertelstunde.<br>' +
+      '<b>Spiel</b> – welches der drei Übungsspiele am häufigsten gewonnen wurde: Ad-lib, Tanz oder Schauspiel.<br>' +
+      '<b>Beliebtheit</b> – ab 2 ist es beliebt. Um Mitternacht geht eins verloren; dazu kommt etwas, wenn man aufs Gehäuse klopft, während es seine Spritze bekommt.</p>';
+    const G = ['Ad-lib', 'Tanz', 'Schauspiel'];
+    $('rules').innerHTML =
+      '<tr><th>Verwandlung</th><th>Pflege</th><th>Spiel</th><th>beliebt</th><th>wird zu</th></tr>' + [
+        [[n(1), 3], ['gut'], [G[2]], ['egal'], [n(2)]],
+        [['schlecht'], [G[0]], ['egal'], [n(2)]],
+        [['sonst'], ['–'], ['–'], [n(3)]],
+        [[n(2), 5], ['gut'], [G[2]], ['nein'], [n(4)]],
+        [['gut'], [G[1]], ['ja'], [n(4)]],
+        [['gut'], [G[0]], ['ja'], [n(12) + ' (älter)']],
+        [['schlecht'], [G[1]], ['ja'], [n(12) + ' (älter)']],
+        [['sonst'], ['–'], ['–'], [n(5)]],
+        [[n(3), 4], ['gut'], [G[2]], ['ja'], [n(4)]],
+        [['gut'], [G[1]], ['ja'], [n(11) + ' (älter)']],
+        [['schlecht'], [G[2]], ['ja'], [n(11) + ' (älter)']],
+        [['sonst'], ['–'], ['–'], [n(5)]],
+        [[n(7), 1], ['gut'], ['egal'], ['egal'], [n(9)]],
+        [[n(14) + ' (älter)', 1], ['schlecht'], ['egal'], ['egal'], [n(10)]],
+      ].map(row).join('');
+    $('rulesNote').textContent =
+      'Die dritte Verwandlung (zu ' + [6, 7, 8].map(n).join(', ') + ' und den älteren ' + n(13) + ' und ' + n(14) + ') steht bei den Figuren im Stammbaum. Die Regeln stammen aus der Figurenliste des Tamagotchi-Wikis, die auf ausgelesene ROM-Daten zurückgeht.';
     return;
   }
   if (FAMILY === DIGIMON) {
@@ -804,14 +865,20 @@ function render(msg) {
     [SPRITES, CHARS, FAMILY] = MODELS[model];
     drawRules();
   }
-  const genjin = FAMILY === GENJIN, digimon = FAMILY === DIGIMON;
+  const genjin = FAMILY === GENJIN, digimon = FAMILY === DIGIMON, otch = FAMILY === TAMAOTCH;
   const angel = FAMILY === ANGEL, morino = FAMILY === MORINO, umino = FAMILY === UMINO, mothra = FAMILY === MOTHRA || genjin;
   $('disciplineRow').hidden = $('missedRow').hidden = $('trainingRow').hidden = angel || morino || digimon;
   if (mothra) $('missedRow').hidden = true;
-  $('fightsRow').hidden = $('trainingsRow').hidden = !digimon;
+  $('fightsRow').hidden = $('trainingsRow').hidden = !digimon && !otch;
+  $('trainingsRow').firstElementChild.textContent = otch ? 'Gewonnene Spiele (Vorsprung)' : 'Trainings';
+  $('fightsRow').firstElementChild.textContent = otch ? 'Beliebtheit' : 'Kämpfe';
+  if (otch) {
+    $('trainings').textContent = alive ? ['Ad-lib', 'Tanz', 'Schauspiel'].map((t, i) => t + ' ' + st.games[i]).join(', ') : '–';
+    $('fights').textContent = alive ? st.fans + (st.fans >= 2 ? ' (beliebt)' : ' (unbeliebt)') : '–';
+  }
   if (digimon) { $('trainings').textContent = alive ? st.trainings : '–'; $('fights').textContent = alive ? st.fights + ' Kämpfe, ' + st.wins + ' Siege' : '–'; }
   $('disciplineLabel').textContent = genjin ? 'Darf loben (nur ohne Ziel)' : 'Darf schimpfen (nur ohne Ziel)';
-  $('trainingLabel').textContent = genjin ? 'Evolutionsanzeige' : mothra ? 'Justice' : 'Disziplin-Anzeige';
+  $('trainingLabel').textContent = otch ? 'Übung' : genjin ? 'Evolutionsanzeige' : mothra ? 'Justice' : 'Disziplin-Anzeige';
   $('mistakesRow').hidden = morino;
   $('powerRow').hidden = !angel && !morino && !umino && !mothra && !digimon;
   $('powerLabel').textContent = morino || umino || mothra || digimon ? 'Gewicht' : 'Angel Power';
@@ -874,6 +941,17 @@ function render(msg) {
     text = msg.discipline
       ? 'Ohne Ziel pflegt der Bot fehlerfrei und schimpft bei jedem Turmangriff. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.'
       : 'Ohne Ziel und ohne Schimpfen bleibt die Justice leer. Bei fehlerfreier Pflege ergibt das ' + name(3) + ' und dann ' + name(8) + '.';
+  } else if (otch && alive) {
+    const w = g.wanted, G = ['Ad-lib', 'Tanz', 'Schauspiel'];
+    if (!msg.goal) {
+      text = 'Ohne Ziel pflegt der Bot fehlerfrei, spielt ' + G[w.game] + ' und macht es beliebt.';
+    } else {
+      plan = st.stage === msg.goal || !g.plan ? 'Ziel erreicht' : path(g.plan);
+      text = CHARS[msg.goal][1] + ' Als ' + name(st.stage) + ' pflegt der Bot ' +
+        (w.mistakes ? 'schlecht (' + w.mistakes + ' Pflegefehler mit Absicht)' : 'fehlerfrei') + ', hält ' + G[w.game] +
+        ' als meistgewonnenes Spiel vorn und ' + (w.popular ? 'macht es beliebt (abends krank werden lassen, heilen, dabei klopfen).' : 'lässt es unbeliebt.');
+    }
+    if (!msg.bot) text += ' (Der Bot ist gerade aus.)';
   } else if (digimon && !msg.goal) {
     text = 'Ohne Ziel pflegt der Bot fehlerfrei, ohne Training und ohne Kämpfe. Das ergibt ' + name(3) + ' und dann ' + name(7) + '.';
   } else if (digimon && alive && g.plan) {

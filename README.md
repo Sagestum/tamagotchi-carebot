@@ -373,7 +373,39 @@ Stufe jedes Mal heraus, die fünfte Stufe in 15 von 22 Leben: Das Gerät würfel
 als drei von vier sind nicht zu holen. Tyranomon, Airdramon und Seadramon (Überfütterung,
 Schlafstörungen) steuert der Bot noch nicht an. Die Regeln stammen von humulos.com/digimon/dm.
 
-Ein Tamaotch ist ebenfalls spielbar, ohne Bot.
+### Tamaotch
+
+Das Tamaotch (1998, zu Ehren der Schauspielerin Tamao Nakamura) hat ein eigenes Programm, will
+jede Taste eine Drittelsekunde gehalten haben und besitzt einen Klopfsensor. Es soll ein Star
+werden: Neben Hunger und Glück gibt es eine Übungsanzeige, die nur durch gewonnene
+Übungsspiele steigt, und eine unsichtbare Beliebtheit.
+
+Der Care-Bot (`carebot_tamaotch.py`, Regeln und Wegplaner in `growth_tamaotch.py`):
+
+- **Übungsspiele** (Ad-lib, Tanz, Schauspiel): Man gibt dreimal drei Posen vor, das Tier macht
+  sie nach, und stimmt die dritte, klopft man. Die dritte Pose kopiert es gar nicht – es nimmt
+  sie aus dem Sekundenzähler des Geräts. Der Bot wartet auf einen Sekundenwechsel und gibt die
+  Pose vor, die dazu passt; so stimmt jede Runde.
+- **Klopfen:** Der Sensor wird auf dem schnellen Takt des Chips abgefragt und sucht zwei
+  Flanken binnen Bruchteilen einer Millisekunde. Ein Klopfen ist deshalb ein Rasseln von 0,3 s
+  mit Flanken im Abstand von 61 µs; das schickt auch die Klopf-Taste der Oberfläche.
+- **Glück** holt der Bot am Einarmigen Banditen: A und B stoppen die ersten beiden Walzen
+  jeweils ein Bild nach dem Druck, die dritte stoppt das Tier passend. Drei Siebenen sind drei
+  Herzen, ohne das Gewicht von Snacks.
+- **Pflegefehler** zählt das Gerät, wenn Hunger, Glück oder Übung eine Viertelstunde leer
+  sind, und danach jede weitere Viertelstunde.
+- **Beliebtheit** sinkt um Mitternacht um eins und steigt, wenn man klopft, während das Tier
+  seine Spritze bekommt. Jeder Snack verkürzt die Zeit bis zur nächsten Krankheit um eine
+  Stunde; der Bot nutzt das, um es bei Bedarf krank werden zu lassen – und abends, damit es
+  nicht im Schlaf krank wird, wo niemand heilen kann.
+- **Ziele:** Was aus einer Figur wird, hängt an Pflege (gut bis 2 Fehler), meistgewonnenem
+  Spiel und Beliebtheit (ab 2). Der Bot sucht den günstigsten Weg durch die Tabelle und hält
+  das Spiel, das zählen soll, nur zwei Siege vorn (die Zähler enden bei 15). In je zwei
+  simulierten Leben wurden alle sieben Ziele erreicht: Tamaotchi, Kakuretchi, Hariutchi,
+  Baradorutchi, Tabakotchi, TamaOtchi und Sendatchi.
+
+Die Regeln stammen aus der Figurenliste des Tamagotchi-Wikis (ausgelesene ROM-Daten von
+Rhubarb Pie); die Wege, die der Bot geht, sind im Emulator nachgelaufen.
 
 ### Tamagotchi Angel
 
