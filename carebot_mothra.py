@@ -156,10 +156,10 @@ class MothraBot(CareBot):
         for _ in range(3):
             goal = time.time()
             if self.realtime:
-                t = time.localtime(goal)
+                t = self.wall(goal)
                 presses = (t.tm_hour - self.hour()) % 24 + (t.tm_min + 1 - self.minute()) % 60
                 goal = (goal + 10 + presses * (PRESS + PAUSE) * 1.2) // 60 * 60 + 60
-            t = time.localtime(goal)
+            t = self.wall(goal)
             if self.unset():
                 yield from self.press(BTN_A)    # a clock never set: one press gives it an hour
             for read, btn, want, tries in ((self.hour, BTN_A, t.tm_hour, 30),

@@ -74,7 +74,7 @@
     -webkit-user-select: none;
     touch-action: manipulation;
   }
-  /* The device as BrickEmuPy draws it; the colour of the pet is a rim around it */
+  /* The device as BrickEmuPy draws it */
   .art {
     width: min(100%, 500px);
     margin: 0 auto;
@@ -85,7 +85,6 @@
   }
   .shell[hidden] { display: none; }
   .art svg { display: block; width: 100%; height: auto; overflow: visible; }
-  .art .halo * { fill: var(--shell-b); stroke: var(--shell-b); stroke-width: 20px; stroke-linejoin: round; }
   .art .seg { opacity: 0.06; transition: opacity 0.08s; }
   .art .seg.on { opacity: 1; }
   .art .seg.pick { cursor: pointer; }
@@ -292,6 +291,7 @@
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
   }
   #tabs button i { margin-right: 7px; }
+  #tabs button img { height: 22px; width: auto; margin: -5px 7px -5px -3px; vertical-align: middle; }
   .swatches { display: flex; gap: 6px; }
   .swatches button { width: 20px; height: 20px; border: 0; padding: 0; cursor: pointer; }
   .swatches button.on { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -367,6 +367,10 @@
         <span>Mit zufälliger End-Evolution weitermachen</span>
         <label class="switch"><input type="checkbox" id="shuffle"><b></b></label>
       </div>
+      <div class="row">
+        <span>Zeitumkehrer: Tag und Nacht vertauscht <span class="flag" id="flipNote" hidden></span></span>
+        <label class="switch"><input type="checkbox" id="flip"><b></b></label>
+      </div>
       <div class="row" id="goalRow">
         <span>Ziel</span>
         <span><b id="goal">keins</b> · <a href="/bot" id="botLink">Wachstum und Ziel</a></span>
@@ -410,7 +414,7 @@
         <span>Optionen</span>
         <a href="/settings">E-Mail und ROM</a>
       </div>
-      <div class="row">
+      <div class="row" hidden>
         <span>Farbe</span>
         <span class="swatches" id="colors"></span>
       </div>
@@ -442,8 +446,7 @@
     <select id="newModel"></select>
     <label for="newName">Name (steht auf dem Tab)</label>
     <input type="text" id="newName" maxlength="24" autocomplete="off">
-    <label>Farbe</label>
-    <span class="swatches" id="newColors"></span>
+    <span class="swatches" id="newColors" hidden></span>
     <p class="msg" id="newMsg" role="status"></p>
     <div class="actions">
       <button class="plain" type="button" id="newCancel">Abbrechen</button>
@@ -713,15 +716,6 @@ async function drawArt(names, model) {
     const el = svg.querySelector(`[id="${id}"]`);
     if (el) el.setAttribute('opacity', (el.getAttribute('opacity') || 1) * BACKDROP_OPACITY);
   }
-  /* The rim: the outline of the housing once more, thicker and in the colour of the pet */
-  const housing = svg.querySelector('#housing, #shell');
-  if (housing) {
-    const halo = housing.cloneNode(true);
-    halo.removeAttribute('id');
-    halo.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-    halo.setAttribute('class', 'halo');
-    svg.prepend(halo);
-  }
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'Tamagotchi');
   pickable(icons, names);
@@ -825,6 +819,7 @@ window.addEventListener('blur', () => [...held].forEach((name) => setButton(name
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
 $('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
 $('restart').addEventListener('change', (e) => post('/api/config', {restart: e.target.checked}));
+$('flip').addEventListener('change', (e) => post('/api/config', {flip: e.target.checked}));
 $('shuffle').addEventListener('change', (e) => post('/api/config', {shuffle: e.target.checked}));
 $('paused').addEventListener('change', (e) => post('/api/config', {paused: e.target.checked}));
 $('speed').addEventListener('click', (e) => {
@@ -918,6 +913,9 @@ function render(msg) {
   $('shuffleRow').hidden = !msg.goals;
   $('shuffle').checked = msg.shuffle && !msg.programme;
   $('shuffle').disabled = !msg.restart || msg.programme;   // it only says how a new life is begun
+  $('flip').checked = msg.flip;
+  $('flipNote').hidden = msg.flip === msg.flipped;      // the clock is only set anew with an egg
+  $('flipNote').textContent = msg.flip ? 'ab dem nächsten Ei' : 'noch bis zum nächsten Ei';
   $('goal').textContent = msg.goalName || 'keins';
   $('paused').checked = msg.paused;
   document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));
@@ -1006,8 +1004,10 @@ async function loadPets(select) {
     const b = document.createElement('button');
     const small = document.createElement('small');
     small.textContent = p.modelName.replace('Tamagotchi ', '');
-    const dot = document.createElement('i');
-    dot.style.setProperty('--c', (SHELLS[p.color] || SHELLS.yellow)[1]);
+    /* The tab shows the device itself, small (its drawing is a vector graphic) */
+    const dot = document.createElement(ART[p.model] ? 'img' : 'i');
+    if (ART[p.model]) { dot.src = '/shells/' + ART[p.model] + '.svg'; dot.alt = ''; }
+    else dot.style.setProperty('--c', (SHELLS[p.color] || SHELLS.yellow)[1]);
     b.append(dot, p.name);
     if (p.name !== p.modelName) b.append(small);     // tell pets of different models apart
     b.className = (p.id === cur.id ? 'on' : '') + (p.error || !p.alive ? ' broken' : '');

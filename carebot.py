@@ -124,6 +124,8 @@ class CareBot:
         self.wake = 0.0
         self.held = None
         self.clock_set_at = None
+        self.shift = 0                  # hours the pet's clock is set ahead of the real time
+                                        # (12: day and night change places)
         self.dead_logged = False
         self.gone = False               # the pet has died (kept while the end screen slides)
         self.walking = False            # Angel: out for a walk
@@ -150,6 +152,10 @@ class CareBot:
 
     def recall(self, memo):
         pass
+
+    def wall(self, at=None):
+        """The time the pet's clock is to show: the real one, or half a day on."""
+        return time.localtime((time.time() if at is None else at) + self.shift * 3600)
 
     # -- state readers -----------------------------------------------------
 
@@ -325,7 +331,7 @@ class CareBot:
 
     def clock_error(self):
         """How far the pet's clock is ahead of the real time, in seconds."""
-        t = time.localtime()
+        t = self.wall()
         real = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
         return (self.device_time() - real + 43200) % 86400 - 43200
 
@@ -342,11 +348,11 @@ class CareBot:
             goal = time.time()
             if self.realtime:
                 # Leave enough time for the presses, then round up to the minute
-                t = time.localtime(goal)
+                t = self.wall(goal)
                 presses = ((t.tm_hour - m(MEM_HOUR_HI) * 16 - m(MEM_HOUR_LO)) % 24
                            + (t.tm_min + 1 - m(MEM_MIN_HI) * 10 - m(MEM_MIN_LO)) % 60)
                 goal = (goal + 10 + presses * (PRESS + PAUSE) * 1.2) // 60 * 60 + 60
-            t = time.localtime(goal)
+            t = self.wall(goal)
             for read, btn, want, tries in (
                     (lambda: m(MEM_HOUR_HI) * 16 + m(MEM_HOUR_LO), BTN_A, t.tm_hour, 30),
                     (lambda: m(MEM_MIN_HI) * 10 + m(MEM_MIN_LO), BTN_B, t.tm_min, 70)):

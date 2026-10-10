@@ -212,7 +212,7 @@ class TamaotchBot(CareBot):
         self.log("Uhr stellen")
         if m(MEM_STATE) == BOOT:
             yield from self.press(BTN_B, 1.5)
-        t = time.localtime()
+        t = self.wall()
         for _ in range(26):
             if m(MEM_STATE) != SETTING or self.clock()[0] == t.tm_hour:
                 break

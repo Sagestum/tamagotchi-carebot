@@ -37,6 +37,7 @@ LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 # K, H, S, F: the inputs K10 to K13, the Yasashii's buttons for cleaning, the heart, play and food
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7}
+FLIP = 12       # hours: the clock of a pet whose day and night change places
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake",
             "report_now", "note")
 
@@ -60,6 +61,7 @@ class Engine:
                "digimon": DigimonBot, "yasashii": YasashiiBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.begun_again
+        self.flip = False       # day and night change places, from the next egg on
         self.shuffle = False    # a life the bot begins itself gets another goal, drawn by lot
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
@@ -109,6 +111,8 @@ class Engine:
         self.bot.discipline = data.get("discipline", True)
         self.bot.restart = data.get("restart", False)
         self.shuffle = data.get("shuffle", False)
+        self.flip = data.get("flip", False)
+        self.bot.shift = FLIP if data.get("flipped") else 0
         self.bot.goal = data.get("goal") if data.get("goal") in self.model.growth.GOALS else None
         self.bot.generation = data.get("generation", 1)
         self.bot.recall(data.get("memo"))
@@ -126,6 +130,8 @@ class Engine:
                 "discipline": self.bot.discipline,
                 "restart": self.bot.restart,
                 "shuffle": self.shuffle,
+                "flip": self.flip,
+                "flipped": self.bot.shift != 0,
                 "goal": self.bot.goal,
                 "generation": self.bot.generation,
                 "memo": self.bot.memo(),
@@ -195,7 +201,7 @@ class Engine:
                 self.bot.request_spar()
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
-                  restart=None, shuffle=None):
+                  restart=None, shuffle=None, flip=None):
         with self.lock:
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
@@ -208,6 +214,9 @@ class Engine:
                 self.bot.restart = bool(restart)
             if shuffle is not None:
                 self.shuffle = bool(shuffle)
+            if flip is not None and bool(flip) != self.flip:
+                self.flip = bool(flip)
+                self.add_log("Zeitumkehrer %s: gilt ab dem nächsten Ei" % ("an" if self.flip else "aus"))
             if (goal is None or goal in self.model.growth.GOALS) and goal != self.bot.goal:
                 self.bot.goal = goal
                 self.bot.generation = 1         # a programme over generations starts anew
@@ -232,6 +241,7 @@ class Engine:
     def reborn(self):
         """A new life has begun: the day's counters belong to the one before."""
         self.end_life("neu begonnen")
+        self.bot.shift = FLIP if self.flip else 0     # the clock of the new one is set by it
         self.report.reset_counters()
         self.report.asleep = False
 
@@ -395,6 +405,8 @@ class Engine:
             "restart": self.bot.restart,
             "shuffle": self.shuffle,
             "programme": self.bot.goal in self.programmes(),
+            "flip": self.flip,
+            "flipped": self.bot.shift != 0,
             "goal": self.bot.goal,
             "goalName": self.model.names.get(self.bot.goal),
             "speed": self.speed,

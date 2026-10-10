@@ -150,10 +150,10 @@ class UminoBot(CareBot):
         for _ in range(3):
             goal = time.time()
             if self.realtime:
-                t = time.localtime(goal)
+                t = self.wall(goal)
                 presses = (t.tm_hour - self.hour()) % 24 + (t.tm_min + 1 - self.minute()) % 60
                 goal = (goal + 10 + presses * (PRESS + PAUSE) * 1.2) // 60 * 60 + 60
-            t = time.localtime(goal)
+            t = self.wall(goal)
             if self.unset() and t.tm_hour == 0:
                 # A clock that has never been set shows 00 and the egg waits: go round once
                 yield from self.press(BTN_A)

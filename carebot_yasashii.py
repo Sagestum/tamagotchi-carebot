@@ -124,7 +124,7 @@ class YasashiiBot(CareBot):
         """A fresh device shows the egg: select opens the clock and counts the hours up,
         the check meter goes on to the minutes, cancel takes it; then the egg hatches."""
         self.log("Uhr stellen")
-        t = time.localtime()
+        t = self.wall()
         yield from self.press(BTN_SELECT, 1.0)
         for _ in range(t.tm_hour):
             yield from self.press(BTN_SELECT, 0.5)

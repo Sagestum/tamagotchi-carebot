@@ -457,7 +457,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if not any(name == "Cache-Control" for name, _ in headers):
+            self.send_header("Cache-Control", "no-store")
         for name, value in headers:
             self.send_header(name, value)
         self.end_headers()
@@ -479,8 +480,14 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(HERE, "web", PAGES[url.path]), "rb") as f:
                 self.send_body(200, f.read(), "text/html; charset=utf-8")
         elif url.path.startswith("/shells/") and url.path[8:] in SHELLS:
-            with open(os.path.join(HERE, "web", "shells", url.path[8:]), "rb") as f:
-                self.send_body(200, f.read(), "image/svg+xml")
+            # The tabs show them too: the browser keeps them and only asks whether they changed
+            path = os.path.join(HERE, "web", "shells", url.path[8:])
+            info = os.stat(path)
+            keep = [("Cache-Control", "no-cache"), ("ETag", '"%x-%x"' % (info.st_mtime_ns, info.st_size))]
+            if self.headers.get("If-None-Match") == keep[1][1]:
+                return self.send_body(304, b"", "image/svg+xml", keep)
+            with open(path, "rb") as f:
+                self.send_body(200, f.read(), "image/svg+xml", keep)
         elif url.path == "/sprites.js":
             with open(os.path.join(HERE, "web", "sprites.js"), "rb") as f:
                 self.send_body(200, f.read(), "text/javascript; charset=utf-8")
@@ -572,7 +579,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError
                 app.pet(data["pet"]).send("configure", data.get("bot"), data.get("discipline"),
                                           data.get("speed"), data.get("paused"), goal,
-                                          data.get("restart"), data.get("shuffle"))
+                                          data.get("restart"), data.get("shuffle"), data.get("flip"))
             elif self.path == "/api/reset":
                 app.pet(data["pet"]).send("reset")
             elif self.path == "/api/test-mail":

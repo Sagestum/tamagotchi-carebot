@@ -38,10 +38,10 @@ einen ganzen Ordner angeben (mehrfach möglich).
 
 ## Mehrere Tiere
 
-Oben auf der Seite steht für jedes Tier ein Tab, „+“ legt ein neues an (Modell wählen, Name
-vergeben, Farbe der Hülle aussuchen), auch mehrere vom selben Modell. Jedes Tier hat seinen
-eigenen Care-Bot, sein Ziel, sein Tempo und seinen Spielstand; die Farbe lässt sich unter
-„Gerät“ jederzeit ändern. „Tier entfernen“ schließt den Tab; der Spielstand wird dabei
+Oben auf der Seite steht für jedes Tier ein Tab mit dem Gehäuse seines Modells als kleinem
+Bild, „+“ legt ein neues an (Modell wählen, Name vergeben), auch mehrere vom selben Modell.
+Jedes Tier hat seinen eigenen Care-Bot, sein Ziel, sein Tempo und seinen Spielstand.
+„Tier entfernen“ schließt den Tab; der Spielstand wird dabei
 nicht gelöscht, sondern nach `deleted/` verschoben.
 
 Jedes Tier läuft in einem eigenen Prozess (TamaLIB hält die ganze Maschine in globalen
@@ -98,6 +98,10 @@ Doppeldruck nicht jedes Mal an; der Bot wiederholt ihn, bis das Ei da ist. Mit d
 „Mit zufälliger End-Evolution weitermachen“ darunter lost er für jedes neue Leben ein anderes
 Ziel aus: nie das letzte Ziel und nie das, was das letzte Tier tatsächlich geworden ist. Ein
 Programm über mehrere Leben (Lucky Unchi-Kun, die Zwillinge der Mothra) lässt er dabei in Ruhe.
+
+Der „Zeitumkehrer“ vertauscht Tag und Nacht eines Tiers: Der Bot stellt die Uhr im Gerät dann
+zwölf Stunden versetzt, es schläft tagsüber und ist nachts wach. Der Schalter gilt ab dem
+nächsten Ei, damit ein laufendes Leben keinen halben Tag überspringt.
 
 ![Der Wachstumsbaum mit Ziel](docs/img/wachstumsbaum.jpg)
 
