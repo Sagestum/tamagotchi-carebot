@@ -9,6 +9,7 @@ import collections
 import json
 import os
 import signal
+import random
 import threading
 import time
 
@@ -36,7 +37,8 @@ LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 # K, H, S, F: the inputs K10 to K13, the Yasashii's buttons for cleaning, the heart, play and food
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7}
-COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake")
+COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake",
+            "report_now", "note")
 
 
 class Engine:
@@ -51,12 +53,14 @@ class Engine:
         self.log_id = 0
         self.log_sent = -1
         self.report = DailyReport(self.add_log, smtp, name)
+        self.report.unit = model.unit
         self.tama.icon_pins = model.icon_pins
         self.tama.lcd = model.lcd
         bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot,
                "digimon": DigimonBot, "yasashii": YasashiiBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
-        self.bot.reborn = self.reborn
+        self.bot.reborn = self.begun_again
+        self.shuffle = False    # a life the bot begins itself gets another goal, drawn by lot
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
         # {"began", "ended": real time or None, "seconds": emulated ones lived,
@@ -104,6 +108,7 @@ class Engine:
         self.bot_enabled = data.get("bot", True)
         self.bot.discipline = data.get("discipline", True)
         self.bot.restart = data.get("restart", False)
+        self.shuffle = data.get("shuffle", False)
         self.bot.goal = data.get("goal") if data.get("goal") in self.model.growth.GOALS else None
         self.bot.generation = data.get("generation", 1)
         self.bot.recall(data.get("memo"))
@@ -120,6 +125,7 @@ class Engine:
                 "bot": self.bot_enabled,
                 "discipline": self.bot.discipline,
                 "restart": self.bot.restart,
+                "shuffle": self.shuffle,
                 "goal": self.bot.goal,
                 "generation": self.bot.generation,
                 "memo": self.bot.memo(),
@@ -189,7 +195,7 @@ class Engine:
                 self.bot.request_spar()
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
-                  restart=None):
+                  restart=None, shuffle=None):
         with self.lock:
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
@@ -200,6 +206,8 @@ class Engine:
                 self.bot.discipline = bool(discipline)
             if restart is not None:
                 self.bot.restart = bool(restart)
+            if shuffle is not None:
+                self.shuffle = bool(shuffle)
             if (goal is None or goal in self.model.growth.GOALS) and goal != self.bot.goal:
                 self.bot.goal = goal
                 self.bot.generation = 1         # a programme over generations starts anew
@@ -226,6 +234,29 @@ class Engine:
         self.end_life("neu begonnen")
         self.report.reset_counters()
         self.report.asleep = False
+
+    def programmes(self):
+        """The goals that take more than one life (Lucky Unchi-Kun, Mothra's twins): the bot
+        begins the next life itself then."""
+        rules = self.model.growth
+        more = getattr(rules, "GENERATIONS", ())
+        return [g for g in (getattr(rules, "LUCKY", None),) + (more if isinstance(more, tuple) else ())
+                if g is not None]
+
+    def begun_again(self):
+        """The bot has begun a new life itself. If asked to, it raises another character
+        this time: any goal but the last one and but what the last life became.
+        A programme over several lives (Lucky Unchi-Kun, Mothra's twins) is left alone."""
+        last = self.lives[-1]["stages"][-1][0] if self.lives and self.lives[-1]["stages"] else None
+        self.reborn()
+        long = self.programmes()
+        if not (self.shuffle and self.bot.restart and self.model.goals) or self.bot.goal in long:
+            return
+        pool = [g for g in self.model.growth.GOALS if g not in long and g not in (self.bot.goal, last)]
+        if pool:
+            self.bot.goal = random.choice(pool)
+            self.bot.generation = 1
+            self.add_log("Ziel ausgelost: " + self.model.names[self.bot.goal])
 
     # -- chronicle ---------------------------------------------------------
 
@@ -294,7 +325,18 @@ class Engine:
             if not self.report.enabled:
                 self.add_log("Tagesbericht nicht eingerichtet (Mailserver und Empfänger fehlen)")
             else:
-                self.report.send(self.bot.status())
+                self.report.send(self.bot.status(), direct=True)
+
+    def report_now(self):
+        """For the gathered mail: how the day has been so far (the pet has not fallen asleep
+        in time). The counters go on until it does."""
+        with self.lock:
+            if self.report.hand_over:
+                self.report.hand_over(dict(self.report.section(self.bot.status()), late=True))
+
+    def note(self, msg):
+        with self.lock:
+            self.add_log(msg)
 
     # -- emulation loop ----------------------------------------------------
 
@@ -351,6 +393,8 @@ class Engine:
             "handsOff": self.hands_off is not None,
             "discipline": self.bot.discipline,
             "restart": self.bot.restart,
+            "shuffle": self.shuffle,
+            "programme": self.bot.goal in self.programmes(),
             "goal": self.bot.goal,
             "goalName": self.model.names.get(self.bot.goal),
             "speed": self.speed,
@@ -400,11 +444,17 @@ def run(conn, rom_path, state_path, smtp, model_id, name):
     """The life of a worker process. Ends when told to stop or when the server is gone."""
     signal.signal(signal.SIGINT, signal.SIG_IGN)    # Ctrl+C reaches us too: the server decides
 
-    def emit(snap, sound, log, lives):
+    sending = threading.Lock()      # the loop and the commands both write to the server
+
+    def tell(*msg):
         try:
-            conn.send(("snap", snap, sound, log, lives))
+            with sending:
+                conn.send(msg)
         except (BrokenPipeError, OSError):
             engine.running = False
+
+    def emit(snap, sound, log, lives):
+        tell("snap", snap, sound, log, lives)
 
     try:
         engine = Engine(rom_path, state_path, smtp, models.BY_ID[model_id], name, emit)
@@ -412,6 +462,7 @@ def run(conn, rom_path, state_path, smtp, model_id, name):
         conn.send(("error", str(e)))
         return
     signal.signal(signal.SIGTERM, lambda *_: setattr(engine, "running", False))
+    engine.report.hand_over = lambda section: tell("report", section)
 
     def commands():
         while True:

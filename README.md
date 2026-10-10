@@ -73,7 +73,9 @@ sich bis etwa 2600-fach hochdrehen.
 Optional schickt der Server abends einen Tagesbericht per E-Mail. Der Mailserver wird auf der
 Seite „Optionen“ (`/settings`) eingetragen und in `settings.json` neben dem Spielstand
 gespeichert, das Passwort unverschlüsselt. Umgebungsvariablen (`.env.example`) dienen als
-Vorgabe.
+Vorgabe. Bei mehreren Tieren lässt sich dort statt einer Mail je Tier eine Sammel-Mail wählen:
+Sie geht raus, sobald das letzte Tier eingeschlafen ist, spätestens zur eingestellten Uhrzeit;
+wer dann noch wach ist, steht mit seinem Stand von diesem Moment darin.
 
 ## Der Care-Bot
 
@@ -92,7 +94,10 @@ Am Ende eines Lebens bleibt das Gerät auf seinem letzten Bild stehen, bis jeman
 drückt: Dann erscheint ein neues Ei, die Uhr läuft weiter, und es schlüpft nach fünf Minuten von
 selbst. Mit dem Schalter „Nach dem Ende neu beginnen“ (aus, solange man ihn nicht einschaltet)
 macht das der Bot und zieht das nächste Tier mit demselben Ziel groß. Die ROM nimmt den
-Doppeldruck nicht jedes Mal an; der Bot wiederholt ihn, bis das Ei da ist.
+Doppeldruck nicht jedes Mal an; der Bot wiederholt ihn, bis das Ei da ist. Mit dem Schalter
+„Mit zufälliger End-Evolution weitermachen“ darunter lost er für jedes neue Leben ein anderes
+Ziel aus: nie das letzte Ziel und nie das, was das letzte Tier tatsächlich geworden ist. Ein
+Programm über mehrere Leben (Lucky Unchi-Kun, die Zwillinge der Mothra) lässt er dabei in Ruhe.
 
 ![Der Wachstumsbaum mit Ziel](docs/img/wachstumsbaum.jpg)
 

@@ -213,6 +213,8 @@
     transition: transform 0.15s;
   }
   .switch input:checked + b { background: var(--ok); }
+  .switch input:disabled { cursor: default; }
+  .switch input:disabled + b { opacity: 0.45; }
   .switch input:checked + b::after { transform: translateX(18px); }
   .switch input:focus-visible + b { outline: 2px solid var(--accent); outline-offset: 2px; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -358,8 +360,12 @@
         <label class="switch"><input type="checkbox" id="discipline"><b></b></label>
       </div>
       <div class="row">
-        <span>Nach dem Ende neu beginnen</span>
+        <span>Nach dem Ende neu beginnen <span class="flag" id="programme" hidden>Sonderprogramm läuft</span></span>
         <label class="switch"><input type="checkbox" id="restart"><b></b></label>
+      </div>
+      <div class="row" id="shuffleRow">
+        <span>Mit zufälliger End-Evolution weitermachen</span>
+        <label class="switch"><input type="checkbox" id="shuffle"><b></b></label>
       </div>
       <div class="row" id="goalRow">
         <span>Ziel</span>
@@ -819,6 +825,7 @@ window.addEventListener('blur', () => [...held].forEach((name) => setButton(name
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
 $('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
 $('restart').addEventListener('change', (e) => post('/api/config', {restart: e.target.checked}));
+$('shuffle').addEventListener('change', (e) => post('/api/config', {shuffle: e.target.checked}));
 $('paused').addEventListener('change', (e) => post('/api/config', {paused: e.target.checked}));
 $('speed').addEventListener('click', (e) => {
   if (e.target.dataset.speed) post('/api/config', {speed: Number(e.target.dataset.speed)});
@@ -903,7 +910,14 @@ function render(msg) {
   $('handsOff').hidden = !msg.handsOff;
   $('discipline').checked = msg.discipline;
   $('discipline').disabled = !!msg.goal;      // with a goal the bot decides that itself
-  $('restart').checked = msg.restart;
+  /* A goal over several lives (Lucky Unchi-Kun, Mothra's twins): the bot begins the next
+     life itself and keeps the goal, whatever the two switches say */
+  $('programme').hidden = !msg.programme;
+  $('restart').checked = msg.restart || msg.programme;
+  $('restart').disabled = msg.programme;
+  $('shuffleRow').hidden = !msg.goals;
+  $('shuffle').checked = msg.shuffle && !msg.programme;
+  $('shuffle').disabled = !msg.restart || msg.programme;   // it only says how a new life is begun
   $('goal').textContent = msg.goalName || 'keins';
   $('paused').checked = msg.paused;
   document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === msg.speed));

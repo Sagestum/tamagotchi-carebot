@@ -16,6 +16,7 @@ import io
 import json
 import multiprocessing
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -32,7 +33,7 @@ if not os.path.exists(LIB):
 
 import engine  # noqa: E402
 import models  # noqa: E402
-from report import smtp_from_env  # noqa: E402
+from report import compose, deliver, smtp_from_env  # noqa: E402
 
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html", "/chronik": "chronik.html"}
@@ -43,6 +44,8 @@ MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
 SMTP_SECURITY = ("starttls", "ssl", "none")
+DIGEST_FRESH = 12 * 3600    # a report older than this is from the day before
+DIGEST_WAIT = 10            # seconds given to the pets to say how their day has been
 SPAWN = multiprocessing.get_context("spawn")    # a clean process, not a copy of our threads
 
 
@@ -93,6 +96,7 @@ class Pet:
         self.process = None
         self.conn = None
         self.sending = threading.Lock()
+        self.on_report = None       # takes (pet, report) for the gathered mail
 
     def start(self, rom_path, smtp):
         self.conn, theirs = SPAWN.Pipe()
@@ -120,6 +124,8 @@ class Pet:
                     self.version += 1
                 elif msg[0] == "error":
                     self.error = msg[1]
+                elif msg[0] == "report" and self.on_report:
+                    self.on_report(self, msg[1])
                 self.changed.notify_all()
         with self.changed:
             self.alive = False
@@ -163,6 +169,18 @@ class App:
             with open(self.settings_path) as f:
                 self.smtp.update(json.load(f).get("smtp", {}))
         except FileNotFoundError:
+            pass
+        # The gathered mail: the reports handed in so far (pet id -> report, its picture as
+        # hex) and the day the last one went out
+        self.digest_path = os.path.join(data_dir, "digest.json")
+        self.digest_lock = threading.Lock()
+        self.reports = {}
+        self.digest_day = ""
+        try:
+            with open(self.digest_path) as f:
+                saved = json.load(f)
+            self.reports, self.digest_day = saved["reports"], saved["day"]
+        except (FileNotFoundError, ValueError, KeyError):
             pass
         self.find_roms()
         self.load_pets()
@@ -235,6 +253,7 @@ class App:
                 continue
             pet = Pet(entry["id"], entry["name"], model,
                       os.path.join(self.data_dir, entry["state"]), entry.get("color"))
+            pet.on_report = self.take_report
             self.pets[pet.id] = pet
             if model.id in self.roms:
                 pet.start(self.roms[model.id], self.smtp)
@@ -268,6 +287,7 @@ class App:
         pet = Pet(str(self.next_id), name, model,
                   os.path.join(self.data_dir, "pets", "%d.json" % self.next_id), color)
         self.next_id += 1
+        pet.on_report = self.take_report
         self.pets[pet.id] = pet
         self.save_pets()
         pet.start(self.roms[model.id], self.smtp)
@@ -327,13 +347,96 @@ class App:
             smtp = dict(self.smtp)
             for key in smtp:
                 if key in data:
-                    smtp[key] = int(data[key]) if key == "port" else str(data[key]).strip()
+                    smtp[key] = int(data[key]) if key == "port" else bool(data[key]) \
+                        if key == "digest" else str(data[key]).strip()
             if smtp["security"] not in SMTP_SECURITY or not 0 < smtp["port"] < 65536:
                 raise Refused("Port oder Verschlüsselung ist ungültig.")
+            if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", smtp["digest_at"]):
+                raise Refused("Die Uhrzeit der Sammel-Mail ist ungültig (Stunde:Minute).")
             self.smtp = smtp
             write_json(self.settings_path, {"smtp": smtp}, 0o600)
             for pet in self.pets.values():
                 pet.send("set_smtp", smtp)
+
+    # -- the gathered mail ---------------------------------------------------
+
+    def reporting(self):
+        """The pets a gathered mail is waiting for."""
+        return [p for p in list(self.pets.values()) if p.alive and not p.error]
+
+    def save_digest(self):
+        write_json(self.digest_path, {"reports": self.reports, "day": self.digest_day})
+
+    def take_report(self, pet, report):
+        """A pet hands in its report. When the last one of the day has come, the mail goes out."""
+        report = dict(report, picture=report["picture"].hex() if report.get("picture") else None)
+        with self.digest_lock:
+            self.reports[pet.id] = report
+            self.save_digest()
+            fresh = time.time() - DIGEST_FRESH
+            if self.digest_day != time.strftime("%Y-%m-%d") and all(
+                    self.reports.get(p.id, {"at": 0})["at"] >= fresh for p in self.reporting()):
+                self.send_digest()
+
+    def send_digest(self, trial=False):
+        """Call with digest_lock. One mail with all the reports handed in. A trial (the
+        button on the settings page) leaves the day's mail still to come."""
+        if trial:
+            kept = {id: r for id, r in self.reports.items() if not r.get("late")}
+            try:
+                self.digest_day, day = "", self.digest_day
+                return self.send_digest()
+            finally:
+                self.reports, self.digest_day = kept, day
+                self.save_digest()
+        self.digest_day = time.strftime("%Y-%m-%d")
+        pets = [p for p in list(self.pets.values()) if p.id in self.reports]
+        sections = [dict(self.reports[p.id], picture=bytes.fromhex(self.reports[p.id]["picture"])
+                         if self.reports[p.id].get("picture") else None) for p in pets]
+        self.reports = {}
+        self.save_digest()
+        if not sections:
+            return
+        smtp = self.smtp
+
+        def done(error):
+            for pet in pets:
+                pet.send("note", "Sammel-Mail fehlgeschlagen: %s" % error if error
+                         else "Sammel-Mail mit %d Berichten gesendet an %s" % (len(pets), smtp["mail_to"]))
+
+        sender = smtp["mail_from"] or smtp["user"] or smtp["mail_to"]
+        deliver(smtp, compose(sections, sender, smtp["mail_to"]), done)
+
+    def digest_now(self, wait=DIGEST_WAIT, trial=False):
+        """The gathered mail with what there is: pets that have not reported today (still
+        awake, or their report is from last night) say how their day has been so far."""
+        fresh = time.time() - DIGEST_FRESH
+        with self.digest_lock:
+            late = [p for p in self.reporting() if self.reports.get(p.id, {"at": 0})["at"] < fresh]
+        for pet in late:
+            pet.send("report_now")
+        until = time.time() + wait
+        while time.time() < until:
+            time.sleep(0.2)
+            with self.digest_lock:
+                if all(self.reports.get(p.id, {"at": 0})["at"] >= fresh for p in late):
+                    break
+        with self.digest_lock:
+            self.send_digest(trial)
+
+    def digest_clock(self):
+        """At the time of day set, the gathered mail goes out if it has not yet."""
+        while True:
+            time.sleep(20)
+            smtp = self.smtp
+            if not (smtp.get("digest") and smtp["host"] and smtp["mail_to"]):
+                continue
+            if self.digest_day != time.strftime("%Y-%m-%d") \
+                    and time.strftime("%H:%M") >= smtp["digest_at"]:
+                try:
+                    self.digest_now()
+                except Exception as e:      # the clock must go on
+                    print("Sammel-Mail: %s" % e, file=sys.stderr)
 
     def stop(self):
         pets = list(self.pets.values())
@@ -469,11 +572,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError
                 app.pet(data["pet"]).send("configure", data.get("bot"), data.get("discipline"),
                                           data.get("speed"), data.get("paused"), goal,
-                                          data.get("restart"))
+                                          data.get("restart"), data.get("shuffle"))
             elif self.path == "/api/reset":
                 app.pet(data["pet"]).send("reset")
             elif self.path == "/api/test-mail":
-                app.pet(data["pet"]).send("test_mail")
+                if data.get("all") and app.smtp.get("digest"):
+                    if not (app.smtp["host"] and app.smtp["mail_to"]):
+                        raise Refused("Mailserver und Empfänger fehlen noch.")
+                    threading.Thread(target=app.digest_now, kwargs={"trial": True}, daemon=True).start()
+                else:
+                    app.pet(data["pet"]).send("test_mail")
             else:
                 return self.send_body(404, b"not found", "text/plain")
         except Refused as e:
@@ -499,6 +607,7 @@ def main():
 
     state = os.path.abspath(args.state)
     app = Handler.app = App(os.path.dirname(state), state, args.rom)
+    threading.Thread(target=app.digest_clock, daemon=True).start()
     ThreadingHTTPServer.daemon_threads = True
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     signal.signal(signal.SIGTERM, signal.default_int_handler)

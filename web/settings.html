@@ -67,6 +67,8 @@
   dd { margin: 0; overflow-wrap: anywhere; }
   code { font: 13px ui-monospace, monospace; }
   label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 3px; }
+  label.check { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 15px; margin-top: 14px; }
+  label.check input { width: auto; margin: 0; }
   input[type=text], input[type=password], input[type=number], input[type=email], select {
     width: 100%;
     font: inherit;
@@ -124,7 +126,7 @@
 
   <section>
     <h2>Tagesbericht per E-Mail</h2>
-    <p class="note">Abends, wenn das Tier einschläft, schickt der Server einen Bericht. Ohne
+    <p class="note">Abends, wenn das Tier einschläft, schickt der Server einen Bericht: eine Mail je Tier oder, wenn unten gewählt, eine für alle zusammen. Ohne
       Mailserver und Empfänger bleibt der Bericht aus.</p>
     <form id="smtp">
       <div class="pair">
@@ -145,6 +147,12 @@
       <input type="email" id="mail_from" autocomplete="off">
       <label for="mail_to">Empfänger</label>
       <input type="email" id="mail_to" autocomplete="off">
+      <label class="check"><input type="checkbox" id="digest"> Alle Tiere in einer Sammel-Mail statt einer Mail je Tier</label>
+      <div id="digestAtBox">
+        <label for="digest_at">Die Sammel-Mail geht raus, sobald das letzte Tier schläft, spätestens um</label>
+        <input type="time" id="digest_at" required>
+        <p class="note" style="margin:6px 0 0">Tiere, die bis dahin noch wach sind, stehen mit ihrem Stand von diesem Moment darin.</p>
+      </div>
       <div class="buttons">
         <button class="main" type="submit">Speichern</button>
         <button type="button" id="test">Bericht jetzt senden</button>
@@ -158,7 +166,8 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['host', 'port', 'security', 'user', 'mail_from', 'mail_to'];
+const FIELDS = ['host', 'port', 'security', 'user', 'mail_from', 'mail_to', 'digest_at'];
+$('digest').addEventListener('change', () => { $('digestAtBox').hidden = !$('digest').checked; });
 
 function say(id, text, good) {
   const el = $(id);
@@ -200,6 +209,8 @@ async function load() {
     $('roms').append(dl);
   }
   for (const key of FIELDS) $(key).value = cfg.smtp[key];
+  $('digest').checked = cfg.smtp.digest;
+  $('digestAtBox').hidden = !cfg.smtp.digest;
   $('password').value = '';
   $('password').placeholder = cfg.smtp.password ? 'gespeichert – leer lassen, um es zu behalten' : '';
   return pets.length;
@@ -223,6 +234,7 @@ $('smtp').addEventListener('submit', async (e) => {
   e.preventDefault();
   const smtp = {};
   for (const key of FIELDS) smtp[key] = $(key).value;
+  smtp.digest = $('digest').checked;
   if ($('password').value) smtp.password = $('password').value;
   const error = await send('/api/settings', {smtp});
   if (error) return say('smtpMsg', error);
@@ -230,7 +242,7 @@ $('smtp').addEventListener('submit', async (e) => {
   say('smtpMsg', 'Gespeichert.', true);
 });
 $('test').addEventListener('click', async () => {
-  const error = await send('/api/test-mail', {pet: firstPet});
+  const error = await send('/api/test-mail', {pet: firstPet, all: true});
   say('smtpMsg', error || 'Der Bericht wird mit den gespeicherten Einstellungen verschickt. Ob es geklappt hat, steht im Protokoll auf der Hauptseite.', !error);
 });
 
