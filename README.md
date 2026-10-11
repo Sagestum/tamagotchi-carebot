@@ -1,14 +1,30 @@
-# Tamagotchi P1 und P2 im Browser, mit Care-Bot
+# Tamagotchi, Digimon und Pocket Pikachu im Browser, mit Care-Bot
 
-Das Original-Tamagotchi von 1996/97 (erste oder zweite Generation) läuft hier als emulierte ROM auf einem Server und wird im
-Browser angezeigt, beliebig viele Tiere nebeneinander, jedes in seinem Tab. Ein Care-Bot drückt die drei Tasten, wenn das Tier etwas braucht, und kann
-gezielt einen bestimmten Charakter großziehen.
+Vierzehn Taschentiere aus den Jahren 1996 bis 1998 – zehn Tamagotchis, drei Digimon und der
+Pocket Pikachu – laufen hier als Originalprogramme auf nachgebauten Prozessoren auf einem Server
+und werden im Browser angezeigt, beliebig viele Tiere nebeneinander, jedes in seinem Tab. Ein
+Care-Bot drückt die Tasten, wenn ein Tier etwas braucht, und kann gezielt einen bestimmten
+Charakter großziehen.
 
 ![Die Oberfläche](docs/img/oberflaeche.jpg)
 
-Die Emulation übernimmt [TamaLIB](https://github.com/jcrona/tamalib) von Jean-Christophe Rona.
-Darum herum liegen eine dünne C-Hülle, ein Python-Server ohne weitere Abhängigkeiten und zwei
-HTML-Seiten.
+## Warum
+
+Die Geräte von damals würden vermutlich noch Jahrzehnte funktionieren – und trotzdem liegen die
+meisten seit Langem ungenutzt in einer Schublade. Ich wollte den kleinen digitalen Kreaturen
+einen Ort geben, an dem sie wirklich leben: Hier schlüpfen sie, wachsen, schlafen und werden
+jeden Tag versorgt. Dass sich dabei kein Kind um sie kümmert, sondern nur ein Programm, stört sie
+hoffentlich nicht. Alle, die ich als Kind so mochte, sollen ein schönes Leben haben.
+
+Ich selbst war in der Pflege übrigens nie besonders gut. Nur mit Pikachu bin ich damals wirklich
+viel gelaufen. Zuschauen kann man ihnen auf [tamagotchi.mahok.de](https://tamagotchi.mahok.de).
+
+## Technik
+
+Die Emulation übernimmt [TamaLIB](https://github.com/jcrona/tamalib) von Jean-Christophe Rona;
+nur der Pocket Pikachu hat einen anderen Prozessor und dafür einen eigenen Kern nach dem Vorbild
+von [BrickEmuPy](https://github.com/azya52/BrickEmuPy). Darum herum liegen eine dünne C-Hülle,
+ein Python-Server ohne weitere Abhängigkeiten und ein paar HTML-Seiten.
 
 ## Die ROM gehört nicht dazu
 

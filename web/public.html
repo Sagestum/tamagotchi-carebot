@@ -117,7 +117,10 @@
   .raised { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
   .raised li { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
   .note { color: var(--muted); font-size: 13px; }
-  #devices { margin-top: 28px; }
+  #why { margin-top: 28px; }
+  #why p { max-width: 68ch; }
+  #why p:last-child { margin-bottom: 0; }
+  #devices { margin-top: 14px; }
   .devices { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 24px; }
   .devices h3 { margin: 10px 0 2px; font-size: 15px; }
   .devices p { margin: 0 0 4px; font-size: 14px; }
@@ -166,6 +169,17 @@
       </section>
     </aside>
   </div>
+
+  <section id="why" aria-labelledby="whyTitle">
+    <h2 id="whyTitle">Warum es diese Seite gibt</h2>
+    <p>Die Geräte von damals würden vermutlich noch Jahrzehnte funktionieren – und trotzdem liegen die meisten seit
+      Langem ungenutzt in einer Schublade. Ich wollte den kleinen digitalen Kreaturen einen Ort geben, an dem sie
+      wirklich leben: Hier schlüpfen sie, wachsen, schlafen und werden jeden Tag versorgt. Dass sich dabei kein
+      Kind um sie kümmert, sondern nur ein Programm, stört sie hoffentlich nicht. Alle, die ich als Kind so mochte,
+      sollen ein schönes Leben haben.</p>
+    <p>Ich selbst war in der Pflege übrigens nie besonders gut. Nur mit Pikachu bin ich damals wirklich viel
+      gelaufen.</p>
+  </section>
 
   <section id="devices" aria-labelledby="devicesTitle">
     <h2 id="devicesTitle">Die Geräte im Überblick</h2>
