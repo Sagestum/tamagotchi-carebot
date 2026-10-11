@@ -28,6 +28,8 @@ braucht seine eigene:
 | Tamagotchi Tamaotch | `TamagotchiTamaotch.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `d4ea15fa2abb16bd844c79e3b095a6f6cf21a98f` | `a491fb55` |
 | Tamagotchi Yasashii | `TamagotchiYasashii.bin` (Sammlung zu BrickEmuPy) | 16 384 Bytes | `dc713b7eb4cbc5d9e921fe3bd97662c72bc68534` | `0549477a` |
 | Digimon V1 | `digimon.bin` aus dem MAME-Romset `digimon` | 16 384 Bytes | `1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7` | `08ffac1b` |
+| Digimon V2 | `digimonv2.bin` aus dem MAME-Romset `digimonv2` | 16 384 Bytes | `ab860ca9f31f478532122cb9d20f59964a080a27` | `19a9e54e` |
+| Digimon V3 | `digimonv3.bin` aus dem MAME-Romset `digimonv3` | 16 384 Bytes | `0acd50e623e20d857e13bae150ac03405896cf2b` | `3000cf30` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -362,11 +364,14 @@ macht das beim Ziel „Genjintchi“ von selbst, beliebig oft. Für Gaikotchi h�
 genau 60 kg. Alles ist im Emulator nachgemessen und deckt sich mit der Figurenliste des
 Tamagotchi-Wikis; die Rakete als Regelfall steht dort nicht.
 
-### Digimon V1
+### Digimon V1 bis V3
 
 Das erste Digital Monster (1997) läuft auf demselben Chip und gehört zur Programmfamilie des
-Mothra; sein Display ist um 180° gedreht verdrahtet. Das Gehäuse ist BrickEmuPys Zeichnung
-mit einer größeren Käfigtür, damit der Bildschirm anderthalbmal so groß sein kann.
+Mothra; sein Display ist um 180° gedreht verdrahtet. Ver. 2 und Ver. 3 (1998) sind dasselbe
+Gerät und Programm mit anderen Figuren und einem anderen Training; der Speicher ist gleich
+aufgebaut. Das Gehäuse ist BrickEmuPys Zeichnung mit einer größeren Käfigtür, damit der
+Bildschirm anderthalbmal so groß sein kann: V1 ziegelrot, V2 dunkelblau, V3 dunkelbraun
+(`lab/digimon/recolour.py`).
 
 Gekämpft wird über eine einzige Leitung (Pin P20): Zwei Geräte tauschen vier Wörter zu 16 Bit
 aus, je eines über sich selbst und eines mit dem Ergebnis. Der Emulatorkern bildet dafür die
@@ -375,13 +380,48 @@ I/O-Ports nach, schreibt die Flanken an P20 tickgenau mit und kann eine Pulsfolg
 ab der dritten Stufe. Der gedachte Gegner eröffnet und meldet seine eigene Niederlage; jeder
 Kampf, der zustande kommt, ist damit ein Sieg.
 
+**Zwei eigene Digimon gegeneinander.** „Kämpfen gegen …“ lässt zwei Tabs wirklich
+gegeneinander antreten, auch über die Versionen hinweg (V1 gegen V2 gegen V3). Jedes Tier
+läuft in einem eigenen Prozess, ihre Pins sind also nicht verbunden; der Server trägt die
+Wörter in drei Schritten hin und her. Erst ruft der Gast ins Leere, damit sein Wort über sich
+bekannt ist (das zählt nicht). Dann ruft der Gastgeber, bekommt dieses Wort als Antwort und
+rechnet aus, wer gewinnt. Zuletzt wird der Gast mit dem Wort des Gastgebers und dessen
+Ergebnis angerufen und zählt das Gegenteil. Für die Geräte ist das ein gewöhnlicher Kampf:
+Einer verliert, der Verlierer kann verletzt sein, und Siege wie Niederlagen zählen für die
+fünfte Stufe. Ein Gerät nimmt eine Antwort etwa jedes siebte Mal nicht an, wie zwischen
+echten Geräten auch; jeder Schritt prüft deshalb den Kampfzähler und wiederholt notfalls.
+Der Care-Bot kämpft von sich aus weiterhin nur gegen den gedachten Gegner.
+
 Der Care-Bot (`carebot_digimon.py`, Regeln in `growth_digimon.py`) füttert, gibt Vitamine,
-räumt auf, heilt, schaltet das Licht und steuert ein Ziel an: Greymon, Devimon, Meramon und
-Numemon über Pflegefehler und Training, Metal Greymon, Mamemon und Monzaemon zusätzlich über
-15 Sparringskämpfe auf der dritten Stufe. In 38 simulierten Leben kam jedes Ziel der vierten
-Stufe jedes Mal heraus, die fünfte Stufe in 15 von 22 Leben: Das Gerät würfelt sie aus, mehr
-als drei von vier sind nicht zu holen. Tyranomon, Airdramon und Seadramon (Überfütterung,
-Schlafstörungen) steuert der Bot noch nicht an. Die Regeln stammen von humulos.com/digimon/dm.
+räumt auf, heilt, schaltet das Licht und steuert jede Figur der vierten und fünften Stufe
+als Ziel an. Dafür macht er, was die Tabelle verlangt, mit Absicht:
+
+- **Pflegefehler:** Es bleibt hungrig, bis ein Ruf 19 Minuten unbeantwortet war.
+- **Training:** V1 schlägt hoch oder tief nach seinem Schatten, und jede Runde zählt. V2 hat
+  einen Kraftbalken, der in einer Dreiviertelsekunde hochläuft und genau voll angehalten
+  werden muss. Das Gerät nimmt den Tastendruck verzögert an, deshalb drückt der Bot 46 ms,
+  nachdem der Balken einen Strich unter voll zeigt; das Fenster ist 12 ms breit. V3 füllt den
+  Balken in fünf Sekunden durch schnelles Drücken. Bei V2 und V3 zählen nur gewonnene Runden.
+- **Überfütterung:** Fleisch, bis es keines mehr nimmt (20 Portionen über satt). Zählt erst
+  wieder, wenn ein Hungerherz gefallen ist.
+- **Schlafstörung:** Eine Portion Fleisch im Schlaf weckt es. Es schläft nach etwa einer
+  Stunde wieder ein.
+- **Kämpfe:** für die fünfte Stufe 15 Sparringskämpfe auf der dritten Stufe.
+
+Die Regeln stammen von humulos.com/digimon/dm und sind an den Geräten nachgemessen: Kurz vor
+einer Verwandlung wurden die vier Zähler im Speicher gesetzt und das Ergebnis abgelesen, für
+jede der sechs Figuren der dritten Stufe ein Raster von knapp 4000 Mischungen. Zwei Dinge
+weichen von der Seite ab. Die Trainingszahlen dort meinen den Zähler im Gerät; V1 zählt je
+Training 2, braucht also halb so viele Trainings (Greymon ab 16). Und bei V2 und V3 wird die
+zweite Figur der dritten Stufe mit einem Zähler von 8 bis 15 zu Yukidarumon bzw. Bakemon
+(nicht 8 bis 31) und ab 16 zu Whamon bzw. Drimogemon (nicht ab 32).
+
+Durchgespielt im Zeitraffer mit dem echten Bot (`lab/digimon/botsim.py`): Jede der 21
+Figuren der vierten Stufe kam als Ziel jedes Mal heraus, in 38 Leben (V1 zehn, V2 und V3 je
+vierzehn); Tyranomon, Airdramon und Seadramon waren vorher nicht ansteuerbar. Die fünfte Stufe
+kam in 30 von 44 Leben, jede ihrer neun Figuren mindestens zweimal: Das Gerät würfelt sie
+aus, mehr als drei von vier sind nicht zu holen. Kein Tier ist dabei gestorben. Nach einem
+Tod beginnt der Bot auf allen drei Versionen von selbst neu, wenn der Schalter dafür an ist.
 
 ### Tamaotch
 

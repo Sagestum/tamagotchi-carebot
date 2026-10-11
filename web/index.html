@@ -342,7 +342,11 @@
     </div>
     <div id="legend" hidden></div>
     <p class="hint" id="sparRow" hidden><button class="plain" id="spar">Sparring</button>
-      – ein Kampf gegen einen gedachten Gegner (ab der dritten Stufe)</p>
+      – ein Kampf gegen einen gedachten Gegner, der immer verliert (ab der dritten Stufe)
+      <span id="duelBox" hidden><br><button class="plain" id="duel">Kämpfen gegen</button>
+      <select id="duelOther" aria-label="Gegner"></select>
+      – ein echter Kampf zwischen zwei deiner Digimon: Einer verliert, und der Verlierer kann verletzt sein</span>
+      <span id="duelMsg" role="status" style="color: var(--accent)"></span></p>
     <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
       – der Sensor im Gehäuse, Taste <kbd>T</kbd></p>
     <p class="hint" id="keysHint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
@@ -629,7 +633,7 @@ function drawIcons(names, model) {
   $('iconsTop').textContent = '';
   $('iconsBottom').textContent = '';
   names.forEach((name, i) => {
-    const [title, path] = (ICONS_OF[model] || {})[name] || ICONS[name];
+    const [title, path] = (ICONS_OF[kin(model)] || {})[name] || ICONS[name];
     const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
       stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`;
     (i < 4 ? $('iconsTop') : $('iconsBottom')).insertAdjacentHTML('beforeend', svg);
@@ -650,7 +654,11 @@ function pickable(els, names) {
 /* The drawing of the device (web/shells, from BrickEmuPy): every pixel and icon in it is an
    element named after its place in the display memory, "nibble_bit" */
 const ART = {p1: 'p1w', p1j: 'p1', p2: 'p2', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
-             genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon', yasashii: 'yasashii'};
+             genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon', digimon2: 'digimon2', digimon3: 'digimon3',
+             yasashii: 'yasashii'};
+/* Models that are another one with other characters: what they share is looked up there */
+const KIN = {digimon2: 'digimon', digimon3: 'digimon'};
+const kin = (model) => KIN[model] || model;
 /* The picture printed behind the LCD in each drawing: shown at half its strength, so that
    the pixels stay easy to read */
 const BACKDROP = {p1: ['layout'], p1w: ['layout'], p2: ['layout'], angel: ['Vector 32', 'Vector 31'], morino: ['reflector'], umino: ['reflector'],
@@ -686,7 +694,7 @@ async function drawArt(names, model) {
   const box = $('art');
   box.innerHTML = text;
   const svg = box.querySelector('svg');
-  const pins = PINS[model] || P1_PINS, pixels = new Array(512), icons = new Array(8), wiring = LCD_OF[model];
+  const pins = PINS[kin(model)] || P1_PINS, pixels = new Array(512), icons = new Array(8), wiring = LCD_OF[kin(model)];
   for (const el of svg.querySelectorAll('[id]')) {
     const m = /^(\d+)_(\d)$/.exec(el.id);
     if (!m) continue;
@@ -698,7 +706,7 @@ async function drawArt(names, model) {
     else if (SEG_X[seg] < 32) pixels[com * 32 + SEG_X[seg]] = el;
   }
   icons.forEach((el, i) => {
-    const [title] = (ICONS_OF[model] || {})[names[i]] || ICONS[names[i]];
+    const [title] = (ICONS_OF[kin(model)] || {})[names[i]] || ICONS[names[i]];
     el.insertAdjacentHTML('afterbegin', '<title></title>');
     el.firstChild.textContent = title;
   });
@@ -712,7 +720,7 @@ async function drawArt(names, model) {
     el.style.transformBox = 'fill-box';
     bindButton(el);
   }
-  for (const id of BACKDROP[ART[model]] || []) {
+  for (const id of BACKDROP[ART[kin(model)]] || []) {
     const el = svg.querySelector(`[id="${id}"]`);
     if (el) el.setAttribute('opacity', (el.getAttribute('opacity') || 1) * BACKDROP_OPACITY);
   }
@@ -806,6 +814,23 @@ function bindButton(el) {
 }
 document.querySelectorAll('[data-btn]').forEach(bindButton);
 $('spar').addEventListener('click', () => post('/api/spar', {}));
+/* A fight between two of the user's Digimon: the other one is picked from the tabs */
+let digimons = [];
+function duelChoice() {
+  const others = digimons.filter((p) => pet && p.id !== pet.id);
+  $('duelBox').hidden = !others.length;
+  const key = others.map((p) => p.id + p.name).join('|');
+  if ($('duelOther').dataset.key === key) return;
+  $('duelOther').dataset.key = key;
+  $('duelOther').textContent = '';
+  for (const p of others) $('duelOther').append(new Option(p.name, p.id));
+}
+$('duel').addEventListener('click', async () => {
+  const res = await post('/api/duel', {other: $('duelOther').value});
+  const data = res ? await res.json().catch(() => ({})) : {error: 'Der Server antwortet nicht.'};
+  $('duelMsg').textContent = data.error || 'Der Kampf beginnt; was daraus wird, steht in beiden Protokollen.';
+  setTimeout(() => { $('duelMsg').textContent = ''; }, 8000);
+});
 const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C', t: 'T'};
 window.addEventListener('keydown', (e) => {
   const name = KEYS[e.key];
@@ -860,14 +885,16 @@ function render(msg) {
   if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
   $('tapRow').hidden = !msg.tap;
   $('keysHint').hidden = msg.model === 'yasashii';     // a button for every action there
-  $('sparRow').hidden = msg.model !== 'digimon';
+  const digimon = kin(msg.model) === 'digimon';
+  $('sparRow').hidden = !digimon;
+  if (digimon) duelChoice();
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care;
   $('goalRow').hidden = !msg.goals;
   $('disciplineRow').hidden = !msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin');
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';
   $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
-  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : msg.model === 'digimon' ? 'Stärke' : 'Glück';
+  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : digimon ? 'Stärke' : 'Glück';
   drawLegend(msg);
   iconEls.forEach((el, i) => el && el.classList.toggle('on', (msg.icons >> i) & 1));
 
@@ -881,7 +908,7 @@ function render(msg) {
     $('practice').innerHTML = alive ? hearts(st.training) : '–';
     $('fans').textContent = alive ? st.fans + (st.fans >= 2 ? ' (beliebt)' : ' (unbeliebt)') : '–';
   }
-  $('stage').textContent = st.dead ? 'Gestorben' : st.name + (msg.care && (AGE_OF[msg.model] || AGE)[st.stage] || '');
+  $('stage').textContent = st.dead ? 'Gestorben' : st.name + (msg.care && (AGE_OF[kin(msg.model)] || AGE)[st.stage] || '');
   $('weight').textContent = alive ? st.weight + (msg.unit === 'AP' ? '' : ' ' + msg.unit) : '–';
   $('clock').textContent = alive ? st.clock : '–';
   $('gameRow').hidden = st.game === null || !alive;
@@ -995,6 +1022,7 @@ function openPet(p) {
 async function loadPets(select) {
   const data = await (await fetch('/api/pets')).json();
   models = data.models;
+  digimons = data.pets.filter((p) => p.game === 'digimon' && p.alive && !p.error);
   if (!data.pets.length) { location.href = '/settings'; return; }
   const want = select || location.hash.slice(1);
   const cur = data.pets.find((p) => p.id === want) || data.pets[0];

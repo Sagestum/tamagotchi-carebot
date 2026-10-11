@@ -61,6 +61,21 @@ def framed(byte):
     return (byte & 0xFF) << 8 | (~byte & 0xFF)
 
 
+LOST, WON = 0x40, 0x80      # in the high byte of the outcome a device sends: the one that
+                            # sends LOST goes on to show skulls. The six bits below say
+                            # how the fight went and are the same in the answer
+
+
+def won(outcome):
+    """Whether the device that sent this outcome has won."""
+    return bool(outcome >> 8 & WON)
+
+
+def other(outcome):
+    """The outcome to answer an outcome with: the other one of the two."""
+    return framed((outcome >> 8) ^ (LOST | WON))
+
+
 class Sparring:
     """An opponent that is not there: it answers the word a Digimon sends about itself with
     a word of its own, and the outcome with the other outcome."""

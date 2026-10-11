@@ -16,6 +16,7 @@ import io
 import json
 import multiprocessing
 import os
+import queue
 import re
 import signal
 import subprocess
@@ -39,12 +40,15 @@ PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
          "/settings": "settings.html", "/chronik": "chronik.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
 SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genjin.svg",
-          "tamaotch.svg", "digimon.svg", "yasashii.svg", "p1w.svg", "p2.svg")
+          "tamaotch.svg", "digimon.svg", "digimon2.svg", "digimon3.svg", "yasashii.svg", "p1w.svg",
+          "p2.svg")
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
 SMTP_SECURITY = ("starttls", "ssl", "none")
 DIGEST_FRESH = 12 * 3600    # a report older than this is from the day before
+DUEL_WAIT = 600             # seconds a step of a fight between two pets may take
+DUEL_REST = 90              # and the last one, which nothing waits for
 DIGEST_WAIT = 10            # seconds given to the pets to say how their day has been
 SPAWN = multiprocessing.get_context("spawn")    # a clean process, not a copy of our threads
 
@@ -97,6 +101,8 @@ class Pet:
         self.conn = None
         self.sending = threading.Lock()
         self.on_report = None       # takes (pet, report) for the gathered mail
+        self.duel = queue.Queue()   # what the pet has found in a step of a fight
+        self.fighting = threading.Lock()
 
     def start(self, rom_path, smtp):
         self.conn, theirs = SPAWN.Pipe()
@@ -126,6 +132,8 @@ class Pet:
                     self.error = msg[1]
                 elif msg[0] == "report" and self.on_report:
                     self.on_report(self, msg[1])
+                elif msg[0] == "duel":
+                    self.duel.put(msg[1])
                 self.changed.notify_all()
         with self.changed:
             self.alive = False
@@ -148,7 +156,8 @@ class Pet:
 
     def describe(self):
         return {"id": self.id, "name": self.name, "color": self.color, "model": self.model.id,
-                "modelName": self.model.name, "alive": self.alive, "error": self.error}
+                "modelName": self.model.name, "game": self.model.game, "alive": self.alive,
+                "error": self.error}
 
 
 class App:
@@ -357,6 +366,67 @@ class App:
             write_json(self.settings_path, {"smtp": smtp}, 0o600)
             for pet in self.pets.values():
                 pet.send("set_smtp", smtp)
+
+    # -- a fight between two Digimon ----------------------------------------------
+
+    def fighter(self, pet_id):
+        """A pet that can fight now, or Refused with the reason."""
+        pet = self.pet(pet_id)
+        snap = pet.snapshot or {}
+        st = snap.get("status") or {}
+        if pet.model.game != "digimon":
+            raise Refused("%s ist kein Digimon." % pet.name)
+        if not pet.alive or pet.error or not snap:
+            raise Refused("%s läuft gerade nicht." % pet.name)
+        if snap.get("paused"):
+            raise Refused("%s ist pausiert." % pet.name)
+        if st.get("dead") or st.get("stage") not in pet.model.growth.FIGHTERS:
+            raise Refused("%s kann noch nicht kämpfen (erst ab der dritten Stufe)." % pet.name)
+        if st.get("asleep"):
+            raise Refused("%s schläft." % pet.name)
+        return pet
+
+    def duel(self, host_id, guest_id):
+        """Start a fight: the host calls and works out who wins, the guest takes its word.
+        The pets are in processes of their own, so the words are carried in three steps."""
+        if str(host_id) == str(guest_id):
+            raise Refused("Zum Kämpfen braucht es zwei.")
+        host, guest = self.fighter(host_id), self.fighter(guest_id)
+        if not host.fighting.acquire(blocking=False):
+            raise Refused("%s kämpft gerade." % host.name)
+        if not guest.fighting.acquire(blocking=False):
+            host.fighting.release()
+            raise Refused("%s kämpft gerade." % guest.name)
+
+        def ask(pet, *msg):
+            while not pet.duel.empty():     # what a fight broken off has left behind
+                pet.duel.get_nowait()
+            pet.send(*msg)
+            try:
+                return pet.duel.get(timeout=DUEL_WAIT)
+            except queue.Empty:
+                return None
+
+        def run():
+            try:
+                host.send("note", "Kampf gegen %s: beginnt" % guest.name)
+                guest.send("note", "Kampf gegen %s: beginnt" % host.name)
+                about = ask(guest, "duel_word")
+                if about is None:
+                    for pet, other in ((host, guest), (guest, host)):
+                        pet.send("note", "Kampf gegen %s: %s meldet sich nicht" % (other.name, guest.name))
+                    return
+                words = ask(host, "duel_host", about, guest.name)
+                if not words:
+                    guest.send("note", "Kampf gegen %s: nicht zustande gekommen" % host.name)
+                    return
+                guest.send("duel_guest", words[0], words[1], host.name)
+                time.sleep(DUEL_REST)       # the guest shows its fight
+            finally:
+                host.fighting.release()
+                guest.fighting.release()
+
+        threading.Thread(target=run, daemon=True).start()
 
     # -- the gathered mail ---------------------------------------------------
 
@@ -568,6 +638,8 @@ class Handler(BaseHTTPRequestHandler):
                 app.pet(data["pet"]).send("button", data["btn"], bool(data["down"]))
             elif self.path == "/api/spar":
                 app.pet(data["pet"]).send("spar")
+            elif self.path == "/api/duel":
+                app.duel(data["pet"], data["other"])
             elif self.path == "/api/icon":
                 if data["icon"] not in range(7):    # the eighth is the pet calling, not a menu entry
                     raise Refused("Dieses Icon lässt sich nicht anwählen.")

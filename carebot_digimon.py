@@ -1,4 +1,4 @@
-"""Care-Bot for the Digimon (Digital Monster Ver. 1).
+"""Care-Bot for the Digimon (Digital Monster Ver. 1 to 3).
 
 Its program is of the Mothra's family: the clock, the hearts, the weight and the character
 sit where carebot_mothra.py has them, so this bot is built on that one. What differs is
@@ -6,6 +6,11 @@ here: other counters decide what it becomes (growth_digimon.py), strength comes 
 vitamins instead of a game, it is trained, and it fights. The fights are held against an
 opponent that is not there (link.py): it begins and then reports its own defeat, which the
 device confirms and counts as a win.
+
+The three versions differ in their characters and in the training: Ver. 1 strikes high or
+low at its shadow, Ver. 2 stops a bar that runs up at its top, Ver. 3 fills the bar by
+pressing fast. Some characters ask for overfeeding and for being woken at night; the bot
+does both on purpose when the goal needs it.
 """
 import link
 from carebot import CLOCK_TOLERANCE
@@ -17,6 +22,7 @@ from tama import BTN_A, BTN_B, BTN_C
 MEM_DARK = 0x08                         # bit 3: the light is off
 MEM_MISTAKES = 0x31                     # care mistakes as this character
 MEM_OVERFED = 0x32                      # times it was fed until it turned the meat down
+MEM_DISTURBED = 0x33                    # times it was woken from its sleep
 MEM_TRAINING_LO, MEM_TRAINING_HI = 0x34, 0x35   # +2 for every training
 MEM_FULL_LO, MEM_FULL_HI = 0x3E, 0x3F   # how full it is, BCD: 4 hearts from 4 on, up to 24
 MEM_STRENGTH = MEM_HAPPY                # hearts, 0 to 4
@@ -29,6 +35,10 @@ MEM_ROUNDS = 0x9B                       # training: rounds still to come
 HOLD = 0.3              # seconds a button is held: shorter presses are lost now and then
 ABOUT = 0x24DB          # the word a rookie sends about itself: the opponent's is the same
 SPAR_PAUSE = 20 * 60    # seconds between two fights
+BAR_ROW, BAR_FULL = 12, 14      # the power bar of the training: its LCD row and its length
+BAR_LEAD = 46 / 1000    # Ver. 2: seconds from the bar showing one short of full to the press
+                        # that stops it full (40 to 52 ms do it; later it has run over)
+MASH = 0.06             # Ver. 3: seconds a button is held, and let go, to fill the bar
 
 
 class DigimonBot(MothraBot):
@@ -39,6 +49,7 @@ class DigimonBot(MothraBot):
         self.neglecting = None          # the care mistakes there were when it began to go hungry
         self.silent = None              # since when it has been empty without calling
         self.next_training = 0.0
+        self.next_wake = 0.0
 
     # -- state readers -----------------------------------------------------
 
@@ -62,6 +73,7 @@ class DigimonBot(MothraBot):
             "training": 0,
             "trainings": self.trainings(),
             "overfed": m(MEM_OVERFED),
+            "disturbed": m(MEM_DISTURBED),
             "fights": m(MEM_FIGHTS + 1) * 10 + m(MEM_FIGHTS),
             "wins": m(MEM_WINS + 1) * 10 + m(MEM_WINS),
             "fought": m(MEM_FOUGHT),
@@ -144,14 +156,20 @@ class DigimonBot(MothraBot):
                 break
 
     def train(self):
-        """Five rounds against its own shadow: A strikes high, B low. Every training
-        counts, won or not, and takes a gram off."""
-        m = self.tama.memory
+        """One training. It takes a gram off. On Ver. 1 it counts whether won or not, on the
+        later ones only when won."""
         self.log("Training (%d bisher)" % self.trainings())
         yield from self.home()
         if not (yield from self.select(self.model.icon("training"))):
             return
         yield from self.press(BTN_B, 1.5)
+        yield from {"bar": self.train_bar, "mash": self.train_mash}.get(
+            self.model.growth.TRAINING, self.train_shadow)()
+        yield from self.home()
+
+    def train_shadow(self):
+        """Ver. 1: five rounds against its own shadow, A strikes high, B low."""
+        m = self.tama.memory
         rounds, waited = 0, 0.0
         while rounds < 5 and waited < 20:
             yield 0.1
@@ -166,27 +184,107 @@ class DigimonBot(MothraBot):
                 rounds += 1
                 waited = 0.0
         yield 12.0
+
+    def bar(self):
+        """How far the power bar of the training is filled, 0 to BAR_FULL."""
+        pixels = self.tama.frame()[0]
+        return sum(1 for p in pixels[BAR_ROW * 32:BAR_ROW * 32 + 32] if p) - 2
+
+    def train_bar(self):
+        """Ver. 2: the bar runs up again and again, in three quarters of a second; a button
+        stops it, and only a full bar breaks the block. The device takes the press a moment
+        late, so it is given while the bar still shows one short of full. That takes
+        milliseconds, so this part runs here in slices of one instead of at the pace of
+        the bot."""
+        m = self.tama.memory
+        for _ in range(200):                # the bar is there, and low
+            if m(MEM_GAME) == 2 and 0 <= self.bar() < BAR_FULL - 4:
+                break
+            yield 0.05
+        else:
+            return
+        for _ in range(3000):
+            self.tama.run(32)
+            if self.bar() == BAR_FULL - 1:
+                break
+        else:
+            return
+        self.tama.run(int(BAR_LEAD * 32768))
+        yield from self.press(BTN_A, 8.0)   # it strikes, and the bar comes back
+        yield from self.press(BTN_C, 1.0)   # leave it at this one
+
+    def train_mash(self):
+        """Ver. 3: five seconds to fill the bar by pressing fast."""
+        m = self.tama.memory
+        for _ in range(400):
+            if m(MEM_GAME) != 2:
+                break
+            self.held = BTN_B
+            self.tama.button(BTN_B, True)
+            yield MASH
+            self.tama.button(BTN_B, False)
+            self.held = None
+            yield MASH
+        yield 12.0
+
+    def overfeed(self):
+        """Meat until it turns it down: that is counted once, and again only after it has
+        lost a heart."""
+        m = self.tama.memory
+        before = m(MEM_OVERFED)
+        self.log("Überfüttern mit Absicht (%d bisher)" % before)
+        for _ in range(self.model.growth.OVERFED_AT + 4):
+            if m(MEM_OVERFED) != before or m(MEM_FLAGS) & (FLAG_SICK | FLAG_ASLEEP):
+                break
+            yield from self.eat(False)
+
+    def disturb(self):
+        """Wake it from its sleep: a helping of meat does that."""
+        self.log("Wecken mit Absicht (%d Schlafstörungen bisher)" % self.tama.memory(MEM_DISTURBED))
+        yield from self.eat(False)
+
+    def battle_screen(self):
+        """Open the battle screen, where it waits for an opponent. A baby shakes its head."""
         yield from self.home()
+        if not (yield from self.select(self.model.icon("battle"))):
+            return False
+        yield from self.press(BTN_B, 1.2)
+        return True
+
+    def exchange(self, begin, answer, call=False):
+        """The words of a fight. The answers have to come within a few milliseconds, so
+        this runs here in slices of one millisecond instead of at the pace of the bot.
+        begin: the word to open with, or None if the device opens (call: with A).
+        answer(n, word): what to send back to its n-th word, or None for nothing.
+        Returns the words the device sent."""
+        reader, words = link.Reader(), []
+        self.tama.link_edges()              # forget what was on the pin before
+        if begin is not None:
+            self.tama.link_wave(link.wave(begin, 10))
+        if call:
+            self.tama.button(BTN_A, True)
+        for ms in range(4000):
+            if call and ms == 300:
+                self.tama.button(BTN_A, False)
+            self.tama.run(32)
+            for word in reader.feed(self.tama.link_edges()):
+                words.append(word)
+                back = answer(len(words), word)
+                if back is not None:
+                    self.tama.link_wave(link.wave(back))
+            if len(words) >= 2 and ms > 3000:
+                break
+        if call:
+            self.tama.button(BTN_A, False)
+        return words
 
     def spar(self):
         """A fight that is won: the opponent that is not there sends its word, takes the
         device's, and reports its own defeat."""
-        yield from self.home()
-        if not (yield from self.select(self.model.icon("battle"))):
+        if not (yield from self.battle_screen()):
             self.log("Sparring: das Kampf-Menü ist nicht erreichbar")
             return
-        yield from self.press(BTN_B, 1.2)   # the battle screen; a baby shakes its head
-        reader, words, sent = link.Reader(), [], False
-        self.tama.link_edges()              # forget what was on the pin before
-        self.tama.link_wave(link.wave(self.about, 10))
-        # The answers have to come within a few milliseconds, so the exchange is run
-        # here in slices of one millisecond instead of at the pace of the bot
-        for _ in range(3000):
-            self.tama.run(32)
-            words += reader.feed(self.tama.link_edges())
-            if words and not sent:
-                sent = True
-                self.tama.link_wave(link.wave(link.framed(link.Sparring.LOST)))
+        words = self.exchange(self.about, lambda n, word: link.framed(link.LOST) if n == 1 else None)
         if len(words) < 2:
             # now and then it does not take the call; a hurt one never does
             self.log("Sparring: kein Kampf zustande gekommen")
@@ -194,24 +292,110 @@ class DigimonBot(MothraBot):
             yield from self.home()
             return
         self.about = words[0]
-        won = words[1] >> 8 == link.Sparring.WON
-        self.log("Sparring: " + ("gewonnen" if won else "verloren")
+        self.log("Sparring: " + ("gewonnen" if link.won(words[1]) else "verloren")
                  + " (%d Kämpfe, %d Siege)" % (self.status()["fights"], self.status()["wins"]))
         yield 30.0                          # the fight is shown
         yield from self.home()
 
+    # A fight between two Digimon of the user's. Each of them runs in a process of its own,
+    # so their pins are not joined: the words are carried from one to the other, one fight
+    # in three steps. The device that calls works out who wins; the other takes its word.
+
+    TRIES = 6       # a word is not taken now and then, as between two real devices
+
+    def fights(self):
+        m = self.tama.memory
+        return m(MEM_FIGHTS + 1) * 10 + m(MEM_FIGHTS)
+
+    def fought(self, before):
+        """Wait for the device to count the fight it has just agreed on; it does so while
+        it shows it. Returns whether it did."""
+        for _ in range(30):
+            if self.fights() != before:
+                return True
+            yield 1.0
+        return False
+
+    def ready(self):
+        """Before a fight: a hurt one does not take the call."""
+        if self.tama.memory(MEM_FLAGS) & FLAG_SICK:
+            yield from self.heal()
+
+    def duel_word(self, tell):
+        """Step 1, the guest: what it says about itself. It calls, nobody answers, and
+        nothing is counted."""
+        for _ in range(self.TRIES):
+            yield from self.ready()
+            if not (yield from self.battle_screen()):
+                break
+            words = self.exchange(None, lambda n, word: None, call=True)
+            yield 8.0
+            yield from self.home()
+            if words:
+                self.about = words[0]
+                return tell(words[0])
+        tell(None)
+
+    def duel_host(self, about, name, tell):
+        """Step 2, the host: it calls, is answered with the guest's word and says how the
+        fight ends. Only a fight that it has counted is passed on."""
+        for _ in range(self.TRIES):
+            yield from self.ready()
+            before = self.fights()
+            if not (yield from self.battle_screen()):
+                break
+            words = self.exchange(
+                None, lambda n, word: about if n == 1 else link.other(word) if n == 2 else None,
+                call=True)
+            if len(words) >= 2 and (yield from self.fought(before)):
+                self.about = words[0]
+                self.log("Kampf gegen %s: %s" % (name, "gewonnen" if link.won(words[1]) else "verloren"))
+                tell(words[:2])
+                yield 20.0
+                yield from self.home()
+                return
+            yield from self.home()
+            yield 5.0
+        self.log("Kampf gegen %s: nicht zustande gekommen" % name)
+        tell(None)
+
+    def duel_guest(self, about, outcome, name):
+        """Step 3, the guest: it is called with the host's word and told how it ended."""
+        for _ in range(self.TRIES):
+            yield from self.ready()
+            before = self.fights()
+            if not (yield from self.battle_screen()):
+                break
+            words = self.exchange(about, lambda n, word: outcome if n == 1 else None)
+            if len(words) >= 2 and (yield from self.fought(before)):
+                self.log("Kampf gegen %s: %s" % (name, "gewonnen" if link.won(words[1]) else "verloren"))
+                yield 20.0
+                yield from self.home()
+                return
+            yield from self.home()
+            yield 5.0
+        self.log("Kampf gegen %s: bei diesem Gerät nicht angekommen" % name)
+
+    def request(self, task):
+        """The user asked for something the bot does with its own hands."""
+        self.stop()
+        self.task = task
+        self.manual = True
+
     def request_spar(self):
         """The user asked for a fight."""
-        self.stop()
-        self.task = self.spar()
-        self.manual = True
+        self.request(self.spar())
 
     # -- decision -------------------------------------------------------------
 
     def wish(self, st):
         if self.goal is None or st["stage"] == 0:
             return None
-        return self.model.growth.plan(self.goal, st["stage"], st["mistakes"], st["meter"])
+        return self.model.growth.plan(self.goal, *self.counters(st))
+
+    def counters(self, st):
+        """What the growth rules ask about."""
+        return st["stage"], st["mistakes"], st["trainings"], st["overfed"], st["disturbed"]
 
     def growth(self, st):
         if st["dead"]:
@@ -220,11 +404,18 @@ class DigimonBot(MothraBot):
         way = self.wish(st)
         alive = st["stage"] > 0
         return {
-            "forecast": rules.forecast(st["stage"], st["mistakes"], st["meter"]) if alive else [],
-            "reachable": rules.reachable(st["stage"], st["mistakes"], st["meter"]),
+            "forecast": rules.forecast(*self.counters(st)) if alive else [],
+            "reachable": rules.reachable(*self.counters(st)),
             "plan": way["way"] if way else None,
-            "wanted": {k: way[k] for k in ("mistakes", "trainings", "battles")} if way else None,
+            "wanted": {k: way[k] for k in ("mistakes", "trainings", "overfed", "disturbed",
+                                           "battles")} if way else None,
         }
+
+    def chart(self):
+        """The growth chart of this version, for the page that shows it."""
+        rules = self.model.growth
+        return {"version": rules.VERSION, "names": rules.NAMES, "rows": rules.ROWS,
+                "training": rules.TRAINING}
 
     def memo(self):
         return {"about": self.about}
@@ -252,7 +443,12 @@ class DigimonBot(MothraBot):
             return None
         self.watch(st)
 
+        way = self.wish(st) or {"mistakes": st["mistakes"], "trainings": 0, "overfed": 0,
+                                "disturbed": 0, "battles": 0}
         if st["asleep"]:
+            if st["disturbed"] < way["disturbed"] and not st["sick"] and now >= self.next_wake:
+                self.next_wake = now + 300
+                return self.disturb()
             if st["light"]:
                 if self.light_wish is None:
                     self.light_wish = (False, now)
@@ -268,7 +464,6 @@ class DigimonBot(MothraBot):
         if st["poop"] > 0:
             return self.clean()
 
-        way = self.wish(st) or {"mistakes": st["mistakes"], "trainings": 0, "battles": 0}
         if st["mistakes"] < way["mistakes"]:
             # A care mistake on purpose: no food until the call has run out (19 minutes).
             # It calls once only, and a day with empty hearts is its death, so after every
@@ -292,6 +487,8 @@ class DigimonBot(MothraBot):
             self.neglecting = self.silent = None
             return self.morsel()
         self.neglecting = None
+        if st["overfed"] < way["overfed"] and self.fullness() <= rules.FULL:
+            return self.overfeed()
         if st["hunger"] < self.feed_below:
             return self.feed()
         if st["happy"] < self.play_below:

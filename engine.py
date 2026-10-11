@@ -39,7 +39,7 @@ STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every l
 BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7}
 FLIP = 12       # hours: the clock of a pet whose day and night change places
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake",
-            "report_now", "note")
+            "report_now", "note", "duel_word", "duel_host", "duel_guest")
 
 
 class Engine:
@@ -62,6 +62,7 @@ class Engine:
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.begun_again
         self.flip = False       # day and night change places, from the next egg on
+        self.tell = lambda *msg: None       # sends a message to the server (set by the worker)
         self.shuffle = False    # a life the bot begins itself gets another goal, drawn by lot
         self.slices = 0
         # The chronicle: every life this shell has seen, the present one last.
@@ -199,6 +200,24 @@ class Engine:
             if hasattr(self.bot, "request_spar"):
                 self.take_over()
                 self.bot.request_spar()
+
+    # A fight between two Digimon of the user's: the server carries the words from one to the
+    # other in three steps (carebot_digimon.py). What a step has found goes back with tell.
+
+    def duel_word(self):
+        with self.lock:
+            self.take_over()
+            self.bot.request(self.bot.duel_word(lambda word: self.tell("duel", word)))
+
+    def duel_host(self, about, name):
+        with self.lock:
+            self.take_over()
+            self.bot.request(self.bot.duel_host(about, name, lambda words: self.tell("duel", words)))
+
+    def duel_guest(self, about, outcome, name):
+        with self.lock:
+            self.take_over()
+            self.bot.request(self.bot.duel_guest(about, outcome, name))
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
                   restart=None, shuffle=None, flip=None):
@@ -360,7 +379,7 @@ class Engine:
                 del self.release[btn]
                 del self.pressed[btn]
         if self.hands_off is not None and time.monotonic() >= self.hands_off \
-                and not self.pressed:
+                and not self.pressed and not self.bot.manual:   # what was asked for is finished first
             self.hands_off = None
             self.bot.resume()
         if self.bot.manual or (self.bot_enabled and self.hands_off is None):
@@ -399,6 +418,7 @@ class Engine:
             "icons": sum(1 << i for i, v in enumerate(icons) if v),
             "status": status,
             "growth": self.bot.growth(status),
+            "chart": self.bot.chart() if hasattr(self.bot, "chart") else None,
             "bot": self.bot_enabled,
             "handsOff": self.hands_off is not None,
             "discipline": self.bot.discipline,
@@ -475,6 +495,7 @@ def run(conn, rom_path, state_path, smtp, model_id, name):
         return
     signal.signal(signal.SIGTERM, lambda *_: setattr(engine, "running", False))
     engine.report.hand_over = lambda section: tell("report", section)
+    engine.tell = tell
 
     def commands():
         while True:

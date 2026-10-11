@@ -174,10 +174,22 @@ DIGIMON_LCD = ((None, 31, 30, 29, 28, 27, 26, 25, 24, None, None, None, 23, 22, 
 DIGIMON = Model(
     "digimon", "Digimon V1", "digimon.bin aus dem MAME-Romset „digimon“",
     16384, "1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7", "08ffac1b",
-    growth_digimon.NAMES, (), "digimon",
+    growth_digimon.V1.NAMES, (), "digimon",
     icons=("status", "food", "training", "battle", "toilet", "light", "medicine", "attention"),
-    unit="G", rules=growth_digimon, lcd=DIGIMON_LCD,
+    unit="G", rules=growth_digimon.V1, lcd=DIGIMON_LCD,
     icon_pins=((28, 15), (37, 15), (38, 15), (39, 15), (11, 0), (10, 0), (9, 0), (0, 0)))
+# Ver. 2 and Ver. 3 (1998): the same device and program with other characters and another
+# training. All three can fight one another.
+DIGIMON2 = Model(
+    "digimon2", "Digimon V2", "digimonv2.bin aus dem MAME-Romset „digimonv2“",
+    16384, "ab860ca9f31f478532122cb9d20f59964a080a27", "19a9e54e",
+    growth_digimon.V2.NAMES, (), "digimon", icons=DIGIMON.icons,
+    unit="G", rules=growth_digimon.V2, lcd=DIGIMON_LCD, icon_pins=DIGIMON.icon_pins)
+DIGIMON3 = Model(
+    "digimon3", "Digimon V3", "digimonv3.bin aus dem MAME-Romset „digimonv3“",
+    16384, "0acd50e623e20d857e13bae150ac03405896cf2b", "3000cf30",
+    growth_digimon.V3.NAMES, (), "digimon", icons=DIGIMON.icons,
+    unit="G", rules=growth_digimon.V3, lcd=DIGIMON_LCD, icon_pins=DIGIMON.icon_pins)
 
 # Yasashii Tamagotch (1997), the gentle one for small children: the first generation's pet on
 # the larger MCU (E0C6S48), with a button for every action instead of a menu. Four of the
@@ -193,7 +205,8 @@ YASASHII = Model(
     icon_pins=((40, 8), (40, 12), (41, 8), (43, 8), (42, 12), (42, 8), (50, 8), (50, 12)),
     buttons=("F", "S", "H", "K", "T", "A", "B", "C"))
 
-MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, YASASHII)
+MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, DIGIMON2, DIGIMON3,
+          YASASHII)
 BY_ID = {m.id: m for m in MODELS}
 
 
