@@ -684,6 +684,7 @@ class PublicHandler(BaseHTTPRequestHandler):
     counting = threading.Lock()
     FILES = {"/": ("public.html", "text/html; charset=utf-8"),
              "/shellart.js": ("shellart.js", "text/javascript; charset=utf-8"),
+             "/sprites.js": ("sprites.js", "text/javascript; charset=utf-8"),
              "/favicon.png": ("favicon.png", "image/png"),
              "/favicon-dark.png": ("favicon-dark.png", "image/png")}
     STATUS = ("stage", "name", "dead", "asleep", "leaving", "hunger", "happy", "weight", "clock",

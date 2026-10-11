@@ -151,7 +151,9 @@ function picture(sprites, id) {
   el('rect', {class: 'lcd', x: 1, y: 1, width: BOX - 2, height: BOX - 2, rx: 9}, svg);
   const stored = sprites[id] || [];
   const rows = Array.isArray(stored[0]) ? stored[0] : stored;
-  const s = 3, w = (rows[0] || '').length * s, top = (BOX - rows.length * s) / 2;
+  /* three units a dot, less for a picture that would not fit (the Pocket Pikachu's) */
+  const s = Math.min(3, (BOX - 6) / Math.max(1, (rows[0] || '').length, rows.length));
+  const w = (rows[0] || '').length * s, top = (BOX - rows.length * s) / 2;
   let d = '';
   rows.forEach((row, ry) => [...row].forEach((c, rx) => {
     if (c === '1') d += `M${(BOX - w) / 2 + rx * s} ${top + ry * s}h${s}v${s}h${-s}z`;
