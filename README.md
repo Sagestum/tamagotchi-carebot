@@ -100,7 +100,8 @@ wer dann noch wach ist, steht mit seinem Stand von diesem Moment darin.
 
 Mit `--public-port 8138` (oder `PUBLIC_PORT`) öffnet der Server einen zweiten Port, auf dem es
 nur etwas zu sehen gibt: die Tiere in Tabs, live, dazu was das Gerät ist, was der Bot dort tut,
-sein Ziel und die Leben, die es bisher gab. Ein Klick auf das Gerät führt zu seiner Wiki-Seite.
+sein Ziel und die Leben, die es bisher gab. Unter dem Gerät steht ein Link zu einer Seite, die
+mehr darüber weiß (`models.WIKI`).
 Dieser Port kennt keinen einzigen Befehl – kein Tastendruck, keine Einstellung, kein Protokoll
 (darin steht die Mail-Adresse) – und kann deshalb ohne Anmeldung unter einem eigenen Namen im
 Netz stehen. Das Einzige, was ein Zuschauer auslöst: Verdeckt ein Bildschirmschoner das Tier

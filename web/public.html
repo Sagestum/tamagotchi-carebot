@@ -88,7 +88,8 @@
   .art svg { display: block; width: 100%; height: auto; overflow: visible; }
   .art .seg { opacity: 0.06; transition: opacity 0.08s; }
   .art .seg.on { opacity: 1; }
-  .more { text-align: center; color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .more { text-align: center; color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+  [hidden] { display: none !important; }
   aside { display: grid; gap: 14px; }
   section {
     background: var(--panel);
@@ -148,8 +149,8 @@
 
   <div class="stage">
     <div>
-      <a class="art" id="art" target="_blank" rel="noopener" title="Mehr über dieses Gerät im Wiki"></a>
-      <p class="more" id="more"></p>
+      <div class="art" id="art"></div>
+      <p class="more" id="more" hidden>Mehr über das Gerät: <a id="moreLink" target="_blank" rel="noopener"></a></p>
     </div>
     <aside>
       <section>
@@ -405,8 +406,11 @@ async function open(id) {
   $('aboutTitle').textContent = pet.modelName;
   $('about').textContent = about;
   $('aboutBot').textContent = bot;
-  $('art').href = pet.wiki || '#';
-  $('more').textContent = pet.wiki ? 'Ein Klick auf das Gerät führt zu seiner Wiki-Seite (' + new URL(pet.wiki).hostname + ').' : '';
+  $('more').hidden = !pet.wiki;
+  if (pet.wiki) {
+    $('moreLink').href = pet.wiki;
+    $('moreLink').textContent = pet.modelName + ' bei ' + new URL(pet.wiki).hostname.replace(/^www\./, '');
+  }
   $('now').textContent = '';
   $('lives').textContent = '';
   $('raised').textContent = '';
