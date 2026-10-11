@@ -778,7 +778,12 @@ async function drawArt(names, model) {
   }
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'Tamagotchi');
-  pickable(icons, names);
+  if (model === 'yasashii') {
+    /* no menu to walk: its icons are the lamps behind the buttons, and they and the print
+       on them lie over the buttons. A click there is meant for the button */
+    const print = svg.querySelector('#overlay');
+    [...icons, print].forEach((el) => { if (el) el.style.pointerEvents = 'none'; });
+  } else pickable(icons, names);
   iconEls = icons;
   pixEls = pixels;
   pixOn = new Uint8Array(512);

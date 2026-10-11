@@ -11,13 +11,17 @@ at 0 with every change (growth_yasashii.py).
 """
 import time
 
-from carebot import CareBot
+from carebot import CareBot, CLOCK_TOLERANCE
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP
 
 # RAM cells of the Yasashii ROM (found by experiment, one 4-bit value each)
 MEM_POOP = 0x07                         # droppings on the screen
 MEM_SCREEN = 0x09                       # what is up: 2 the pet, 3 the check meter, 4 the food,
-                                        # 5 the game, 6 the mood menu, 0xA the clock
+                                        # 5 the game, 6 the mood menu, 0xA the clock, 1 the
+                                        # clock being set
+MEM_SEC_LO, MEM_SEC_HI = 0x1A, 0x1B     # the clock: seconds and minutes in BCD,
+MEM_MIN_LO, MEM_MIN_HI = 0x1C, 0x1D
+MEM_HOUR, MEM_PM = 0x1E, 0x1F           # the hour from 1 to 12, and 1 in the afternoon
 MEM_CURSOR = 0x0A                       # in a menu: 0 the first entry, 8 the second
 MEM_CHARACTER = 0x0B                    # 1 the baby, 2 the child, ... (growth_yasashii.py)
 MEM_HUNGER, MEM_HAPPY = 0x31, 0x32      # hearts, 0 to 4
@@ -31,7 +35,7 @@ MEM_FLAGS = 0x05                        # bit 0 ill, bit 1 dead, bit 2 asleep. B
 MEM_CALL = 0x42
 MEM_DISCIPLINE = 0x33                   # the discipline meter, 2 more for every telling off
 
-HOME, METER, FOOD, GAME, MOOD, CLOCK = 2, 3, 4, 5, 6, 0xA
+HOME, METER, FOOD, GAME, MOOD, CLOCK, SETTING = 2, 3, 4, 5, 6, 0xA, 1
 BTN_CLEAN, BTN_HEART, BTN_SMILE, BTN_FOOD = 4, 5, 6, 7     # the inputs K10 to K13
 BTN_METER, BTN_SELECT, BTN_CANCEL, BTN_LIGHT = BTN_A, BTN_B, BTN_C, BTN_TAP
 HOLD = 0.2
@@ -70,6 +74,19 @@ class YasashiiBot(CareBot):
         m = self.tama.memory
         return m(MEM_WEIGHT_HI) * 10 + m(MEM_WEIGHT_LO)
 
+    def hour(self):
+        m = self.tama.memory
+        return m(MEM_HOUR) % 12 + 12 * (m(MEM_PM) & 1)
+
+    def minute(self):
+        m = self.tama.memory
+        return m(MEM_MIN_HI) * 10 + m(MEM_MIN_LO)
+
+    def device_time(self):
+        """Seconds since midnight on the pet's own clock."""
+        m = self.tama.memory
+        return self.hour() * 3600 + self.minute() * 60 + m(MEM_SEC_HI) * 10 + m(MEM_SEC_LO)
+
     def naughty(self):
         return bool(self.tama.memory(MEM_FLAGS) & 8)
 
@@ -98,7 +115,7 @@ class YasashiiBot(CareBot):
             "look": None, "back": False,
             "light": not self.dark(), "attention": self.naughty(), "scold": self.naughty(),
             "dead": bool(m(MEM_FLAGS) & 2),
-            "game": None, "screen": m(MEM_SCREEN), "clock": "–",
+            "game": None, "screen": m(MEM_SCREEN), "clock": "%02d:%02d" % (self.hour(), self.minute()),
         }
 
     # -- primitives ---------------------------------------------------------
@@ -121,18 +138,70 @@ class YasashiiBot(CareBot):
     # -- actions -------------------------------------------------------------
 
     def set_clock(self):
-        """A fresh device shows the egg: select opens the clock and counts the hours up,
-        the check meter goes on to the minutes, cancel takes it; then the egg hatches."""
+        """A fresh device shows the egg: select opens the setting of the clock; once it
+        is taken the egg hatches."""
         self.log("Uhr stellen")
-        t = self.wall()
         yield from self.press(BTN_SELECT, 1.0)
-        for _ in range(t.tm_hour):
-            yield from self.press(BTN_SELECT, 0.5)
-        yield from self.press(BTN_METER, 1.0)
-        for _ in range(t.tm_min):
-            yield from self.press(BTN_SELECT, 0.5)
+        if self.tama.memory(MEM_SCREEN) == SETTING and (yield from self.dial()):
+            self.clock_set_at = self.tama.seconds
         yield from self.press(BTN_CANCEL, 2.0)
-        self.clock_set_at = self.tama.seconds
+
+    def dial(self):
+        """While the clock is being set: select counts the hours up, cancel the minutes,
+        and the check meter takes it; the clock then begins at second 0. So a minute a
+        little ahead is dialled and taken as it begins."""
+        m = self.tama.memory
+        for _ in range(3):
+            goal = time.time()
+            if self.realtime:
+                # the minute to dial: the first one the presses are done before
+                start, goal = goal, (goal + 5) // 60 * 60 + 60
+                for _ in range(5):
+                    t = self.wall(goal)
+                    presses = (t.tm_hour - self.hour()) % 24 + (t.tm_min - self.minute()) % 60
+                    if start + 5 + presses * (HOLD + 0.5) * 1.2 <= goal:
+                        break
+                    goal += 60
+            t = self.wall(goal)
+            for read, btn, want, tries in ((self.hour, BTN_SELECT, t.tm_hour, 30),
+                                           (self.minute, BTN_CANCEL, t.tm_min, 70)):
+                for _ in range(tries):
+                    before = read()
+                    if before == want:
+                        break
+                    yield from self.press(btn, 0.5)
+                    if read() == before or m(MEM_SCREEN) != SETTING:
+                        return False    # the clock is not being set after all
+            if not self.realtime or time.time() < goal:
+                break
+        while self.realtime and time.time() < goal:
+            yield 0.05
+        yield from self.press(BTN_METER, 2.0)
+        return True
+
+    def sync_clock(self, error):
+        """The clock of a living one: select shows it, select and cancel together begin
+        the setting."""
+        m = self.tama.memory
+        self.log("Uhr nachstellen (ging %d min %s)" % (abs(error) // 60, "vor" if error > 0 else "nach")
+                 if abs(error) >= 120 else
+                 "Uhr nachstellen (ging %d s %s)" % (abs(error), "vor" if error > 0 else "nach"))
+        yield from self.home()
+        yield from self.press(BTN_SELECT, 2.0)
+        if m(MEM_SCREEN) == CLOCK:
+            self.held = (BTN_SELECT, BTN_CANCEL)
+            for btn in self.held:
+                self.tama.button(btn, True)
+            yield 0.5
+            for btn in self.held:
+                self.tama.button(btn, False)
+            self.held = None
+            yield 2.0
+            if m(MEM_SCREEN) == SETTING and (yield from self.dial()):
+                self.clock_set_at = self.tama.seconds
+        if m(MEM_SCREEN) == SETTING:
+            yield from self.press(BTN_METER, 2.0)       # out of the setting, whatever was dialled
+        yield from self.home()
 
     def meal(self):
         m = self.tama.memory
@@ -364,7 +433,7 @@ class YasashiiBot(CareBot):
             if not self.ignoring:
                 self.ignoring = True
                 self.log("Pflegefehler mit Absicht: es bleibt hungrig (%d von %d)" % (st["mistakes"], want))
-            return self.starve(st)
+            return self.starve(st) or self.check_clock(now)
         self.ignoring = False
         self.spared = None
         self.owed, self.empty = False, None
@@ -374,9 +443,17 @@ class YasashiiBot(CareBot):
             # both are empty soon once the time for them has come
             if st["hunger"] == 0 or st["happy"] == 0:
                 return self.morsel("Ein Happen, mehr nicht")
-            return None
+            return self.check_clock(now)
         if st["hunger"] < self.feed_below:
             return self.feed()
         if st["happy"] < self.play_below:
             return self.sweets()
-        return None
+        return self.check_clock(now)
+
+    def check_clock(self, now):
+        """Every ten minutes, when nothing else is to be done: is its clock still right?"""
+        if not self.realtime or now < self.clock_check:
+            return None
+        self.clock_check = now + 600
+        error = self.clock_error()
+        return self.sync_clock(error) if abs(error) > CLOCK_TOLERANCE else None

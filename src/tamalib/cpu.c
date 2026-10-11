@@ -884,6 +884,10 @@ void cpu_refresh_hw(void)
 		{ MEM_DISPLAY2_ADDR, MEM_DISPLAY2_SIZE }, /* Display Memory 2 */
 		{ REG_BUZZER_CTRL1, 1 }, /* Buzzer frequency */
 		{ REG_R40_R43_BZ_OUTPUT_PORT, 1 }, /* Buzzer enabled */
+		/* The oscillator the CPU runs on is not part of a saved state. The Yasashii
+		 * switches to OSC3 once and stays there: loaded without this it ran thirty
+		 * times too slow and took a button only when it was held for seconds */
+		{ REG_CPU_OSC3_CTRL, 1 },
 
 		{ 0, 0 }, // end of list
 	};

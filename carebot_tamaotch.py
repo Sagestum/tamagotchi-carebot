@@ -20,11 +20,12 @@ microseconds apart.
 """
 import time
 
-from carebot import CareBot
+from carebot import CareBot, CLOCK_TOLERANCE
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP
 
 # RAM cells of the Tamaotch ROM (found by experiment, one 4-bit value each)
 MEM_SECOND = 0x102                      # seconds, 0 to 9 round and round
+MEM_SECOND_HI = 0x103                   # and their tens
 MEM_MIN_LO, MEM_MIN_HI = 0x104, 0x105   # clock minutes, BCD
 MEM_HOUR_LO, MEM_HOUR_HI = 0x106, 0x107  # clock hours, 0 to 11: bit 0 of the high cell is
                                         # the ten, bit 3 says afternoon
@@ -54,6 +55,7 @@ MEM_POOP = 0x1FD                        # droppings
 # MEM_STATE
 BOOT, SETTING, HATCHING, HOME, CLOCK = 0, 1, 3, 4, 6
 STAGE, STUCK = 0, 1     # with a pet there: it is on stage; it takes no button until knocked
+PET_SETTING, PET_CLOCK = 2, 5   # with a pet there: its clock being set, and shown
 FOOD, MEDICINE, SCOLDING, SLOT, TOILET, STATUS, TRAINING, ASLEEP = 7, 8, 9, 0xA, 0xB, 0xD, 0xE, 0xF
 
 ICON_SLOT = 2
@@ -92,6 +94,12 @@ class TamaotchBot(CareBot):
         m = self.tama.memory
         hour = (m(MEM_HOUR_HI) & 1) * 10 + m(MEM_HOUR_LO) + (12 if m(MEM_HOUR_HI) & 8 else 0)
         return hour, m(MEM_MIN_HI) * 10 + m(MEM_MIN_LO)
+
+    def device_time(self):
+        """Seconds since midnight on the pet's own clock."""
+        m = self.tama.memory
+        hour, minute = self.clock()
+        return hour * 3600 + minute * 60 + m(MEM_SECOND_HI) * 10 + m(MEM_SECOND)
 
     def status(self):
         m = self.tama.memory
@@ -181,7 +189,9 @@ class TamaotchBot(CareBot):
         m = self.tama.memory
         for _ in range(6):
             state = m(MEM_STATE)
-            if state == CLOCK:
+            if state == PET_SETTING:
+                yield from self.press(BTN_C, 1.5)
+            elif state in (CLOCK, PET_CLOCK):
                 yield from self.press(BTN_B, 1.5)
             elif state not in (HOME, ASLEEP) or self.at_icon() is not None:
                 yield from self.press(BTN_C, 1.0)
@@ -226,6 +236,59 @@ class TamaotchBot(CareBot):
         if m(MEM_STATE) == CLOCK:
             yield from self.press(BTN_B, 1.5)
         self.clock_set_at = self.tama.seconds
+
+    def sync_clock(self, error):
+        """The clock of a living one: B shows it, A and C together begin the setting. There
+        A counts the hours up and B the minutes (round and round, the hour stays), and C
+        takes it; the clock then begins at second 0. So a minute a little ahead is
+        dialled and taken as it begins. Nothing of the pet changes by it, not even when
+        the hours are counted through midnight."""
+        m = self.tama.memory
+        self.log("Uhr nachstellen (ging %d s %s)" % (abs(error), "vor" if error > 0 else "nach"))
+        yield from self.home()
+        yield from self.press(BTN_B, 1.5)
+        if m(MEM_STATE) == PET_CLOCK:
+            self.held = (BTN_A, BTN_C)
+            for btn in self.held:
+                self.tama.button(btn, True)
+            yield 0.6
+            for btn in self.held:
+                self.tama.button(btn, False)
+            self.held = None
+            yield 1.5
+        if m(MEM_STATE) == PET_SETTING:
+            goal = time.time()
+            for _ in range(3):
+                goal = time.time()
+                if self.realtime:
+                    # the minute to dial: the first one the presses are done before
+                    hour, minute = self.clock()
+                    start, goal = goal, (goal + 5) // 60 * 60 + 60
+                    for _ in range(5):
+                        t = self.wall(goal)
+                        presses = (t.tm_hour - hour) % 24 + (t.tm_min - minute) % 60
+                        if start + 5 + presses * (HOLD + 0.5) * 1.2 <= goal:
+                            break
+                        goal += 60
+                t = self.wall(goal)
+                for part, btn, want, tries in ((0, BTN_A, t.tm_hour, 26), (1, BTN_B, t.tm_min, 62)):
+                    for _ in range(tries):
+                        if m(MEM_STATE) != PET_SETTING or self.clock()[part] == want:
+                            break
+                        yield from self.press(btn, 0.5)
+                if not self.realtime or time.time() < goal:
+                    break
+            while self.realtime and time.time() < goal and m(MEM_STATE) == PET_SETTING:
+                yield 0.05
+        yield from self.home()      # C takes what was dialled, B leaves the clock
+
+    def check_clock(self, now):
+        """Every ten minutes, when nothing else is to be done: is its clock still right?"""
+        if not self.realtime or now < self.clock_check:
+            return None
+        self.clock_check = now + 600
+        error = self.clock_error()
+        return self.sync_clock(error) if abs(error) > CLOCK_TOLERANCE else None
 
     def eat(self, entry):
         """One helping from the food menu. Returns whether it went down."""
@@ -506,4 +569,4 @@ class TamaotchBot(CareBot):
             if st["training"] < 2 or (behind and st["training"] < 4):
                 self.next_game = now + 60
                 return self.train(self.pick(st, game))
-        return None
+        return self.check_clock(now)
