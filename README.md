@@ -90,6 +90,11 @@ Dieser Port kennt keinen einzigen Befehl – kein Tastendruck, keine Einstellung
 Netz stehen. Das Einzige, was ein Zuschauer auslöst: Verdeckt ein Bildschirmschoner das Tier
 (Morino), nimmt der Server ihn weg. Mehr als 60 Zuschauer gleichzeitig weist er ab.
 
+Steht in `PUBLIC_URL` die Adresse, unter der die Seite erreichbar ist, bekommt sie die Angaben
+für die Vorschau eines geteilten Links (mit `web/vorschau.png`), eine `sitemap.xml` und den
+Verweis darauf in `robots.txt`. Was die Geräte sind, steht fest im HTML und ist damit auch für
+Suchmaschinen lesbar; das Livebild und die Liste der Tiere sind für sie gesperrt.
+
 ## Der Care-Bot
 
 Der Bot liest Hunger, Glück, Häufchen und Krankheit aus dem RAM und dem Display und bedient dann

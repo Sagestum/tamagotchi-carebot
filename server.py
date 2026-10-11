@@ -46,6 +46,8 @@ MAX_UPLOAD = 4 << 20
 PUBLIC_VIEWERS = 60     # the page for everyone: pictures being watched at a time,
 PUBLIC_RATE = 8         # pictures a second for each,
 PUBLIC_LONGEST = 3600   # and seconds until a viewer has to connect anew
+# the address the page for everyone is reached at, without a slash at the end
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
 PUBLIC_WAKE = 60        # seconds between two looks whether a screen saver hides the pet
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
@@ -685,6 +687,7 @@ class PublicHandler(BaseHTTPRequestHandler):
     FILES = {"/": ("public.html", "text/html; charset=utf-8"),
              "/shellart.js": ("shellart.js", "text/javascript; charset=utf-8"),
              "/sprites.js": ("sprites.js", "text/javascript; charset=utf-8"),
+             "/vorschau.png": ("vorschau.png", "image/png"),
              "/favicon.png": ("favicon.png", "image/png"),
              "/favicon-dark.png": ("favicon-dark.png", "image/png")}
     STATUS = ("stage", "name", "dead", "asleep", "leaving", "hunger", "happy", "weight", "clock",
@@ -726,7 +729,21 @@ class PublicHandler(BaseHTTPRequestHandler):
         if url.path in self.FILES:
             name, ctype = self.FILES[url.path]
             with open(os.path.join(HERE, "web", name), "rb") as f:
-                self.send_body(200, f.read(), ctype)
+                body = f.read()
+            if url.path == "/":
+                # where the page lives, for search engines and for the preview of a shared link
+                body = body.replace(b"__PUBLIC_URL__", PUBLIC_URL.encode())
+            self.send_body(200, body, ctype)
+        elif url.path == "/robots.txt":
+            lines = ["User-agent: *", "Allow: /", "Disallow: /watch", "Disallow: /pets"]
+            if PUBLIC_URL:
+                lines += ["", "Sitemap: %s/sitemap.xml" % PUBLIC_URL]
+            self.send_body(200, "\n".join(lines).encode() + b"\n", "text/plain; charset=utf-8")
+        elif url.path == "/sitemap.xml" and PUBLIC_URL:
+            self.send_body(200, ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                                 "<url><loc>%s/</loc></url></urlset>\n" % PUBLIC_URL).encode(),
+                           "application/xml")
         elif url.path.startswith("/shells/") and url.path[8:] in SHELLS:
             with open(os.path.join(HERE, "web", "shells", url.path[8:]), "rb") as f:
                 self.send_body(200, f.read(), "image/svg+xml", [("Cache-Control", "max-age=3600")])

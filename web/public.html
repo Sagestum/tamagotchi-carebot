@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tamagotchi (und Ähnliche) von 1996 bis 1998 – Nostalgie-Seite</title>
 <meta name="description" content="Tamagotchi, Digimon und Pocket Pikachu aus den Jahren 1996 bis 1998, live emuliert und von einem Care-Bot gepflegt. Nur zum Zuschauen.">
+<link rel="canonical" href="__PUBLIC_URL__/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="de_DE">
+<meta property="og:site_name" content="Tamagotchi-Nostalgie">
+<meta property="og:title" content="Tamagotchi (und Ähnliche) von 1996 bis 1998 – live im Browser">
+<meta property="og:description" content="Tamagotchi, Digimon und Pocket Pikachu laufen hier als Originalprogramme weiter, rund um die Uhr gepflegt von einem Care-Bot. Zuschauen darf jeder.">
+<meta property="og:url" content="__PUBLIC_URL__/">
+<meta property="og:image" content="__PUBLIC_URL__/vorschau.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Sechs Taschentiere der Neunziger nebeneinander: Tamagotchi, Digimon und Pocket Pikachu">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.png" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/favicon-dark.png" media="(prefers-color-scheme: dark)">
 <style>
@@ -105,6 +117,10 @@
   .raised { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
   .raised li { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
   .note { color: var(--muted); font-size: 13px; }
+  #devices { margin-top: 28px; }
+  .devices { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 24px; }
+  .devices h3 { margin: 10px 0 2px; font-size: 15px; }
+  .devices p { margin: 0 0 4px; font-size: 14px; }
   footer { margin-top: 28px; color: var(--muted); font-size: 13px; max-width: 72ch; }
   footer h2 { margin: 16px 0 4px; }
   #offline { display: none; color: var(--accent); margin: 10px 0; }
@@ -151,6 +167,82 @@
     </aside>
   </div>
 
+  <section id="devices" aria-labelledby="devicesTitle">
+    <h2 id="devicesTitle">Die Geräte im Überblick</h2>
+    <div class="devices">
+      <article data-model="p1">
+        <h3>Tamagotchi P1</h3>
+        <p>Das erste Tamagotchi von Bandai, hier in der weltweiten Fassung von 1997. Aus dem Ei schlüpft Babytchi; wie gut man es pflegt und erzieht, entscheidet, welcher von sechs Erwachsenen daraus wird.</p>
+        <p class="note">Der Bot füttert, spielt, räumt auf, gibt Medizin und schimpft – oder lässt es mit Absicht, wenn das Ziel einen schlecht erzogenen Charakter verlangt.</p>
+      </article>
+      <article data-model="p1j">
+        <h3>Tamagotchi P1 (Japan)</h3>
+        <p>Das erste Tamagotchi in der japanischen Fassung vom November 1996: dasselbe Programm wie die weltweite Ausgabe, mit japanischen Bildern.</p>
+        <p class="note">Der Bot pflegt es wie die weltweite Fassung.</p>
+      </article>
+      <article data-model="p2">
+        <h3>Tamagotchi P2</h3>
+        <p>Die zweite Generation von 1997: neue Charaktere und ein neues Spiel, in dem man rät, ob die nächste Zahl höher oder niedriger ist.</p>
+        <p class="note">Der Bot pflegt es wie die erste Generation; das Spiel gewinnt er, weil die nächste Zahl schon im Speicher steht.</p>
+      </article>
+      <article data-model="angel">
+        <h3>Tamagotchi Angel</h3>
+        <p>Tenshitchi no Tamagotchi von 1997: der Engel eines verstorbenen Tamagotchi. Er lebt von Süßigkeiten und Gebeten, fürchtet Fledermäuse und hat einen Sensor im Gehäuse, auf den man klopft.</p>
+        <p class="note">Der Bot hält die Angel Power im richtigen Bereich, lobt die Gebete und vertreibt die Fledermaus.</p>
+      </article>
+      <article data-model="morino">
+        <h3>Tamagotchi Morino</h3>
+        <p>Mori de Hakken! Tamagotch von 1998, das Tamagotchi aus dem Wald: ein Insekt, das sich verpuppt. Was aus dem Kokon schlüpft, hängt an seiner Temperatur und an dem, was die Larve gefressen hat.</p>
+        <p class="note">Der Bot füttert, wärmt oder kühlt den Kokon und klopft, wenn ein Fressfeind kommt.</p>
+      </article>
+      <article data-model="umino">
+        <h3>Tamagotchi Umino</h3>
+        <p>Umi de Hakken! Tamagotch von 1998, das Tamagotchi aus dem Meer. Das Wasser wird schmutzig, Fressfeinde lauern, und sein Gewicht entscheidet mit, was aus ihm wird.</p>
+        <p class="note">Der Bot wechselt das Wasser, vertreibt die Feinde und steuert das Gewicht.</p>
+      </article>
+      <article data-model="mothra">
+        <h3>Tamagotchi Mothra</h3>
+        <p>Das Mothra-Tamagotchi von 1997 zum gleichnamigen Film: Man zieht die Riesenmotte groß und hält sie davon ab, Türme umzuwerfen.</p>
+        <p class="note">Der Bot pflegt sie und schimpft, sobald sie einen Turm angreift.</p>
+      </article>
+      <article data-model="genjin">
+        <h3>Tamagotchi Genjintch</h3>
+        <p>Genjintch von 1997: ein Urmensch als Tamagotchi. Er töpfert und will dafür gelobt werden.</p>
+        <p class="note">Der Bot pflegt ihn und lobt im richtigen Moment.</p>
+      </article>
+      <article data-model="tamaotch">
+        <h3>Tamagotchi Tamaotch</h3>
+        <p>TamaOtch von 1998, entstanden mit der Schauspielerin Tamao Nakamura: ein Tamagotchi, das Schauspieler werden will. Es übt, und sein Publikum entscheidet mit.</p>
+        <p class="note">Der Bot pflegt es, lässt es üben und gewinnt die Spiele.</p>
+      </article>
+      <article data-model="yasashii">
+        <h3>Tamagotchi Yasashii</h3>
+        <p>Yasashii Tamagotch, das sanfte Tamagotchi für kleine Kinder: kein Menü, sondern eine eigene Taste für jede Aktion. Dafür nimmt es schon nach gut zwei Minuten übel, wenn niemand kommt.</p>
+        <p class="note">Der Bot drückt für jede Bitte die passende Taste.</p>
+      </article>
+      <article data-model="digimon">
+        <h3>Digimon V1</h3>
+        <p>Digital Monster Ver. 1 von 1997, das Digimon-Gerät: ein Monster, das trainiert und kämpft. Pflegefehler, Training und Überfüttern entscheiden über die Entwicklung, bis hin zu Metal Greymon.</p>
+        <p class="note">Der Bot füttert, trainiert, heilt und kämpft gegen einen gedachten Gegner, der immer verliert.</p>
+      </article>
+      <article data-model="digimon2">
+        <h3>Digimon V2</h3>
+        <p>Digital Monster Ver. 2 von 1998: dieselbe Technik wie die erste Version, mit anderen Monstern und einem Training, bei dem ein Kraftbalken im richtigen Augenblick angehalten wird.</p>
+        <p class="note">Der Bot trifft den Balken auf die Hundertstelsekunde und kämpft gegen einen gedachten Gegner.</p>
+      </article>
+      <article data-model="digimon3">
+        <h3>Digimon V3</h3>
+        <p>Digital Monster Ver. 3 von 1998, wieder mit eigenen Monstern. Trainiert wird hier durch schnelles Drücken.</p>
+        <p class="note">Der Bot drückt schnell genug und kämpft gegen einen gedachten Gegner.</p>
+      </article>
+      <article data-model="pikachu">
+        <h3>Pocket Pikachu</h3>
+        <p>Der Pocket Pikachu von Nintendo, März 1998: ein Schrittzähler, in dem Pikachu wohnt. Je 20 Schritte gibt es ein Watt; wer läuft und Watt verschenkt, wird gemocht.</p>
+        <p class="note">Der Bot lässt das Pendel schwingen, zwei Schritte in der Sekunde, und verschenkt abends die Watt. Nachts schläft Pikachu, dann ruht auch der Bot.</p>
+      </article>
+    </div>
+  </section>
+
   <footer>
     <p>Tamagotchi und Digimon sind Marken von Bandai, Pikachu ist eine Marke von Nintendo. Diese Seite ist ein
       privates Bastelprojekt ohne Einnahmen und hat mit beiden nichts zu tun. Die Zeichnungen der Geräte stammen
@@ -175,37 +267,13 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
-/* What each device is: [about it, what the bot does there] */
-const ABOUT = {
-  p1: ['Das erste Tamagotchi von Bandai, hier in der weltweiten Fassung von 1997. Aus dem Ei schlüpft Babytchi; wie gut man es pflegt und erzieht, entscheidet, welcher von sechs Erwachsenen daraus wird.',
-       'Der Bot füttert, spielt, räumt auf, gibt Medizin und schimpft – oder lässt es mit Absicht, wenn das Ziel einen schlecht erzogenen Charakter verlangt.'],
-  p1j: ['Das erste Tamagotchi in der japanischen Fassung vom November 1996: dasselbe Programm wie die weltweite Ausgabe, mit japanischen Bildern.',
-        'Der Bot pflegt es wie die weltweite Fassung.'],
-  p2: ['Die zweite Generation von 1997: neue Charaktere und ein neues Spiel, in dem man rät, ob die nächste Zahl höher oder niedriger ist.',
-       'Der Bot pflegt es wie die erste Generation; das Spiel gewinnt er, weil die nächste Zahl schon im Speicher steht.'],
-  angel: ['Tenshitchi no Tamagotchi von 1997: der Engel eines verstorbenen Tamagotchi. Er lebt von Süßigkeiten und Gebeten, fürchtet Fledermäuse und hat einen Sensor im Gehäuse, auf den man klopft.',
-          'Der Bot hält die Angel Power im richtigen Bereich, lobt die Gebete und vertreibt die Fledermaus.'],
-  morino: ['Mori de Hakken! Tamagotch von 1998, das Tamagotchi aus dem Wald: ein Insekt, das sich verpuppt. Was aus dem Kokon schlüpft, hängt an seiner Temperatur und an dem, was die Larve gefressen hat.',
-           'Der Bot füttert, wärmt oder kühlt den Kokon und klopft, wenn ein Fressfeind kommt.'],
-  umino: ['Umi de Hakken! Tamagotch von 1998, das Tamagotchi aus dem Meer. Das Wasser wird schmutzig, Fressfeinde lauern, und sein Gewicht entscheidet mit, was aus ihm wird.',
-          'Der Bot wechselt das Wasser, vertreibt die Feinde und steuert das Gewicht.'],
-  mothra: ['Das Mothra-Tamagotchi von 1997 zum gleichnamigen Film: Man zieht die Riesenmotte groß und hält sie davon ab, Türme umzuwerfen.',
-           'Der Bot pflegt sie und schimpft, sobald sie einen Turm angreift.'],
-  genjin: ['Genjintch von 1997: ein Urmensch als Tamagotchi. Er töpfert und will dafür gelobt werden.',
-           'Der Bot pflegt ihn und lobt im richtigen Moment.'],
-  tamaotch: ['TamaOtch von 1998, entstanden mit der Schauspielerin Tamao Nakamura: ein Tamagotchi, das Schauspieler werden will. Es übt, und sein Publikum entscheidet mit.',
-             'Der Bot pflegt es, lässt es üben und gewinnt die Spiele.'],
-  yasashii: ['Yasashii Tamagotch, das sanfte Tamagotchi für kleine Kinder: kein Menü, sondern eine eigene Taste für jede Aktion. Dafür nimmt es schon nach gut zwei Minuten übel, wenn niemand kommt.',
-             'Der Bot drückt für jede Bitte die passende Taste.'],
-  digimon: ['Digital Monster Ver. 1 von 1997, das Digimon-Gerät: ein Monster, das trainiert und kämpft. Pflegefehler, Training und Überfüttern entscheiden über die Entwicklung, bis hin zu Metal Greymon.',
-            'Der Bot füttert, trainiert, heilt und kämpft gegen einen gedachten Gegner, der immer verliert.'],
-  digimon2: ['Digital Monster Ver. 2 von 1998: dieselbe Technik wie die erste Version, mit anderen Monstern und einem Training, bei dem ein Kraftbalken im richtigen Augenblick angehalten wird.',
-             'Der Bot trifft den Balken auf die Hundertstelsekunde und kämpft gegen einen gedachten Gegner.'],
-  digimon3: ['Digital Monster Ver. 3 von 1998, wieder mit eigenen Monstern. Trainiert wird hier durch schnelles Drücken.',
-             'Der Bot drückt schnell genug und kämpft gegen einen gedachten Gegner.'],
-  pikachu: ['Der Pocket Pikachu von Nintendo, März 1998: ein Schrittzähler, in dem Pikachu wohnt. Je 20 Schritte gibt es ein Watt; wer läuft und Watt verschenkt, wird gemocht.',
-            'Der Bot lässt das Pendel schwingen, zwei Schritte in der Sekunde, und verschenkt abends die Watt. Nachts schläft Pikachu, dann ruht auch der Bot.'],
-};
+/* What each device is and what the bot does there stands in the page itself (#devices),
+   so that it can be read without this script; here it is only looked up */
+const ABOUT = {};
+for (const art of document.querySelectorAll('#devices article')) {
+  const [about, bot] = art.querySelectorAll('p');
+  ABOUT[art.dataset.model] = [about.textContent, bot.textContent];
+}
 
 let pets = [], pet = null, draw = null, events = null, artFor = '';
 const shells = {};
