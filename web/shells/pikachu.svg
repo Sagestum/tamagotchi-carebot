@@ -23,8 +23,8 @@
 <path id="Vector 15" d="M316.646 1575.31L297.406 1538.3C294.983 1533.64 298.364 1528.07 303.616 1528.07L342.097 1528.07C347.349 1528.07 350.731 1533.64 348.308 1538.3L329.068 1575.31C326.453 1580.33 319.26 1580.33 316.646 1575.31Z" fill="#62637F" stroke="url(#paint18_linear_0_1)"/>
 <rect id="btnRight" x="383.34" y="1379.59" width="120.464" height="103.707" fill="black" fill-opacity="0.01"/>
 <rect id="btnLeft" x="142.913" y="1379.59" width="119.807" height="103.707" fill="black" fill-opacity="0.01"/>
-<rect id="btnDown" x="271.54" y="1612.65" width="122.012" height="102.901" transform="rotate(-90 271.54 1612.65)" fill="black" fill-opacity="0.01"/>
-<rect id="btnUp" x="271.54" y="1371.57" width="120.549" height="102.901" transform="rotate(-90 271.54 1371.57)" fill="black" fill-opacity="0.01"/>
+<rect id="btnDown" x="271.54" y="1490.638" width="102.901" height="122.012" fill="black" fill-opacity="0.01"/>
+<rect id="btnUp" x="271.54" y="1251.021" width="102.901" height="120.549" fill="black" fill-opacity="0.01"/>
 </g>
 <path id="btnStart" d="M1011.25 1703.2C1011.25 1728.68 972.079 1739.7 923.754 1739.7C875.429 1739.7 836.254 1728.68 836.254 1703.2C836.254 1677.72 875.429 1666.7 923.754 1666.7C972.079 1666.7 1011.25 1677.72 1011.25 1703.2Z" fill="url(#paint19_linear_0_1)" stroke="url(#paint20_linear_0_1)" stroke-width="4"/>
 <path id="btnSelect" d="M674.852 1703.2C674.852 1728.68 635.677 1739.7 587.352 1739.7C539.027 1739.7 499.852 1728.68 499.852 1703.2C499.852 1677.72 539.027 1666.7 587.352 1666.7C635.677 1666.7 674.852 1677.72 674.852 1703.2Z" fill="url(#paint21_linear_0_1)" stroke="url(#paint22_linear_0_1)" stroke-width="4"/>
