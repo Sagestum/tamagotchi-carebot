@@ -26,15 +26,20 @@ COUNTED = {"Saubermachen": "cleaned", "Medizin geben": "healed", "Schimpfen": "s
 LCD_BG, LCD_ON, LCD_OFF = (183, 196, 161), (32, 40, 28), (172, 185, 151)
 
 
-def lcd_png(pixels, scale=12):
-    """The 32x16 LCD as PNG bytes, drawn like the web UI does."""
-    width, height = LCD_W * scale, LCD_H * scale
+SIZES = {LCD_W * LCD_H: (LCD_W, LCD_H, 12),     # a Tamagotchi's LCD
+         36 * 30: (36, 30, 8)}                  # the Pocket Pikachu's dot matrix
+
+
+def lcd_png(pixels):
+    """The LCD as PNG bytes, drawn like the web UI does."""
+    cols, rows, scale = SIZES[len(pixels)]
+    width, height = cols * scale, rows * scale
     raw = bytearray()
     for y in range(height):
         raw.append(0)
         for x in range(width):
             edge = x % scale in (0, scale - 1) or y % scale in (0, scale - 1)
-            on = pixels[(y // scale) * LCD_W + x // scale]
+            on = pixels[(y // scale) * cols + x // scale]
             raw.extend(LCD_BG if edge else LCD_ON if on else LCD_OFF)
 
     def chunk(kind, data):
@@ -87,10 +92,11 @@ def compose(sections, mail_from, mail_to):
         part = '<table style="font:15px sans-serif;border-collapse:collapse">%s</table>' % part
         if not one:
             part = '<h2 style="font:bold 17px sans-serif;margin:26px 0 8px">%s</h2>' % escape(title) + part
-        if sec.get("picture"):
+        if sec.get("picture") and len(sec["picture"]) in SIZES:
+            cols, rows, scale = SIZES[len(sec["picture"])]
             part += ('<p style="font:13px sans-serif;color:#666">So sah es zuletzt wach aus:</p>'
-                     '<img src="cid:lcd%d" width="384" height="192" alt="Tamagotchi-Display" '
-                     'style="border-radius:8px">' % n)
+                     '<img src="cid:lcd%d" width="%d" height="%d" alt="Tamagotchi-Display" '
+                     'style="border-radius:8px">' % (n, cols * scale, rows * scale))
             pictures.append((n, sec["picture"]))
         html.append(part)
     msg.set_content("\n".join(text))
@@ -176,7 +182,7 @@ class DailyReport:
             self.stats["happy"] += max(0, hearts[1] - self.prev_hearts[1])
         self.prev_hearts = hearts
 
-        if not st["asleep"] and st["light"] and not any(icons[:7]) and not st.get("saver"):
+        if pixels and not st["asleep"] and st["light"] and not any(icons[:7]) and not st.get("saver"):
             self.picture = bytes(pixels)
 
         if st["asleep"] == self.asleep:

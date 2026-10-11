@@ -19,6 +19,8 @@ KEYS = {0: (2, 0x01), 1: (2, 0x02), 3: (4, 0x01),
         8: (2, 0x40), 9: (2, 0x10), 10: (2, 0x80), 11: (2, 0x20),     # up, down, left, right
         12: (2, 0x04), 13: (2, 0x08)}                                  # start, select
 BTN_A, BTN_B, BTN_STEP = 0, 1, 3
+DOTS_W, DOTS_H = 36, 30                 # the dot matrix in the middle of the display
+DOTS_AT = (16, 68, 104, 140)            # the LCD byte of its right column, for every eight rows
 BTN_UP, BTN_DOWN, BTN_LEFT, BTN_RIGHT, BTN_START, BTN_SELECT = 8, 9, 10, 11, 12, 13
 
 
@@ -80,6 +82,16 @@ class Pika:
         """The LCD memory, or None while the display is switched off."""
         on = self.lib.pika_get_frame(self._lcd)
         return self._lcd.raw if on else None
+
+    def dots(self):
+        """The dot matrix (DOTS_W x DOTS_H, a byte a dot, row by row), or None while the
+        display is switched off. A column is a byte of the LCD memory for every eight
+        rows, counted from the right and from the bottom."""
+        lcd = self.lcd_memory()
+        if lcd is None:
+            return None
+        return bytes(lcd[DOTS_AT[(DOTS_H - 1 - y) // 8] + DOTS_W - 1 - x] >> (DOTS_H - 1 - y) % 8 & 1
+                     for y in range(DOTS_H) for x in range(DOTS_W))
 
     def lit(self, byte, bit):
         return self.lib.pika_get_memory(LCD_AT + byte) >> bit & 1

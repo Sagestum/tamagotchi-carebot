@@ -394,7 +394,11 @@ class Engine:
         if self.slices % 32 == 0:   # once per emulated second
             status = self.bot.status()
             self.chronicle(status)
-            self.report.observe(status, *tama.frame(), now)
+            pixels, icons = tama.frame()
+            if self.model.game == "pikachu":
+                # its picture is the dot matrix, while it shows Pikachu and no menu
+                pixels = tama.dots() if status["screen"] == 0 else None
+            self.report.observe(status, pixels, icons, now)
 
     def publish(self):
         tama = self.tama
