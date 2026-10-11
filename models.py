@@ -16,6 +16,7 @@ import growth_morino
 import growth_tamaotch
 import growth_yasashii
 import growth_mothra
+import growth_pikachu
 import growth_umino
 
 
@@ -205,8 +206,18 @@ YASASHII = Model(
     icon_pins=((40, 8), (40, 12), (41, 8), (43, 8), (42, 12), (42, 8), (50, 8), (50, 12)),
     buttons=("F", "S", "H", "K", "T", "A", "B", "C"))
 
+# The Pocket Pikachu (1998) is no Tamagotchi: a step counter on another processor (a
+# Mitsubishi M37520, src/pika_core.c) with a display of its own (pika.py). It has eight keys
+# and a pendulum; its Care-Bot is carebot_pikachu.py.
+PIKACHU = Model(
+    "pikachu", "Pocket Pikachu", "PocketPikachu.bin aus der Sammlung zu BrickEmuPy",
+    20480, "b96e3eb9f9c973fd9e27dfb01591f4cde4d91f99", "20c481e4",
+    growth_pikachu.NAMES, (), "pikachu", icons=(), care=True, tap=True, unit="W", goals=True,
+    rules=growth_pikachu, hold=0.15,
+    buttons=("A", "B", "T", "up", "down", "left", "right", "start", "select"))
+
 MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, DIGIMON2, DIGIMON3,
-          YASASHII)
+          YASASHII, PIKACHU)
 BY_ID = {m.id: m for m in MODELS}
 
 

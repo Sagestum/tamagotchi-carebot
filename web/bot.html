@@ -934,6 +934,7 @@ function path(list) {
 let drawn = '', CHART = null;
 function render(msg) {
   if (!msg.goals) { location.replace('/#' + pet); return; }    // nothing to plan for this model
+  if (msg.model === 'pikachu') { location.replace('/pikachu?pet=' + pet); return; }   // it has a page of its own
   const st = msg.status, g = msg.growth;
   const alive = !!g && st.stage > 0;
   const counting = alive && st.stage >= 2;

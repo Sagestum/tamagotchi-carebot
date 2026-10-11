@@ -124,6 +124,7 @@ class DailyReport:
         self.name = name        # which pet, when there are several
         self.unit = "oz"        # of the weight
         self.hand_over = None   # takes a report for the gathered mail (set by the worker)
+        self.rows = None        # (status, stats) -> rows, for a device that is no Tamagotchi
         self.configure(smtp or smtp_from_env())
 
         self.asleep = False         # debounced
@@ -189,7 +190,7 @@ class DailyReport:
             if self.asleep:
                 self.stats["slept"] = when
                 # Babies only nap; the report is for the night's sleep
-                if st["stage"] >= 2 and time.time() - self.last_sent >= MIN_GAP:
+                if (st["stage"] >= 2 or self.rows) and time.time() - self.last_sent >= MIN_GAP:
                     self.send(st)
                     self.last_sent = time.time()
                     self.reset_counters()
@@ -201,7 +202,7 @@ class DailyReport:
     def section(self, st):
         """The report as data: for compose(), and to hand over for the gathered mail."""
         s = self.stats
-        rows = [
+        rows = self.rows(st, s) if self.rows else [
             ("Aufgewacht", s["woke"] or "–"),
             ("Eingeschlafen", s["slept"] or "–"),
             ("Herzen aufgefüllt", "%d (Hunger %d, Glück %d)"
@@ -214,7 +215,7 @@ class DailyReport:
         extra = [("%d× saubergemacht", s["cleaned"]), ("%d× Medizin", s["healed"]),
                  ("%d× geschimpft", s["scolded"])]
         extra = ", ".join(text % n for text, n in extra if n)
-        if extra:
+        if extra and not self.rows:
             rows.append(("Außerdem", extra))
 
         return {"name": self.name, "slept": s["slept"], "rows": rows, "picture": self.picture,

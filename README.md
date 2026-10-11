@@ -30,6 +30,7 @@ braucht seine eigene:
 | Digimon V1 | `digimon.bin` aus dem MAME-Romset `digimon` | 16 384 Bytes | `1dde9b0aa81c8f4a1e22d3a79d4743833fc6cba7` | `08ffac1b` |
 | Digimon V2 | `digimonv2.bin` aus dem MAME-Romset `digimonv2` | 16 384 Bytes | `ab860ca9f31f478532122cb9d20f59964a080a27` | `19a9e54e` |
 | Digimon V3 | `digimonv3.bin` aus dem MAME-Romset `digimonv3` | 16 384 Bytes | `0acd50e623e20d857e13bae150ac03405896cf2b` | `3000cf30` |
+| Pocket Pikachu | `PocketPikachu.bin` (Sammlung zu BrickEmuPy) | 20 480 Bytes | `b96e3eb9f9c973fd9e27dfb01591f4cde4d91f99` | `20c481e4` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -495,6 +496,58 @@ passte jede Verwandlung dazu, und alle sieben Erwachsenen sind entstanden. Mit Z
 Bot die nötigen Pflegefehler; das Ziel selbst kam, wie der Münzwurf erwarten lässt, in etwa
 jedem dritten bis zweiten Leben heraus (Micheltchi in 3 von 8).
 
+### Pocket Pikachu
+
+Der Pocket Pikachu (Nintendo, März 1998) ist kein Tamagotchi, sondern ein Schrittzähler, in dem
+Pikachu wohnt. Er läuft auf einem anderen Prozessor, einem Mitsubishi M37520 (740er-Familie,
+ein Verwandter des 6502), den `src/pika_core.c` nachbildet: Befehl für Befehl nach dem Kern von
+[BrickEmuPy](https://github.com/azya52/BrickEmuPy) geschrieben und über 44 Millionen Befehle
+im Gleichschritt mit ihm geprüft. Zwei Dinge sind anders als dort: CPY setzt das N-Flag
+richtig, und die Timer 2 und 3 zählen die Unterläufe von Timer 1 alle „Latch + 1“ Takte – sonst
+ginge die Uhr des Geräts in der Stunde 28 Sekunden vor. Das Display hat 36×30 Punkte, fünf
+Ziffern und drei Symbole; die Seite bekommt den Anzeigespeicher, wie er ist, und schaltet danach
+die Teile der Zeichnung.
+
+Das Gerät hat ein Steuerkreuz, A, B, Start und Select. Die Schritte zählt ein Pendel; in der
+Oberfläche ist das ein Klick auf das Display, der Knopf „Ein Schritt“ oder die Taste T. Schneller
+als etwa alle 0,4 Sekunden zählt es nicht mehr jeden Schritt.
+
+Pikachu wächst nicht. Das Programm führt ein Konto der Zuneigung, in Watt:
+
+| Was | Konto |
+|---|---|
+| Anfang | 1500, höchstens 4000 |
+| Jede Stunde | −10 |
+| Jedes erlaufene Watt (20 Schritte) | +1, höchstens 250 am Tag |
+| Jedes geschenkte Watt | +1, höchstens 700 am Tag |
+| Laufen bei eingeschaltetem Display, während er schläft (20 bis 7 Uhr) | −200 |
+| Laufen bei eingeschaltetem Display, während er spielt oder nascht | −20 oder −100 |
+| Konto leer | er läuft weg; zehn Schritte bei eingeschaltetem Display holen ihn mit 100 zurück |
+
+Aus dem Konto wird um 8 Uhr morgens und bei jedem Geschenk die Stimmung: unter 1000 böse, ab
+1000 zufrieden, ab 2000 mag er einen, ab 3000 liebt er einen. Der Tag des Geräts beginnt um 8
+Uhr; dann fangen auch die beiden Tagesgrenzen neu an. Das Display geht nach einer Minute aus,
+gezählt wird trotzdem, und bei ausgeschaltetem Display wird nie etwas abgezogen.
+
+Der Zähler auf dem Display schaltet bei 150 000, 300 000 und 450 000 Schritten neue Bilder frei
+(was genau, steht bei [serebii.net](https://www.serebii.net/virtualpet/pokemonpikachu/)); ab
+300 000 geht Pikachu eine Stunde später ins Bett. Bei 999 999 ist Schluss: Das Gerät zeigt einen
+letzten Bildschirm, die Uhr bleibt stehen, und weiter geht es nur mit einem Reset. Der zweite
+Zähler auf dem Freundschaftsbildschirm endet schon bei 99 999. Auf der Platine gibt es außerdem
+zwei Prüfkontakte, die das Programm bei jedem Schritt abfragt: Der eine gibt je Schritt 5000
+Schritte und 250 Watt, der andere zieht 500 vom Konto ab. Sie sind hier nicht verdrahtet.
+
+Der Care-Bot (`carebot_pikachu.py`) stellt die Uhr, läuft und schenkt. Statt eines Zielcharakters
+wählt man, wie viel er läuft: ohne Ziel 5000 Schritte am Tag, als Spaziergang 3000, als Wanderung
+10 000, im Dauerlauf Tag und Nacht (172 800). Die Schritte eines Tages verteilt er von 8 bis 20
+Uhr, und ab 19 Uhr verschenkt er die Watt, höchstens die 700, die an einem Tag zählen. Er läuft
+nur, wenn das Display aus ist, oder tagsüber, wenn Pikachu gerade nichts vorhat. Mit „Nach dem
+Ende neu beginnen“ setzt er das Gerät nach dem letzten Bildschirm zurück.
+
+Im Labor (`lab/pikachu/botsim.py`) liebte Pikachu den Bot ohne Ziel am sechsten Tag und mit
+der Wanderung am dritten; im Dauerlauf war der Zähler nach knapp sieben Tagen voll. Abgezogen
+wurde in keinem Lauf etwas außer den 10 je Stunde.
+
 ### Tamagotchi Angel
 
 Der Angel (Tenshitchi no Tamagotchi, hier die japanische Fassung) hat einen ersten Care-Bot.
@@ -622,6 +675,8 @@ src/tamalib/     TamaLIB mit zwei Korrekturen in cpu.c: i = 0xFF in cpu_step, un
                  jetzt wirklich einen Interrupt aus (die Maske landete im falschen Register)
 src/tama_core.c  C-Hülle: ROM laden, Ticks laufen lassen, LCD/Ton/RAM auslesen, Zustand sichern
 tama.py          ctypes-Anbindung
+src/pika_core.c  der Pocket Pikachu: ein eigener Kern für seinen Prozessor (M37520)
+pika.py          dessen ctypes-Anbindung, carebot_pikachu.py und growth_pikachu.py Bot und Regeln
 carebot.py       der Care-Bot (P1, P2, Angel, Morino)
 carebot_umino.py, carebot_mothra.py   die Bots für Umino und Mothra
 growth.py        Wachstumsregeln und Planung für ein Ziel (P1, P2)
@@ -641,6 +696,7 @@ GPL-2.0, wie TamaLIB (siehe `LICENSE`). Das Spiel-Icon ist „arrow-left-right�
 Favicon ist das Icon
 [„Tamagotchi“, erstellt von Magnific – Flaticon](https://www.flaticon.com/de/kostenloses-icon/tamagotchi_743850);
 es steht unter der Flaticon-Lizenz und nicht unter der GPL. Die Zeichnungen der Geräte in
-`web/shells/` stammen aus [BrickEmuPy](https://github.com/azya52/BrickEmuPy) von azya52 (CC0).
-Tamagotchi ist eine Marke von Bandai;
+`web/shells/` stammen aus [BrickEmuPy](https://github.com/azya52/BrickEmuPy) von azya52 (CC0), ebenso
+die Vorlage für den Kern des Pocket Pikachu.
+Tamagotchi ist eine Marke von Bandai, Pikachu eine von Nintendo;
 dieses Projekt hat mit Bandai nichts zu tun.

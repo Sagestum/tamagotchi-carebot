@@ -37,10 +37,10 @@ import models  # noqa: E402
 from report import compose, deliver, smtp_from_env  # noqa: E402
 
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
-         "/settings": "settings.html", "/chronik": "chronik.html"}
+         "/settings": "settings.html", "/chronik": "chronik.html", "/pikachu": "pikachu.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
 SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genjin.svg",
-          "tamaotch.svg", "digimon.svg", "digimon2.svg", "digimon3.svg", "yasashii.svg", "p1w.svg",
+          "tamaotch.svg", "digimon.svg", "digimon2.svg", "digimon3.svg", "yasashii.svg", "p1w.svg", "pikachu.svg",
           "p2.svg")
 MAX_UPLOAD = 4 << 20
 MAX_NAME = 24
@@ -578,6 +578,7 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         seen, log_seen, lives_seen = -1, -1, -1
         pet.send("wake")                    # the tab was opened
+        woke = time.monotonic()
         try:
             while pet.alive and pet.id in self.app.pets:
                 with pet.changed:
@@ -597,6 +598,10 @@ class Handler(BaseHTTPRequestHandler):
                 if msg["livesId"] != lives_seen:
                     lives_seen = msg["livesId"]
                     msg["lives"] = lives
+                if pet.model.game == "pikachu" and time.monotonic() - woke > 30:
+                    # its display goes dark after a minute: keep it on while someone looks
+                    woke = time.monotonic()
+                    pet.send("wake")
                 self.wfile.write(b"data: " + json.dumps(msg).encode() + b"\n\n")
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):

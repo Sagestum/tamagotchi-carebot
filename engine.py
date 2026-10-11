@@ -16,12 +16,14 @@ import time
 import models
 from carebot import CareBot
 from carebot_mothra import MothraBot
+from carebot_pikachu import PikachuBot
 from carebot_digimon import DigimonBot
 from carebot_plain import PlainBot
 from carebot_yasashii import YasashiiBot
 from carebot_tamaotch import TamaotchBot
 from carebot_umino import UminoBot
 from report import DailyReport
+from pika import Pika
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_H, LCD_W, TICK_HZ, Tama
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +38,9 @@ GONE_AFTER = 60                 # emulated seconds without a character until a l
 LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
 # K, H, S, F: the inputs K10 to K13, the Yasashii's buttons for cleaning, the heart, play and food
-BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7}
+BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S": 6, "F": 7,
+           # the Pocket Pikachu's control pad and its two small keys (T is its pendulum)
+           "up": 8, "down": 9, "left": 10, "right": 11, "start": 12, "select": 13}
 FLIP = 12       # hours: the clock of a pet whose day and night change places
 COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake",
             "report_now", "note", "duel_word", "duel_host", "duel_guest")
@@ -49,7 +53,7 @@ class Engine:
         # called with (snapshot, sound, log or None, chronicle or None) when the picture changes
         self.emit = emit
         self.lock = threading.Lock()
-        self.tama = Tama(rom_path, LIB)
+        self.tama = (Pika if model.game == "pikachu" else Tama)(rom_path, LIB)
         self.log = collections.deque(maxlen=60)
         self.log_id = 0
         self.log_sent = -1
@@ -58,9 +62,11 @@ class Engine:
         self.tama.icon_pins = model.icon_pins
         self.tama.lcd = model.lcd
         bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot,
-               "digimon": DigimonBot, "yasashii": YasashiiBot}.get(model.game, CareBot)
+               "digimon": DigimonBot, "yasashii": YasashiiBot,
+               "pikachu": PikachuBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.begun_again
+        self.report.rows = getattr(self.bot, "report_rows", None)
         self.flip = False       # day and night change places, from the next egg on
         self.tell = lambda *msg: None       # sends a message to the server (set by the worker)
         self.shuffle = False    # a life the bot begins itself gets another goal, drawn by lot
@@ -186,6 +192,9 @@ class Engine:
         """Someone looks at the pet: a press of A takes the screen saver away (the Morino
         has one; there A does nothing else). Not while the bot or the user is at work."""
         with self.lock:
+            if hasattr(self.bot, "look") and self.bot_enabled and self.hands_off is None:
+                self.bot.look()         # the Pocket Pikachu's bot does it when it suits
+                return
             if self.pressed or getattr(self.bot, "task", None) is not None \
                     or not self.bot.status().get("saver"):
                 return
@@ -394,12 +403,16 @@ class Engine:
         tama = self.tama
         pixels, icons = tama.frame()
         rows = []
-        for y in range(LCD_H):
-            bits = 0
-            for x in range(LCD_W):
-                if pixels[y * LCD_W + x]:
-                    bits |= 1 << (LCD_W - 1 - x)
-            rows.append("%08x" % bits)
+        if self.model.game == "pikachu":
+            # its LCD memory as it is; nothing while the display is switched off
+            rows.append((tama.lcd_memory() or b"").hex())
+        else:
+            for y in range(LCD_H):
+                bits = 0
+                for x in range(LCD_W):
+                    if pixels[y * LCD_W + x]:
+                        bits |= 1 << (LCD_W - 1 - x)
+                rows.append("%08x" % bits)
         now = tama.ticks
         self.sound.extend(tama.drain_sound())
         # [milliseconds before "now", frequency in Hz]; only meaningful in real time

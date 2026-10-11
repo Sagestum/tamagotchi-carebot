@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)">
+<title>Pocket Pikachu – Care-Bot</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 14px 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  a { color: var(--accent); }
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  p { margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row > span:first-child { color: var(--muted); }
+  .row > :last-child { text-align: right; }
+  .row.off { opacity: 0.45; }
+  .row.tall { display: block; padding: 5px 0; }
+  .row.tall > span { display: block; text-align: left; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch b {
+    position: absolute; inset: 0;
+    border-radius: 99px;
+    background: var(--line);
+    transition: background 0.15s;
+  }
+  .switch b::after {
+    content: "";
+    position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+  }
+  .switch input:checked + b { background: var(--ok); }
+  .switch input:checked + b::after { transform: translateX(18px); }
+  .switch input:focus-visible + b { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .plain {
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .plain:disabled { opacity: 0.45; cursor: default; }
+  .bars { letter-spacing: 2px; color: var(--accent); }
+  .bars i { font-style: normal; opacity: 0.22; }
+
+  [hidden] { display: none !important; }
+  /* The growth chart */
+  #chart .px.a { animation: frameA 1.4s steps(1) infinite; }
+  #chart .px.b { animation: frameB 1.4s steps(1) infinite; }
+  @keyframes frameA { 0% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes frameB { 0% { opacity: 0; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    #chart .px.a { animation: none; }
+    #chart .px.b { display: none; }
+  }
+  #chart { display: block; width: 100%; height: auto; }
+  #chart text {
+    font: 12px system-ui, -apple-system, "Segoe UI", sans-serif;
+    fill: var(--ink);
+    text-anchor: middle;
+  }
+  #chart .edge { fill: none; stroke: var(--line); stroke-width: 2; }
+  #chart .edge.gone { stroke: var(--muted); }
+  #chart .edge.forecast { stroke: var(--ink); stroke-dasharray: 5 5; }
+  #chart .edge.plan { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .node .lcd { fill: var(--lcd); stroke: var(--line); stroke-width: 1.5; }
+  #chart .node .px { fill: var(--lcd-on); }
+  #chart .node.out { opacity: 0.3; }
+  #chart .node.pick { cursor: pointer; }
+  #chart .node.pick:hover .lcd, #chart .node.pick:focus-visible .lcd { stroke: var(--ink); }
+  #chart .node:focus { outline: none; }
+  #chart .node.here .lcd { stroke: var(--ink); stroke-width: 3.5; }
+  #chart .node.goal .lcd { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .node.here text, #chart .node.goal text { font-weight: 600; }
+  #chart .tag { font-size: 10px; fill: var(--panel); font-weight: 600; }
+  #chart .tagbg.here { fill: var(--ink); }
+  #chart .tagbg.goal { fill: var(--accent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 26px; height: 8px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 8px 4px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; border-top: 0; }
+  .scroll { overflow-x: auto; }
+  #log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 190px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  #log li { display: flex; gap: 10px; padding: 2px 0; }
+  #log time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #offline {
+    display: none;
+    grid-column: 1 / -1;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 14px;
+  }
+  #offline.show { display: block; }
+  .ways { display: grid; gap: 10px; }
+  .way {
+    display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .way:hover { border-color: var(--muted); }
+  .way.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .way b { display: block; margin-bottom: 2px; }
+  .way span { display: block; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Care-Bot</h1>
+    <a href="/" id="back">← zurück zum Pikachu</a>
+  </header>
+  <div id="offline">Keine Verbindung zum Server – bitte die Seite neu laden.</div>
+
+  <div style="display:grid;gap:14px">
+    <section>
+      <h2>Wie viel der Bot läuft</h2>
+      <div class="ways" id="ways"></div>
+      <p class="note" style="margin:8px 0 0">Der Bot lässt das Pendel zweimal in der Sekunde schwingen; schneller zählt
+        das Gerät nicht mehr jeden Schritt. Die Schritte eines Tages verteilt er von 8 bis 20 Uhr, und abends
+        verschenkt er die erlaufenen Watt.</p>
+    </section>
+
+    <section>
+      <h2>So rechnet der Pocket Pikachu</h2>
+      <p class="note">Er wächst nicht. Er führt ein Konto der Zuneigung, in Watt, und einmal am Tag, um 8 Uhr morgens,
+        wird daraus seine Stimmung.</p>
+      <div class="scroll">
+      <table>
+        <tr><th>Was</th><th>Konto</th></tr>
+        <tr><td>Anfang</td><td>1.500, höchstens 4.000</td></tr>
+        <tr><td>Jede Stunde</td><td>−10 (240 am Tag)</td></tr>
+        <tr><td>Jedes erlaufene Watt (20 Schritte)</td><td>+1, höchstens 250 am Tag</td></tr>
+        <tr><td>Jedes geschenkte Watt</td><td>+1, höchstens 700 am Tag</td></tr>
+        <tr><td>Laufen bei eingeschaltetem Display, während er schläft (20 bis 7 Uhr)</td><td>−200</td></tr>
+        <tr><td>Laufen bei eingeschaltetem Display, während er spielt oder nascht</td><td>−20 oder −100</td></tr>
+        <tr><td>Konto leer</td><td>Er läuft weg; Schütteln holt ihn mit 100 zurück</td></tr>
+      </table>
+      </div>
+      <div class="scroll" style="margin-top:12px">
+      <table>
+        <tr><th>Stimmung</th><th>ab Konto</th><th>Schritte auf dem Zähler</th><th>Neu</th></tr>
+        <tr><td>böse</td><td>1</td><td>150.000</td><td>Trompete, Drachen steigen lassen</td></tr>
+        <tr><td>zufrieden</td><td>1.000</td><td>300.000</td><td>Baden, Lernen, Jo-Jo, Radio; geht eine Stunde später ins Bett</td></tr>
+        <tr><td>mag dich</td><td>2.000</td><td>450.000</td><td>Englisch, Computer, Klavier</td></tr>
+        <tr><td>liebt dich</td><td>3.000</td><td>999.999</td><td>Ende des Zählers</td></tr>
+      </table>
+      </div>
+      <p class="note" style="margin-top:8px">Die Zahlen stammen aus dem Programm des Geräts und sind daran nachgemessen.
+        Was er ab welcher Schrittzahl Neues tut, steht so bei serebii.net. Bei ausgeschaltetem Display zählt jeder
+        Schritt, und nichts wird abgezogen: Deshalb läuft der Bot nur dann, oder tagsüber, wenn Pikachu gerade nichts
+        vorhat.</p>
+    </section>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Care-Bot</h2>
+      <div class="row">
+        <span>Kümmert sich automatisch</span>
+        <label class="switch"><input type="checkbox" id="bot"><b></b></label>
+      </div>
+      <div class="row tall"><span>Ziel</span><span><b id="goalName">–</b></span></div>
+      <p class="note" id="goalText" style="margin:10px 0 0"></p>
+    </section>
+
+    <section>
+      <h2>Stand</h2>
+      <div class="row"><span>Stimmung</span><span id="mood">–</span></div>
+      <div class="row"><span>Zuneigungskonto</span><span id="account">–</span></div>
+      <div class="row"><span>Heute erlaufen</span><span id="walked">–</span></div>
+      <div class="row"><span>Heute geschenkt</span><span id="given">–</span></div>
+      <div class="row"><span>Watt</span><span id="watts">–</span></div>
+      <div class="row"><span>Schritte heute</span><span id="today">–</span></div>
+      <div class="row"><span>Schritte auf dem Zähler</span><span id="steps">–</span></div>
+      <div class="row"><span>Schritte insgesamt</span><span id="total">–</span></div>
+      <div class="row tall"><span>So geht es weiter</span><span id="ahead">–</span></div>
+    </section>
+
+    <section>
+      <h2>Protokoll</h2>
+      <ul id="log"></ul>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let pet = new URLSearchParams(location.search).get('pet');
+function post(path, body) {
+  return fetch(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({...body, pet}),
+  }).catch(() => {});
+}
+const n = (v) => v.toLocaleString('de-DE');
+const days = (d) => d === null ? 'nie' : d === 0 ? 'erreicht' : d === 1 ? 'in 1 Tag' : 'in ' + n(d) + ' Tagen';
+
+let drawn = '';
+function drawWays(msg) {
+  const key = JSON.stringify([msg.goal, msg.growth.ways]);
+  if (key === drawn) return;
+  drawn = key;
+  const box = $('ways');
+  box.textContent = '';
+  for (const w of msg.growth.ways) {
+    const b = document.createElement('button');
+    b.className = 'way' + (w.goal === msg.goal ? ' on' : '');
+    b.setAttribute('aria-pressed', w.goal === msg.goal);
+    const net = w.walked + w.given - w.lost;
+    const title = document.createElement('b');
+    title.textContent = w.goal === null ? 'Ohne Ziel: ' + n(w.perDay) + ' Schritte am Tag' : w.name;
+    const sum = document.createElement('span');
+    sum.textContent = 'Konto am Tag: +' + w.walked + ' erlaufen, +' + w.given + ' geschenkt, −' + w.lost + ' = '
+      + (net >= 0 ? '+' : '−') + Math.abs(net) + ' · „liebt dich“ ' + days(w.moods[w.moods.length - 1][3]);
+    const far = document.createElement('span');
+    far.textContent = w.unlocks.map(([at, d]) => n(at) + ' Schritte ' + days(d)).join(' · ');
+    b.append(title, sum, far);
+    b.addEventListener('click', () => post('/api/config', {goal: w.goal}));
+    box.append(b);
+  }
+}
+
+function render(msg) {
+  if (msg.model !== 'pikachu') { location.replace('/bot?pet=' + pet); return; }
+  const st = msg.status, alive = st.stage > 0;
+  drawWays(msg);
+  $('bot').checked = msg.bot;
+  const way = msg.growth.ways.find((w) => w.goal === msg.goal) || msg.growth.ways[0];
+  $('goalName').textContent = msg.goal === null ? 'keins (' + n(way.perDay) + ' Schritte am Tag)' : way.name;
+  $('goalText').textContent = !msg.bot ? 'Der Bot ist aus.'
+    : st.held ? 'Der Bot wartet mit dem Laufen, bis das Display wieder aus ist: Pikachu schläft oder ist beschäftigt.'
+    : 'Der Bot läuft, bis die Schritte des Tages beisammen sind, und verschenkt die Watt am Abend.';
+  $('mood').textContent = alive ? st.moodName : '–';
+  $('account').textContent = alive ? n(st.account) + ' von 4.000' : '–';
+  $('walked').textContent = alive ? st.walked + ' von 250' : '–';
+  $('given').textContent = alive ? st.given + ' von 700' : '–';
+  $('watts').textContent = alive ? n(st.weight) : '–';
+  $('today').textContent = alive ? n(st.today) + ' von ' + n(st.perDay) : '–';
+  $('steps').textContent = alive ? n(st.steps) : '–';
+  $('total').textContent = alive ? n(st.total) : '–';
+  const next = way.moods.find((m) => m[3] !== 0), far = way.unlocks.find((u) => u[1] !== 0);
+  $('ahead').textContent = !alive ? '–' : [
+    next ? '„' + next[1] + '“ ' + days(next[3]) : 'Er liebt dich; das Konto ist ' + days(way.full).replace('erreicht', 'voll'),
+    far ? n(far[0]) + ' Schritte ' + days(far[1]) : 'Der Zähler ist am Ende',
+  ].join(' · ');
+  if (msg.log) {
+    const list = $('log');
+    list.textContent = '';
+    for (const [when, line] of msg.log.slice().reverse()) {
+      const li = document.createElement('li');
+      const time = document.createElement('time');
+      time.textContent = when;
+      li.append(time, line);
+      list.append(li);
+    }
+  }
+}
+
+$('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
+
+async function start() {
+  const pets = (await (await fetch('/api/pets')).json()).pets;
+  const mine = pets.find((p) => p.id === pet) || pets[0];
+  if (!mine) { location.href = '/settings'; return; }
+  pet = mine.id;
+  $('back').href = '/#' + pet;
+  $('back').textContent = '← zurück zu ' + mine.name;
+  document.title = mine.name + ' – Care-Bot';
+  const events = new EventSource('/events?pet=' + pet);
+  events.onmessage = (e) => { $('offline').classList.remove('show'); render(JSON.parse(e.data)); };
+  events.onerror = () => $('offline').classList.add('show');
+}
+start().catch(() => $('offline').classList.add('show'));
+</script>
+</body>
+</html>

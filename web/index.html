@@ -85,6 +85,8 @@
   }
   .shell[hidden] { display: none; }
   .art svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .art.tall { width: min(100%, 400px); }      /* the Pocket Pikachu stands upright */
+  .hearts .plainText { color: var(--ink); letter-spacing: normal; font-size: 14px; }
   .art .seg { opacity: 0.06; transition: opacity 0.08s; }
   .art .seg.on { opacity: 1; }
   .art .seg.pick { cursor: pointer; }
@@ -347,9 +349,11 @@
       <select id="duelOther" aria-label="Gegner"></select>
       – ein echter Kampf zwischen zwei deiner Digimon: Einer verliert, und der Verlierer kann verletzt sein</span>
       <span id="duelMsg" role="status" style="color: var(--accent)"></span></p>
-    <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
-      – der Sensor im Gehäuse, Taste <kbd>T</kbd></p>
+    <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" id="tapBtn" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
+      <span id="tapHint">– der Sensor im Gehäuse, Taste <kbd>T</kbd></span></p>
     <p class="hint" id="keysHint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
+    <p class="hint" id="keysPikachu" hidden>Tastatur: Pfeiltasten für das Steuerkreuz · <kbd>A</kbd> bestätigen ·
+      <kbd>B</kbd> zurück · <kbd>Enter</kbd> Start (Einstellungen) · <kbd>S</kbd> Select (Freundschaft)</p>
   </div>
 
   <aside>
@@ -383,12 +387,15 @@
 
     <section>
       <h2>Zustand</h2>
-      <div class="row"><span>Hunger</span><span class="hearts" id="hunger"></span></div>
+      <div class="row" id="hungerRow"><span>Hunger</span><span class="hearts" id="hunger"></span></div>
       <div class="row" id="happyRow"><span id="happyLabel">Glück</span><span class="hearts" id="happy"></span></div>
       <div class="row" id="practiceRow" hidden><span>Übung</span><span class="hearts" id="practice"></span></div>
       <div class="row" id="fansRow" hidden><span>Beliebtheit</span><span id="fans">–</span></div>
       <div class="row"><span>Charakter</span><span id="stage">–</span></div>
       <div class="row"><span id="weightLabel">Gewicht</span><span id="weight">–</span></div>
+      <div class="row" id="stepsRow" hidden><span>Schritte</span><span id="pikaSteps">–</span></div>
+      <div class="row" id="todayRow" hidden><span>Heute gelaufen</span><span id="pikaToday">–</span></div>
+      <div class="row" id="accountRow" hidden><span>Zuneigungskonto</span><span id="pikaAccount">–</span></div>
       <div class="row"><span>Uhr im Gerät</span><span id="clock">–</span></div>
       <div class="row" id="gameRow" hidden><span>Spielrunde (steht vorher fest)</span><span id="game"></span></div>
       <div class="flags" id="flags"></div>
@@ -655,7 +662,7 @@ function pickable(els, names) {
    element named after its place in the display memory, "nibble_bit" */
 const ART = {p1: 'p1w', p1j: 'p1', p2: 'p2', angel: 'angel', morino: 'morino', umino: 'umino', mothra: 'mothra',
              genjin: 'genjin', tamaotch: 'tamaotch', digimon: 'digimon', digimon2: 'digimon2', digimon3: 'digimon3',
-             yasashii: 'yasashii'};
+             yasashii: 'yasashii', pikachu: 'pikachu'};
 /* Models that are another one with other characters: what they share is looked up there */
 const KIN = {digimon2: 'digimon', digimon3: 'digimon'};
 const kin = (model) => KIN[model] || model;
@@ -678,9 +685,22 @@ const LCD_OF = {digimon: {seg: [-1, 31, 30, 29, 28, 27, 26, 25, 24, -1, -1, -1, 
                 yasashii: {seg: [31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
                                  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], flip: true}};
 let artOf = '', pixEls = null, pixOn = null;
+/* The Pocket Pikachu's drawing names its dots, digits and icons after byte and bit of the
+   LCD memory, and that memory is what the server sends: 176 bytes, or nothing while the
+   display is switched off */
+let pikaEls = null, pikaOn = null;
+function drawPika(hex) {
+  if (!pikaEls) return;
+  for (let i = 0; i < pikaEls.length; i++) {
+    const el = pikaEls[i];
+    if (!el) continue;
+    const on = hex ? (parseInt(hex.substr((i >> 3) * 2, 2), 16) >> (i & 7)) & 1 : 0;
+    if (pikaOn[i] !== on) { pikaOn[i] = on; el.classList.toggle('on', !!on); }
+  }
+}
 async function drawArt(names, model) {
   artOf = model;
-  pixEls = null;
+  pixEls = pikaEls = null;
   $('art').hidden = true;
   $('egg').hidden = false;
   if (!ART[model]) return;
@@ -692,8 +712,40 @@ async function drawArt(names, model) {
   } catch (e) { return; }
   if (artOf !== model) return;      // another tab was opened meanwhile
   const box = $('art');
+  box.classList.remove('tall');
   box.innerHTML = text;
   const svg = box.querySelector('svg');
+  if (model === 'pikachu') {
+    const els = new Array(176 * 8);
+    for (const el of svg.querySelectorAll('[id]')) {
+      const m = /^(\d+)_(\d)$/.exec(el.id);
+      if (!m) continue;
+      el.classList.add('seg');
+      els[+m[1] * 8 + +m[2]] = el;
+    }
+    /* its keys; a tap on the display swings the pendulum: one step */
+    for (const [id, name] of [['btnA', 'A'], ['btnB', 'B'], ['btnStart', 'start'], ['btnSelect', 'select'],
+                              ['btnUp', 'up'], ['btnDown', 'down'], ['btnLeft', 'left'], ['btnRight', 'right'],
+                              ['reflector', 'T']]) {
+      const el = svg.querySelector('#' + id);
+      if (!el) continue;
+      el.dataset.btn = name;
+      if (name !== 'T') el.style.transformBox = 'fill-box';
+      bindButton(el);
+    }
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Pocket Pikachu');
+    box.classList.add('tall');
+    iconEls = [];
+    pikaEls = els;
+    pikaOn = new Uint8Array(els.length);
+    const lcd = lastLcd;
+    lastLcd = null;
+    drawLcd(lcd);
+    $('egg').hidden = true;
+    box.hidden = false;
+    return;
+  }
   const pins = PINS[kin(model)] || P1_PINS, pixels = new Array(512), icons = new Array(8), wiring = LCD_OF[kin(model)];
   for (const el of svg.querySelectorAll('[id]')) {
     const m = /^(\d+)_(\d)$/.exec(el.id);
@@ -747,6 +799,7 @@ let lastLcd = '';
 function drawLcd(hex) {
   if (hex === lastLcd) return;
   lastLcd = hex;
+  if (artOf === 'pikachu') { drawPika(hex); return; }
   const cell = canvas.width / 32, gap = cell * 0.09;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let y = 0; y < 16; y++) {
@@ -832,13 +885,18 @@ $('duel').addEventListener('click', async () => {
   setTimeout(() => { $('duelMsg').textContent = ''; }, 8000);
 });
 const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight: 'C', d: 'C', c: 'C', t: 'T'};
+/* The Pocket Pikachu has a control pad of its own */
+const KEYS_PIKACHU = {ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'A', b: 'B',
+                      Enter: 'start', s: 'select', t: 'T'};
+const keyOf = (e) => (artOf === 'pikachu' ? KEYS_PIKACHU : KEYS)[e.key];
 window.addEventListener('keydown', (e) => {
-  const name = KEYS[e.key];
+  const name = keyOf(e);
   if (!name || e.repeat || e.ctrlKey || e.metaKey || e.altKey || $('newPet').open) return;
+  if (e.target.closest && e.target.closest('input, select, textarea, button, a')) return;
   e.preventDefault();
   setButton(name, true);
 });
-window.addEventListener('keyup', (e) => { if (KEYS[e.key]) setButton(KEYS[e.key], false); });
+window.addEventListener('keyup', (e) => { const name = keyOf(e); if (name) setButton(name, false); });
 window.addEventListener('blur', () => [...held].forEach((name) => setButton(name, false)));
 
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
@@ -876,15 +934,26 @@ twice('remove', 'Tier entfernen', 'Wirklich? Der Tab verschwindet',
 
 /* Live state */
 const AGE = {1: ' (Baby)', 2: ' (Kind)', 3: ' (Teenager)', 4: ' (Teenager)'};
-const AGE_OF = {morino: {1: ' (Baby)', 2: ' (Kind)', 13: ' (Kokon)'}};
+const AGE_OF = {morino: {1: ' (Baby)', 2: ' (Kind)', 13: ' (Kokon)'}, pikachu: {}};
 function hearts(n) {
   return '♥'.repeat(n) + '<i>' + '♥'.repeat(4 - n) + '</i>';
 }
 function render(msg) {
   drawLcd(msg.lcd);
   if (msg.model + msg.menu.join() !== menu) { menu = msg.model + msg.menu.join(); drawIcons(msg.menu, msg.model); }
+  const pika = msg.model === 'pikachu';
   $('tapRow').hidden = !msg.tap;
-  $('keysHint').hidden = msg.model === 'yasashii';     // a button for every action there
+  if ($('tapBtn').dataset.pika !== String(pika)) {
+    $('tapBtn').dataset.pika = String(pika);
+    $('tapBtn').textContent = pika ? 'Ein Schritt' : 'Klopfen';
+    $('tapBtn').setAttribute('aria-label', pika ? 'Das Pendel des Schrittzählers einmal schwingen lassen' : 'Auf das Gehäuse klopfen');
+    $('tapHint').innerHTML = pika ? '– das Pendel im Gehäuse; auch ein Klick auf das Display oder Taste <kbd>T</kbd>'
+      : '– der Sensor im Gehäuse, Taste <kbd>T</kbd>';
+  }
+  $('keysHint').hidden = msg.model === 'yasashii' || pika;     // a button for every action there
+  $('keysPikachu').hidden = !pika;
+  $('hungerRow').hidden = pika;
+  $('stepsRow').hidden = $('todayRow').hidden = $('accountRow').hidden = !pika;
   const digimon = kin(msg.model) === 'digimon';
   $('sparRow').hidden = !digimon;
   if (digimon) duelChoice();
@@ -893,8 +962,8 @@ function render(msg) {
   $('goalRow').hidden = !msg.goals;
   $('disciplineRow').hidden = !msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin');
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';
-  $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : 'Gewicht';
-  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : digimon ? 'Stärke' : 'Glück';
+  $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : pika ? 'Watt' : 'Gewicht';
+  $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : digimon ? 'Stärke' : pika ? 'Zuneigung' : 'Glück';
   drawLegend(msg);
   iconEls.forEach((el, i) => el && el.classList.toggle('on', (msg.icons >> i) & 1));
 
@@ -911,11 +980,18 @@ function render(msg) {
   $('stage').textContent = st.dead ? 'Gestorben' : st.name + (msg.care && (AGE_OF[kin(msg.model)] || AGE)[st.stage] || '');
   $('weight').textContent = alive ? st.weight + (msg.unit === 'AP' ? '' : ' ' + msg.unit) : '–';
   $('clock').textContent = alive ? st.clock : '–';
+  if (pika) {
+    const n = (v) => v.toLocaleString('de-DE');
+    $('happy').innerHTML = alive ? hearts(st.mood) + ' <span class="plainText">' + st.moodName + '</span>' : '–';
+    $('pikaSteps').textContent = alive ? n(st.steps) : '–';
+    $('pikaToday').textContent = alive ? n(st.today) + ' von ' + n(st.perDay) : '–';
+    $('pikaAccount').textContent = alive ? n(st.account) + ' von 4.000' : '–';
+  }
   $('gameRow').hidden = st.game === null || !alive;
   $('game').textContent = st.game ? 'wird gewonnen' : 'wird verloren';
   const flags = [];
   if (st.dead) flags.push(['Gestorben', true]);
-  if (st.leaving) flags.push([st.thanked ? 'Verabschiedet' : 'Seine Zeit ist um', true]);
+  if (st.leaving) flags.push([pika ? 'Eine Million Schritte: der Zähler ist voll' : st.thanked ? 'Verabschiedet' : 'Seine Zeit ist um', true]);
   const umino = msg.model === 'umino';
   if (alive && msg.care && st.poop) flags.push([umino ? (st.poop >= 4 ? 'Wasser schwarz' : 'Wasser: ' + st.poop + ' von 4 Totenköpfen') : st.poop + '× Häufchen', true]);
   if (alive && msg.care && st.sick) flags.push([msg.model === 'morino' ? 'Verletzt' : umino ? 'Krank oder verletzt' : 'Krank', true]);
@@ -926,6 +1002,9 @@ function render(msg) {
   else if (alive && st.attention) flags.push([umino && st.scold ? 'Will geschimpft werden' : 'Ruft nach dir', true]);
   if (alive && msg.care && st.asleep) flags.push(['Schläft', false]);
   if (alive && !st.light) flags.push(['Licht aus', false]);
+  if (pika && st.saver) flags.push(['Display aus', false]);
+  if (pika && alive && st.mood === 0) flags.push(['Weggelaufen', true]);
+  if (pika && alive && st.held && msg.bot) flags.push(['Bot wartet mit dem Laufen, bis das Display aus ist', false]);
   $('flags').innerHTML = flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('');
 
   $('bot').checked = msg.bot;
@@ -937,7 +1016,7 @@ function render(msg) {
   $('programme').hidden = !msg.programme;
   $('restart').checked = msg.restart || msg.programme;
   $('restart').disabled = msg.programme;
-  $('shuffleRow').hidden = !msg.goals;
+  $('shuffleRow').hidden = !msg.goals || pika;
   $('shuffle').checked = msg.shuffle && !msg.programme;
   $('shuffle').disabled = !msg.restart || msg.programme;   // it only says how a new life is begun
   $('flip').checked = msg.flip;
