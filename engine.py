@@ -192,9 +192,6 @@ class Engine:
         """Someone looks at the pet: a press of A takes the screen saver away (the Morino
         has one; there A does nothing else). Not while the bot or the user is at work."""
         with self.lock:
-            if hasattr(self.bot, "look") and self.bot_enabled and self.hands_off is None:
-                self.bot.look()         # the Pocket Pikachu's bot does it when it suits
-                return
             if self.pressed or getattr(self.bot, "task", None) is not None \
                     or not self.bot.status().get("saver"):
                 return

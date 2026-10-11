@@ -80,6 +80,16 @@ Vorgabe. Bei mehreren Tieren lässt sich dort statt einer Mail je Tier eine Samm
 Sie geht raus, sobald das letzte Tier eingeschlafen ist, spätestens zur eingestellten Uhrzeit;
 wer dann noch wach ist, steht mit seinem Stand von diesem Moment darin.
 
+## Die Seite für alle
+
+Mit `--public-port 8138` (oder `PUBLIC_PORT`) öffnet der Server einen zweiten Port, auf dem es
+nur etwas zu sehen gibt: die Tiere in Tabs, live, dazu was das Gerät ist, was der Bot dort tut,
+sein Ziel und die Leben, die es bisher gab. Ein Klick auf das Gerät führt zu seiner Wiki-Seite.
+Dieser Port kennt keinen einzigen Befehl – kein Tastendruck, keine Einstellung, kein Protokoll
+(darin steht die Mail-Adresse) – und kann deshalb ohne Anmeldung unter einem eigenen Namen im
+Netz stehen. Das Einzige, was ein Zuschauer auslöst: Verdeckt ein Bildschirmschoner das Tier
+(Morino), nimmt der Server ihn weg. Mehr als 60 Zuschauer gleichzeitig weist er ab.
+
 ## Der Care-Bot
 
 Der Bot liest Hunger, Glück, Häufchen und Krankheit aus dem RAM und dem Display und bedient dann
@@ -539,14 +549,16 @@ Schritte und 250 Watt, der andere zieht 500 vom Konto ab. Sie sind hier nicht ve
 
 Der Care-Bot (`carebot_pikachu.py`) stellt die Uhr, läuft und schenkt. Statt eines Zielcharakters
 wählt man, wie viel er läuft: ohne Ziel 5000 Schritte am Tag, als Spaziergang 3000, als Wanderung
-10 000, im Dauerlauf Tag und Nacht (172 800). Die Schritte eines Tages verteilt er von 8 bis 20
-Uhr, und ab 19 Uhr verschenkt er die Watt, höchstens die 700, die an einem Tag zählen. Er läuft
-nur, wenn das Display aus ist, oder tagsüber, wenn Pikachu gerade nichts vorhat. Mit „Nach dem
+10 000, im Dauerlauf von 7 bis 20 Uhr (rund 70 000). Die Schritte eines Tages verteilt er von 8 bis 20
+Uhr, und ab 19 Uhr verschenkt er die Watt, höchstens die 700, die an einem Tag zählen. Das
+Display schaltet er gleich wieder ein, wenn das Gerät es abschaltet: Ein dunkles Display sieht
+aus wie ein abgestürztes Gerät. Deshalb läuft er nur tagsüber und nicht, während Pikachu spielt. Mit „Nach dem
 Ende neu beginnen“ setzt er das Gerät nach dem letzten Bildschirm zurück.
 
-Im Labor (`lab/pikachu/botsim.py`) liebte Pikachu den Bot ohne Ziel am sechsten Tag und mit
-der Wanderung am dritten; im Dauerlauf war der Zähler nach knapp sieben Tagen voll. Abgezogen
-wurde in keinem Lauf etwas außer den 10 je Stunde.
+Im Labor (`lab/pikachu/botsim.py`) stieg das Konto ohne Ziel um 260 am Tag, mit der Wanderung
+um 510; Pikachu liebte den Bot damit am sechsten und am dritten Tag. Im Dauerlauf kamen rund
+70 800 Schritte am Tag zusammen, der Zähler ist so nach gut zwei Wochen voll. Abgezogen wurde
+in keinem Lauf etwas außer den 10 je Stunde.
 
 ### Tamagotchi Angel
 

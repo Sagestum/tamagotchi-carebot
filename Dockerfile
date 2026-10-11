@@ -13,8 +13,9 @@ COPY web ./web
 RUN useradd -u 1000 -m tama && mkdir /data && chown tama /data
 USER tama
 VOLUME /data
-EXPOSE 8137
+# 8137: the page with the buttons. 8138: the page for everyone, to look at only
+EXPOSE 8137 8138
 # The ROM is not in the image: it is asked for in the browser and kept in /data
 # SIGINT makes server.py save the state before it exits
 STOPSIGNAL SIGINT
-CMD ["python3", "-u", "server.py", "--host", "0.0.0.0", "--port", "8137", "--state", "/data/tama_state.json"]
+CMD ["python3", "-u", "server.py", "--host", "0.0.0.0", "--port", "8137", "--public-port", "8138", "--state", "/data/tama_state.json"]

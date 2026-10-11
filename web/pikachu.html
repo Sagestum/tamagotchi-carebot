@@ -203,7 +203,7 @@
       <div class="ways" id="ways"></div>
       <p class="note" style="margin:8px 0 0">Der Bot lässt das Pendel zweimal in der Sekunde schwingen; schneller zählt
         das Gerät nicht mehr jeden Schritt. Die Schritte eines Tages verteilt er von 8 bis 20 Uhr, und abends
-        verschenkt er die erlaufenen Watt.</p>
+        verschenkt er die erlaufenen Watt. Nachts, von 20 bis 7 Uhr, läuft er nicht: Pikachu schläft dann.</p>
     </section>
 
     <section>
@@ -232,9 +232,9 @@
       </table>
       </div>
       <p class="note" style="margin-top:8px">Die Zahlen stammen aus dem Programm des Geräts und sind daran nachgemessen.
-        Was er ab welcher Schrittzahl Neues tut, steht so bei serebii.net. Bei ausgeschaltetem Display zählt jeder
-        Schritt, und nichts wird abgezogen: Deshalb läuft der Bot nur dann, oder tagsüber, wenn Pikachu gerade nichts
-        vorhat.</p>
+        Was er ab welcher Schrittzahl Neues tut, steht so bei serebii.net. Das Gerät schaltet sein Display nach einer Minute ab; der Bot schaltet es
+        gleich wieder ein, damit Pikachu zu sehen bleibt. Deshalb läuft er nur tagsüber und nicht, während Pikachu
+        spielt oder nascht.</p>
     </section>
   </div>
 
@@ -315,7 +315,7 @@ function render(msg) {
   const way = msg.growth.ways.find((w) => w.goal === msg.goal) || msg.growth.ways[0];
   $('goalName').textContent = msg.goal === null ? 'keins (' + n(way.perDay) + ' Schritte am Tag)' : way.name;
   $('goalText').textContent = !msg.bot ? 'Der Bot ist aus.'
-    : st.held ? 'Der Bot wartet mit dem Laufen, bis das Display wieder aus ist: Pikachu schläft oder ist beschäftigt.'
+    : st.held ? 'Der Bot wartet mit dem Laufen: Pikachu schläft oder ist beschäftigt.'
     : 'Der Bot läuft, bis die Schritte des Tages beisammen sind, und verschenkt die Watt am Abend.';
   $('mood').textContent = alive ? st.moodName : '–';
   $('account').textContent = alive ? n(st.account) + ' von 4.000' : '–';

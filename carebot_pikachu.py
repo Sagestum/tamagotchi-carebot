@@ -4,9 +4,10 @@ There is nothing to feed. It wants to be walked with and to be given the watts t
 earns (growth_pikachu.py). So the bot swings the pendulum, two steps a second, and once a
 day it gives away what has come together.
 
-The display goes dark after a minute and the steps are counted all the same. With the
-display on it matters when one walks: Pikachu woken at night or disturbed at play takes
-offence. The bot then waits until the display is dark again.
+The device switches its display off after a minute. A dark display looks like a device
+that has given up, so the bot switches it on again at once. With the display on it matters
+when one walks: Pikachu woken at night or disturbed at play takes offence. So the bot walks
+by day, from 7 to 8 in the evening, and not while Pikachu is busy.
 """
 import time
 
@@ -37,13 +38,13 @@ ICON_CLOCK, ICON_GIFT, ICON_GAME = (174, 7), (171, 7), (168, 7)    # LCD bits of
 # Animations in which it does not want to be disturbed (the program's own two lists)
 AT_PLAY = (0x1E, 0x17, 0x4B, 0x24, 0x66, 0x28, 0x3E, 0x3F, 0x40, 0x42, 0x43, 0x44, 0x4F, 0x50, 0x1F)
 DAY = range(7, 20)              # hours in which walking with the display on does not wake it
-MORNING, EVENING = 8, 20        # its day begins at 8; the day's steps are spread until 8 pm
+MORNING, EVENING = 8, 20        # its day begins at 8; it sleeps from 8 pm on
+SPREAD = (EVENING - MORNING) * 60 - 20      # minutes over which the day's steps are spread
 GIVE_FROM = 19                  # the hour from which the day's watts are given away
 BOUT = 20                       # steps taken before the bot looks up again
 HOLD, PAUSE = 0.15, 0.45
 SWING = 0.1                     # the pendulum touches for this long
 CLOCK_TOLERANCE = 90
-WATCHED = 90                    # seconds the display is kept on after someone has looked
 GONE_FOR = 20                   # seconds without affection until it counts as gone
 
 
@@ -57,7 +58,6 @@ class PikachuBot(CareBot):
         self.gave_at = None             # the day (its count of steps at the start) a gift went
         self.waiting = False            # held back because the display is on
         self.gone_since = None
-        self.watched_until = 0.0        # someone has the page open
 
     def memo(self):
         return {"day_from": self.day_from, "last_hour": self.last_hour, "gave_at": self.gave_at}
@@ -175,10 +175,6 @@ class PikachuBot(CareBot):
             # A switches the dark display on and does nothing else then
             yield from self.press(BTN_A if m(MEM_MODE) == DARK else BTN_B, 1.5)
 
-    def look(self):
-        """Someone is looking at the page: by day the display is kept on for them."""
-        self.watched_until = self.tama.seconds + WATCHED
-
     def request(self, icon):
         """There are no menu icons to walk to; a task (a generator) is taken as it is."""
         if hasattr(icon, "__next__"):
@@ -290,11 +286,9 @@ class PikachuBot(CareBot):
         yield from self.home()
 
     def may_walk(self):
-        """With the display dark every step is welcome. With it on, not while it sleeps
-        and not while it is busy with something."""
+        """Not while it sleeps and not while it is busy with something: with the display
+        on, that would be held against the walker."""
         m = self.tama.memory
-        if m(MEM_MODE) == DARK:
-            return True
         return m(MEM_MODE) == HOME and self.hour() in DAY and m(MEM_DOING) not in AT_PLAY \
             and not m(MEM_BED)
 
@@ -331,7 +325,7 @@ class PikachuBot(CareBot):
             return None
         if MORNING <= hour < EVENING:
             spent = (hour - MORNING) * 60 + minute
-            return per_day * (spent + 1) // ((EVENING - MORNING) * 60)
+            return min(per_day, per_day * (spent + 1) // SPREAD)
         return per_day
 
     def plan(self):
@@ -372,8 +366,8 @@ class PikachuBot(CareBot):
                 if self.reborn:
                     self.reborn()
                 return None
-            if mode == DARK and self.restart:
-                return self.home()              # look whether the last screen is there
+            if mode == DARK:
+                return self.home()              # that switches it on, to the last screen
             return None
         if mood == 0 and self.bcd(MEM_ACCOUNT) == 0:
             # (the memory is as empty for a moment after a reset)
@@ -394,11 +388,11 @@ class PikachuBot(CareBot):
             if mode in (HOME, DARK) and m(MEM_DOING) not in AT_PLAY:
                 return self.give(min(watts, room, 999))
 
-        if mode == DARK and now < self.watched_until and hour in DAY and not m(MEM_BED):
-            return self.press(BTN_A, 1.0)
+        if mode == DARK:
+            return self.press(BTN_A, 1.0)       # the display stays on
 
         due = self.due(hour, minute)
-        if due is None or today + BOUT <= due or (today < due and hour >= EVENING):
+        if due is None or today + BOUT <= due or (today < due and minute >= 30 and hour == EVENING - 1):
             self.waiting = not self.may_walk()
             if not self.waiting:
                 return self.walk(BOUT if due is None else max(1, min(BOUT, due - today)))

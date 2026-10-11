@@ -31,12 +31,13 @@ NAMES = {1: "Pikachu", 2: "Pikachu (150.000 Schritte)", 3: "Pikachu (300.000 Sch
          4: "Pikachu (450.000 Schritte)", 5: "Pikachu (999.999 Schritte)",
          # The goals are ways of walking, not characters
          11: "Spaziergang: 3.000 Schritte am Tag", 12: "Wanderung: 10.000 Schritte am Tag",
-         13: "Dauerlauf: Tag und Nacht"}
+         13: "Dauerlauf: von früh bis spät"}
 GOALS = (11, 12, 13)
 DEFAULT = 5000                      # steps a day without a goal
-PACE = {None: DEFAULT, 11: 3000, 12: 10000, 13: None}     # None: without pause
+PACE = {None: DEFAULT, 11: 3000, 12: 10000, 13: None}     # None: as long as it is awake
 STEP = 0.5                          # seconds from step to step; faster ones are not all counted
-MOST_A_DAY = int(86400 / STEP)
+MOST_A_DAY = 70000      # what the bot gets done between 7 in the morning and 8 in the evening,
+                        # with the pauses in which Pikachu is busy (measured)
 
 
 def stage(steps, unlock):

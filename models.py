@@ -220,6 +220,19 @@ MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, 
           YASASHII, PIKACHU)
 BY_ID = {m.id: m for m in MODELS}
 
+# Where the public page sends someone who wants to know more about a device
+FANDOM, WIKIMON = "https://tamagotchi.fandom.com/wiki/", "https://wikimon.net/"
+WIKI = {
+    "p1": FANDOM + "Tamagotchi_(1996_Pet)", "p1j": FANDOM + "Tamagotchi_(1996_Pet)",
+    "p2": FANDOM + "Tamagotchi_(1996_Pet)", "angel": FANDOM + "Tamagotchi_Angel",
+    "morino": FANDOM + "Mori_de_Hakken!_Tamagotchi", "umino": FANDOM + "Tamagotchi_Ocean",
+    "mothra": FANDOM + "Mothra_Tamagotchi", "genjin": FANDOM + "Genjintchi_Tamagotchi",
+    "tamaotch": FANDOM + "TamaOtch", "yasashii": FANDOM + "Yasashii_Tamagotchi",
+    "digimon": WIKIMON + "Digital_Monster_Ver._1", "digimon2": WIKIMON + "Digital_Monster_Ver._2",
+    "digimon3": WIKIMON + "Digital_Monster_Ver._3",
+    "pikachu": "https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Pikachu",
+}
+
 
 def hashes(data):
     return {"size": len(data), "sha1": hashlib.sha1(data).hexdigest(),

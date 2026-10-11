@@ -1004,7 +1004,7 @@ function render(msg) {
   if (alive && !st.light) flags.push(['Licht aus', false]);
   if (pika && st.saver) flags.push(['Display aus', false]);
   if (pika && alive && st.mood === 0) flags.push(['Weggelaufen', true]);
-  if (pika && alive && st.held && msg.bot) flags.push(['Bot wartet mit dem Laufen, bis das Display aus ist', false]);
+  if (pika && alive && st.held && msg.bot) flags.push(['Bot wartet mit dem Laufen: Pikachu schläft oder ist beschäftigt', false]);
   $('flags').innerHTML = flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('');
 
   $('bot').checked = msg.bot;

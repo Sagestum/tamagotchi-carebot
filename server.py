@@ -43,6 +43,10 @@ SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genji
           "tamaotch.svg", "digimon.svg", "digimon2.svg", "digimon3.svg", "yasashii.svg", "p1w.svg", "pikachu.svg",
           "p2.svg")
 MAX_UPLOAD = 4 << 20
+PUBLIC_VIEWERS = 60     # the page for everyone: pictures being watched at a time,
+PUBLIC_RATE = 8         # pictures a second for each,
+PUBLIC_LONGEST = 3600   # and seconds until a viewer has to connect anew
+PUBLIC_WAKE = 60        # seconds between two looks whether a screen saver hides the pet
 MAX_NAME = 24
 COLORS = ("yellow", "red", "blue", "green", "pink", "teal", "purple", "white")   # of the shell
 SMTP_SECURITY = ("starttls", "ssl", "none")
@@ -578,7 +582,6 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         seen, log_seen, lives_seen = -1, -1, -1
         pet.send("wake")                    # the tab was opened
-        woke = time.monotonic()
         try:
             while pet.alive and pet.id in self.app.pets:
                 with pet.changed:
@@ -598,10 +601,6 @@ class Handler(BaseHTTPRequestHandler):
                 if msg["livesId"] != lives_seen:
                     lives_seen = msg["livesId"]
                     msg["lives"] = lives
-                if pet.model.game == "pikachu" and time.monotonic() - woke > 30:
-                    # its display goes dark after a minute: keep it on while someone looks
-                    woke = time.monotonic()
-                    pet.send("wake")
                 self.wfile.write(b"data: " + json.dumps(msg).encode() + b"\n\n")
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
@@ -675,11 +674,134 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(reply)
 
 
+class PublicHandler(BaseHTTPRequestHandler):
+    """The page for everyone, on a port of its own: the pets to look at, and nothing else.
+    It knows no command at all. What it hands out is the picture, what the pet is and the
+    lives it has had; not the log (it names the mail address) and no settings."""
+    app = None
+    protocol_version = "HTTP/1.1"
+    viewers = 0
+    counting = threading.Lock()
+    FILES = {"/": ("public.html", "text/html; charset=utf-8"),
+             "/shellart.js": ("shellart.js", "text/javascript; charset=utf-8"),
+             "/favicon.png": ("favicon.png", "image/png"),
+             "/favicon-dark.png": ("favicon-dark.png", "image/png")}
+    STATUS = ("stage", "name", "dead", "asleep", "leaving", "hunger", "happy", "weight", "clock",
+              "steps", "moodName", "mood", "saver")
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def send_body(self, code, body, ctype, headers=()):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy",
+                         "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+                         "script-src 'self' 'unsafe-inline'; img-src 'self' data:")
+        if not any(name == "Cache-Control" for name, _ in headers):
+            self.send_header("Cache-Control", "no-cache")
+        for name, value in headers:
+            self.send_header(name, value)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def refuse(self):
+        self.send_body(405, b"read only", "text/plain", [("Allow", "GET, HEAD")])
+
+    do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = refuse
+
+    def do_HEAD(self):
+        self.do_GET()
+
+    def shown(self):
+        return [p for p in list(self.app.pets.values()) if p.alive and not p.error]
+
+    def do_GET(self):
+        url = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(url.query)
+        if url.path in self.FILES:
+            name, ctype = self.FILES[url.path]
+            with open(os.path.join(HERE, "web", name), "rb") as f:
+                self.send_body(200, f.read(), ctype)
+        elif url.path.startswith("/shells/") and url.path[8:] in SHELLS:
+            with open(os.path.join(HERE, "web", "shells", url.path[8:]), "rb") as f:
+                self.send_body(200, f.read(), "image/svg+xml", [("Cache-Control", "max-age=3600")])
+        elif url.path == "/pets":
+            pets = [{"id": p.id, "name": p.name, "model": p.model.id, "modelName": p.model.name,
+                     "wiki": models.WIKI.get(p.model.id)} for p in self.shown()]
+            self.send_body(200, json.dumps(pets).encode(), "application/json")
+        elif url.path == "/watch" and self.command == "GET":
+            pet = self.app.pets.get(query.get("pet", [""])[0])
+            if pet is None or pet not in self.shown():
+                return self.send_body(404, b"not found", "text/plain")
+            self.watch(pet)
+        else:
+            self.send_body(404, b"not found", "text/plain")
+
+    def told(self, pet):
+        """What the page for everyone gets to know about a pet."""
+        snap = pet.snapshot or {}
+        status = snap.get("status") or {}
+        return {"model": pet.model.id, "lcd": snap.get("lcd", ""), "icons": snap.get("icons", 0),
+                "unit": snap.get("unit"), "goalName": snap.get("goalName"),
+                "status": {key: status.get(key) for key in self.STATUS}}
+
+    def watch(self, pet):
+        """The picture of one pet as it changes, PUBLIC_RATE times a second at most."""
+        cls = PublicHandler
+        with cls.counting:
+            if cls.viewers >= PUBLIC_VIEWERS:
+                return self.send_body(503, b"too many viewers", "text/plain", [("Retry-After", "60")])
+            cls.viewers += 1
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            self.connection.settimeout(30)
+            sent, lives_sent, quiet, began = None, None, 0.0, time.monotonic()
+            woke = 0.0
+            while pet.alive and pet.id in self.app.pets and time.monotonic() - began < PUBLIC_LONGEST:
+                if time.monotonic() - woke > PUBLIC_WAKE:
+                    # A screen saver (the Morino has one) is taken away for the one who looks.
+                    # That is all a viewer can cause: the pet does it only when there is one.
+                    woke = time.monotonic()
+                    pet.send("wake")
+                msg = self.told(pet)
+                lives = pet.lives
+                if msg != sent or lives != lives_sent:
+                    out = dict(msg)
+                    if lives != lives_sent:
+                        out["lives"] = lives
+                    sent, lives_sent, quiet = msg, lives, 0.0
+                    self.wfile.write(b"data: " + json.dumps(out).encode() + b"\n\n")
+                    self.wfile.flush()
+                elif quiet >= 15:
+                    quiet = 0.0
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+                time.sleep(1 / PUBLIC_RATE)
+                quiet += 1 / PUBLIC_RATE
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            pass
+        finally:
+            with cls.counting:
+                cls.viewers -= 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--host", default="127.0.0.1",
                     help="address to listen on (0.0.0.0 for the whole network)")
     ap.add_argument("--port", type=int, default=8137)
+    ap.add_argument("--public-port", type=int, default=int(os.environ.get("PUBLIC_PORT", 0)),
+                    help="auf diesem Port zusätzlich die Seite für alle: nur ansehen (aus: 0)")
     ap.add_argument("--rom", action="append", default=[],
                     help="a ROM file or a folder with ROMs, may be given several times "
                          "(also looked for: tama.b and roms/ next to the states, tama/tama.b; "
@@ -695,6 +817,12 @@ def main():
     ThreadingHTTPServer.daemon_threads = True
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     signal.signal(signal.SIGTERM, signal.default_int_handler)
+    if args.public_port:
+        PublicHandler.app = app
+        public = ThreadingHTTPServer((args.host, args.public_port), PublicHandler)
+        threading.Thread(target=public.serve_forever, daemon=True).start()
+        print("Die Seite für alle (nur ansehen) auf http://%s:%d" % (args.host, args.public_port),
+              flush=True)
     print("Tamagotchi läuft auf http://%s:%d  (Strg+C beendet und speichert)"
           % (args.host, args.port), flush=True)
     if not app.pets:

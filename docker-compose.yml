@@ -1,5 +1,7 @@
 # No published ports: the web UI is only reachable inside the "httpd" network
 # as http://tamagotchi:8137 (reverse proxy + Authelia in front).
+# http://tamagotchi:8138 is the page for everyone: it shows the pets and takes no command,
+# so it may get a name of its own without a login in front.
 services:
   tamagotchi:
     build: .
