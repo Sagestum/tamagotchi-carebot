@@ -11,6 +11,7 @@ import zlib
 import growth
 import growth_angel
 import growth_digimon
+import growth_gameboy
 import growth_genjin
 import growth_morino
 import growth_tamaotch
@@ -216,8 +217,18 @@ PIKACHU = Model(
     rules=growth_pikachu, hold=0.15,
     buttons=("A", "B", "T", "up", "down", "left", "right", "start", "select"))
 
+# The Tamagotchi game for the Game Boy (1997): no device of its own but a cartridge, run on a
+# whole Game Boy (src/gb_core.c with Peanut-GB, gameboy.py). Its Care-Bot is carebot_gameboy.py,
+# its characters are in growth_gameboy.py.
+GAMEBOY = Model(
+    "gameboy", "Tamagotchi (Game Boy)", "Tamagotchi (USA, Europe) (SGB Enhanced).gb, vom eigenen Modul",
+    524288, "7368ec190bed39429812a26e18b2d3e153cf4e81", "dbf1bd20",
+    growth_gameboy.NAMES, (), "gameboy", icons=(), care=True, unit="lb", goals=True, hold=0.1,
+    rules=growth_gameboy,
+    buttons=("A", "B", "up", "down", "left", "right", "start", "select"))
+
 MODELS = (P1, P1J, P2, ANGEL, MORINO, UMINO, MOTHRA, GENJIN, TAMAOTCH, DIGIMON, DIGIMON2, DIGIMON3,
-          YASASHII, PIKACHU)
+          YASASHII, PIKACHU, GAMEBOY)
 BY_ID = {m.id: m for m in MODELS}
 
 # Where the public page sends someone who wants to know more about a device: German pages

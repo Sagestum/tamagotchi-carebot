@@ -33,10 +33,11 @@ if not os.path.exists(LIB):
     subprocess.check_call(["make", "-C", HERE])
 
 import engine  # noqa: E402
+from history import History  # noqa: E402
 import models  # noqa: E402
 from report import compose, deliver, smtp_from_env  # noqa: E402
 
-PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html",
+PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html", "/verlauf": "history.html",
          "/settings": "settings.html", "/chronik": "chronik.html", "/pikachu": "pikachu.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
 SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genjin.svg",
@@ -107,6 +108,7 @@ class Pet:
         self.conn = None
         self.sending = threading.Lock()
         self.on_report = None       # takes (pet, report) for the gathered mail
+        self.on_history = None      # takes (pet, events) for the history
         self.duel = queue.Queue()   # what the pet has found in a step of a fight
         self.fighting = threading.Lock()
 
@@ -138,6 +140,8 @@ class Pet:
                     self.error = msg[1]
                 elif msg[0] == "report" and self.on_report:
                     self.on_report(self, msg[1])
+                elif msg[0] == "history" and self.on_history:
+                    self.on_history(self, msg[1])
                 elif msg[0] == "duel":
                     self.duel.put(msg[1])
                 self.changed.notify_all()
@@ -197,8 +201,16 @@ class App:
             self.reports, self.digest_day = saved["reports"], saved["day"]
         except (FileNotFoundError, ValueError, KeyError):
             pass
+        os.makedirs(data_dir, exist_ok=True)
+        self.history = History(os.path.join(data_dir, "history.sqlite"))
         self.find_roms()
         self.load_pets()
+
+    def take_history(self, pet, events):
+        try:
+            self.history.write(pet.id, pet.name, pet.model.id, events)
+        except Exception as err:        # the history must never stop a pet
+            print("Verlauf: %s" % err, flush=True)
 
     # -- ROMs --------------------------------------------------------------
 
@@ -268,7 +280,7 @@ class App:
                 continue
             pet = Pet(entry["id"], entry["name"], model,
                       os.path.join(self.data_dir, entry["state"]), entry.get("color"))
-            pet.on_report = self.take_report
+            pet.on_report, pet.on_history = self.take_report, self.take_history
             self.pets[pet.id] = pet
             if model.id in self.roms:
                 pet.start(self.roms[model.id], self.smtp)
@@ -302,7 +314,7 @@ class App:
         pet = Pet(str(self.next_id), name, model,
                   os.path.join(self.data_dir, "pets", "%d.json" % self.next_id), color)
         self.next_id += 1
-        pet.on_report = self.take_report
+        pet.on_report, pet.on_history = self.take_report, self.take_history
         self.pets[pet.id] = pet
         self.save_pets()
         pet.start(self.roms[model.id], self.smtp)
@@ -437,8 +449,10 @@ class App:
     # -- the gathered mail ---------------------------------------------------
 
     def reporting(self):
-        """The pets a gathered mail is waiting for."""
-        return [p for p in list(self.pets.values()) if p.alive and not p.error]
+        """The pets a gathered mail is waiting for. (The Game Boy game has no day to report
+        and never falls asleep: the mail would wait for it until the latest hour.)"""
+        return [p for p in list(self.pets.values())
+                if p.alive and not p.error and p.model.game != "gameboy"]
 
     def save_digest(self):
         write_json(self.digest_path, {"reports": self.reports, "day": self.digest_day})
@@ -570,6 +584,16 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path in ("/favicon.png", "/favicon-dark.png"):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
+        elif url.path == "/api/history":
+            # everything the history page shows; the log of one tab on request
+            pet = query.get("pet", [None])[0]
+            if query.get("log"):
+                before = query.get("before", [None])[0]
+                self.send_json({"log": self.app.history.log(pet, int(before) if before else None)})
+            else:
+                self.send_json({"lives": self.app.history.lives(pet, 500), "seen": self.app.history.seen(),
+                                "models": {m.id: m.name for m in models.MODELS},
+                                "tabs": [p.describe() for p in self.app.pets.values()]})
         elif url.path == "/events" and query.get("pet", [""])[0] in self.app.pets:
             self.stream(self.app.pets[query["pet"][0]])
         else:
@@ -584,8 +608,12 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         seen, log_seen, lives_seen = -1, -1, -1
         pet.send("wake")                    # the tab was opened
+        looked = time.monotonic()
         try:
             while pet.alive and pet.id in self.app.pets:
+                if pet.model.game == "gameboy" and time.monotonic() - looked > 5:
+                    looked = time.monotonic()
+                    pet.send("watched")     # it only runs while its page is open
                 with pet.changed:
                     if pet.version == seen and not pet.changed.wait(timeout=15):
                         self.wfile.write(b": keepalive\n\n")
@@ -657,7 +685,14 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError
                 app.pet(data["pet"]).send("configure", data.get("bot"), data.get("discipline"),
                                           data.get("speed"), data.get("paused"), goal,
-                                          data.get("restart"), data.get("shuffle"), data.get("flip"))
+                                          data.get("restart"), data.get("shuffle"), data.get("flip"),
+                                          data.get("keep"))
+            elif self.path == "/api/place":
+                goal = data.get("goal")
+                if data.get("what") not in ("show", "egg", "goal") or data.get("slot", 0) not in range(3) \
+                        or goal not in (None, -1) + tuple(app.pet(data["pet"]).model.growth.GOALS):
+                    raise ValueError
+                app.pet(data["pet"]).send("place", data["what"], data.get("slot", 0), goal)
             elif self.path == "/api/reset":
                 app.pet(data["pet"]).send("reset")
             elif self.path == "/api/test-mail":
@@ -721,7 +756,9 @@ class PublicHandler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def shown(self):
-        return [p for p in list(self.app.pets.values()) if p.alive and not p.error]
+        # not the Game Boy game: that is someone playing, not a pet being looked after
+        return [p for p in list(self.app.pets.values())
+                if p.alive and not p.error and p.model.game != "gameboy"]
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)

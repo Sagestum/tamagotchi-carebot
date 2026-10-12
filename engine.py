@@ -7,6 +7,7 @@ through a pipe: commands go in, pictures of the state come out.
 import base64
 import collections
 import json
+import uuid
 import os
 import signal
 import random
@@ -16,6 +17,7 @@ import time
 import models
 from carebot import CareBot
 from carebot_mothra import MothraBot
+from carebot_gameboy import GameBoyBot
 from carebot_pikachu import PikachuBot
 from carebot_digimon import DigimonBot
 from carebot_plain import PlainBot
@@ -24,6 +26,7 @@ from carebot_tamaotch import TamaotchBot
 from carebot_umino import UminoBot
 from report import DailyReport
 from pika import Pika
+from gameboy import GameBoy
 from tama import BTN_A, BTN_B, BTN_C, BTN_TAP, LCD_H, LCD_W, TICK_HZ, Tama
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -42,8 +45,9 @@ BUTTONS = {"A": BTN_A, "B": BTN_B, "C": BTN_C, "T": BTN_TAP, "K": 4, "H": 5, "S"
            # the Pocket Pikachu's control pad and its two small keys (T is its pendulum)
            "up": 8, "down": 9, "left": 10, "right": 11, "start": 12, "select": 13}
 FLIP = 12       # hours: the clock of a pet whose day and night change places
-COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake",
-            "report_now", "note", "duel_word", "duel_host", "duel_guest")
+WATCHED_FOR = 30                # real seconds the Game Boy stays on after the last look at it
+COMMANDS = ("button", "icon", "configure", "reset", "test_mail", "set_smtp", "spar", "wake", "watched",
+            "report_now", "note", "duel_word", "duel_host", "duel_guest", "place")
 
 
 class Engine:
@@ -53,7 +57,7 @@ class Engine:
         # called with (snapshot, sound, log or None, chronicle or None) when the picture changes
         self.emit = emit
         self.lock = threading.Lock()
-        self.tama = (Pika if model.game == "pikachu" else Tama)(rom_path, LIB)
+        self.tama = {"pikachu": Pika, "gameboy": GameBoy}.get(model.game, Tama)(rom_path, LIB)
         self.log = collections.deque(maxlen=60)
         self.log_id = 0
         self.log_sent = -1
@@ -63,11 +67,15 @@ class Engine:
         self.tama.lcd = model.lcd
         bot = {"ocean": UminoBot, "mothra": MothraBot, "tamaotch": TamaotchBot,
                "digimon": DigimonBot, "yasashii": YasashiiBot,
-               "pikachu": PikachuBot}.get(model.game, CareBot)
+               "pikachu": PikachuBot, "gameboy": GameBoyBot}.get(model.game, CareBot)
         self.bot = bot(self.tama, self.add_log, model=model)
         self.bot.reborn = self.begun_again
         self.report.rows = getattr(self.bot, "report_rows", None)
         self.flip = False       # day and night change places, from the next egg on
+        # The Game Boy without its bot: left alone the pet in the game would starve, an hour
+        # of its day takes two minutes. So it then only runs while someone has its page open
+        # (the server says so), and stands still else.
+        self.watched_until = 0.0
         self.tell = lambda *msg: None       # sends a message to the server (set by the worker)
         self.shuffle = False    # a life the bot begins itself gets another goal, drawn by lot
         self.slices = 0
@@ -78,6 +86,8 @@ class Engine:
         self.lives = []
         self.lives_id = 0       # goes up whenever the chronicle reads differently
         self.lives_sent = -1
+        self.outbox = []        # for the history: what the server is to write down
+        self.tracks = {}        # place -> the life there that the history knows of
         self.egg_for = 0        # emulated seconds without a character
         self.leaving = False    # it was taking its leave when last seen
         self.cared = None       # (hunger, happy, poop, sick) when last seen
@@ -97,6 +107,56 @@ class Engine:
         self.log_id += 1
         self.log.append((self.log_id, time.strftime("%d.%m. %H:%M"), msg))
         self.report.count(msg)
+        self.outbox.append(("log", time.time(), msg))
+
+    # -- history -----------------------------------------------------------
+    # What goes into the history for good (history.py): the log, and of every place the life
+    # that is lived there. The server writes it; here it is only told, a second's worth at a
+    # time (outbox).
+
+    def track(self, place, st, goal):
+        """Called once per emulated second with what a place holds: note where a life
+        begins, what it becomes and where it ends."""
+        life = self.tracks.setdefault(str(place), {"key": None, "stage": 0, "gone": 0, "left": False})
+        now, stage = time.time(), st["stage"]
+        if st["dead"]:
+            self.finish(place, "gestorben")
+            return
+        if stage == 0:
+            life["gone"] += 1
+            if life["gone"] == GONE_AFTER:
+                self.finish(place, "verabschiedet" if life["left"] else "neu begonnen")
+            return
+        life["gone"], life["left"] = 0, bool(st.get("leaving"))
+        label = [st.get("petName") or None, goal]
+        if life["key"] is not None and life["stage"] == stage:
+            if life.get("label") != label:      # named, or given another goal, meanwhile
+                life["label"] = label
+                self.outbox.append(("label", life["key"], label[0], goal))
+            return
+        life["label"] = label
+        if life["key"] is None:
+            life["key"] = uuid.uuid4().hex
+            self.outbox.append(("begin", life["key"], now, place, st.get("petName") or None, goal))
+        life["stage"] = stage
+        data = {k: st[k] for k in ("hunger", "happy", "weight", "age", "mistakes", "missed", "training",
+                                   "fear", "mine", "iq", "body", "deed") if st.get(k) is not None}
+        self.outbox.append(("stage", life["key"], now, stage, self.model.names.get(stage, "Stufe %d" % stage),
+                            st.get("petName") or None, goal, data))
+
+    def finish(self, place, how):
+        life = self.tracks.get(str(place))
+        if life and life["key"] is not None:
+            self.outbox.append(("end", life["key"], time.time(), how))
+            life["key"], life["stage"] = None, 0
+
+    def track_all(self, status):
+        names = self.model.names
+        if hasattr(self.bot, "pets"):       # the Game Boy: three places, each with its goal
+            for place in range(3):
+                self.track(place, self.bot.status(place), names.get(self.bot.goals[place]))
+        else:
+            self.track(0, status, names.get(self.bot.goal))
 
     # -- persistence -------------------------------------------------------
 
@@ -105,7 +165,7 @@ class Engine:
             with open(self.state_path) as f:
                 data = json.load(f)
         except FileNotFoundError:
-            self.add_log("Neues Ei")
+            self.add_log("Eingeschaltet" if self.model.game == "gameboy" else "Neues Ei")
             return
         if data.get("rom", models.P1.id) != self.model.id:
             # Another ROM would wake up in the middle of this pet's memory
@@ -126,6 +186,17 @@ class Engine:
         self.speed = data.get("speed", 1) if data.get("speed", 1) in SPEEDS else 1
         self.report.from_dict(data.get("report", {}))
         self.lives = data.get("lives", [])
+        self.tracks = data.get("tracks", {})
+        if not data.get("history"):
+            # A state from before the history: hand over what the chronicle holds. The life
+            # that is still going on is taken up where it stands.
+            self.outbox.append(("old", [life for life in self.lives if life["ended"] is not None]))
+            if self.lives and self.lives[-1]["ended"] is None and self.lives[-1]["stages"]:
+                life, key = self.lives[-1], uuid.uuid4().hex
+                self.outbox.append(("begin", key, life["began"], 0, None, None))
+                for stage, name in life["stages"]:
+                    self.outbox.append(("stage", key, None, stage, name, None, None, None))
+                self.tracks = {"0": {"key": key, "stage": life["stages"][-1][0], "gone": 0, "left": False}}
         self.add_log("Spielstand geladen")
 
     def save_state(self):
@@ -145,6 +216,8 @@ class Engine:
                 "speed": self.speed,
                 "report": self.report.to_dict(),
                 "lives": self.lives,
+                "tracks": self.tracks,
+                "history": True,        # the lives from before the history have been handed over
             }
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
         tmp = self.state_path + ".tmp"
@@ -163,6 +236,7 @@ class Engine:
     def button(self, name, down):
         btn = BUTTONS[name]
         with self.lock:
+            self.watched_until = time.monotonic() + WATCHED_FOR
             self.take_over()
             now = self.tama.ticks
             if btn == BTN_TAP and self.model.rattle:
@@ -188,10 +262,16 @@ class Engine:
             self.take_over()
             self.bot.request(index)
 
+    def watched(self):
+        """Someone has the page of this pet open."""
+        with self.lock:
+            self.watched_until = time.monotonic() + WATCHED_FOR
+
     def wake(self):
         """Someone looks at the pet: a press of A takes the screen saver away (the Morino
         has one; there A does nothing else). Not while the bot or the user is at work."""
         with self.lock:
+            self.watched_until = time.monotonic() + WATCHED_FOR
             if self.pressed or getattr(self.bot, "task", None) is not None \
                     or not self.bot.status().get("saver"):
                 return
@@ -225,9 +305,30 @@ class Engine:
             self.take_over()
             self.bot.request(self.bot.duel_guest(about, outcome, name))
 
-    def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
-                  restart=None, shuffle=None, flip=None):
+    def place(self, what, slot=0, goal=None):
+        """Game Boy: bring the pet of one of the three places onto the screen ("show"), or
+        take a new egg ("egg"), or say what a place is to raise ("goal": a character, None, or -1
+        for one drawn by lot with every egg)."""
         with self.lock:
+            if not hasattr(self.bot, "show"):
+                return
+            if what == "show" and slot in range(3):
+                self.take_over()
+                self.bot.request(self.bot.show(slot))
+            elif what == "egg":
+                self.take_over()
+                self.bot.request(self.bot.begin())
+            elif what == "goal" and slot in range(3):
+                self.bot.wish(slot, goal)
+                self.add_log("Platz %d, Ziel: %s" % (slot + 1, "zufällig" if goal == -1
+                                                     else self.model.names[goal] if goal else "keins"))
+
+    def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
+                  restart=None, shuffle=None, flip=None, keep=None):
+        with self.lock:
+            if keep in (1, 2, 3) and hasattr(self.bot, "keep") and keep != self.bot.keep:
+                self.bot.keep = keep
+                self.add_log("Der Bot hält %s" % ("ein Tier" if keep == 1 else "%d Tiere zugleich" % keep))
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
                 self.hands_off = None
@@ -254,6 +355,8 @@ class Engine:
 
     def reset(self):
         with self.lock:
+            for place in list(self.tracks):
+                self.finish(place, "neu begonnen")
             self.end_life("neu begonnen")
             self.bot.stop()
             self.bot.clock_set_at = None
@@ -261,7 +364,7 @@ class Engine:
             self.bot.generation = 1
             self.tama.reset()
             self.reborn()
-            self.add_log("Neues Ei")
+            self.add_log("Aus- und eingeschaltet" if self.model.game == "gameboy" else "Neues Ei")
 
     def reborn(self):
         """A new life has begun: the day's counters belong to the one before."""
@@ -394,11 +497,19 @@ class Engine:
         if self.slices % 32 == 0:   # once per emulated second
             status = self.bot.status()
             self.chronicle(status)
+            self.track_all(status)
+            if self.outbox:
+                self.tell("history", self.outbox)
+                self.outbox = []
             pixels, icons = tama.frame()
             if self.model.game == "pikachu":
                 # its picture is the dot matrix, while it shows Pikachu and no menu
                 pixels = tama.dots() if status["screen"] == 0 else None
             self.report.observe(status, pixels, icons, now)
+
+    def unwatched(self, now):
+        """The Game Boy with its bot switched off and nobody at its page: it stands still."""
+        return self.model.game == "gameboy" and not self.bot_enabled and now >= self.watched_until
 
     def publish(self):
         tama = self.tama
@@ -407,6 +518,9 @@ class Engine:
         if self.model.game == "pikachu":
             # its LCD memory as it is; nothing while the display is switched off
             rows.append((tama.lcd_memory() or b"").hex())
+        elif self.model.game == "gameboy":
+            # the Game Boy's picture, four dots to a byte; nothing while the display is off
+            rows.append(base64.b64encode(tama.packed()).decode())
         else:
             for y in range(LCD_H):
                 bits = 0
@@ -443,8 +557,12 @@ class Engine:
             "flipped": self.bot.shift != 0,
             "goal": self.bot.goal,
             "goalName": self.model.names.get(self.bot.goal),
+            "pets": self.bot.pets() if hasattr(self.bot, "pets") else None,
+            "keep": getattr(self.bot, "keep", None),
+            "eggs": self.bot.eggs_left() if hasattr(self.bot, "eggs_left") else None,
             "speed": self.speed,
             "paused": self.paused,
+            "idle": self.unwatched(time.monotonic()),
             "logId": self.log_id,
             "livesId": self.lives_id,
             "cycle": [len(self.lives), bool(self.lives) and self.lives[-1]["ended"] is None],
@@ -470,7 +588,9 @@ class Engine:
             dt = min(start - last, 0.25)    # do not replay a suspended laptop
             last = start
             with self.lock:
-                if not self.paused:
+                if self.unwatched(start):
+                    owed = 0.0          # nobody looks: it stands still
+                elif not self.paused:
                     if self.speed == 0:
                         while time.monotonic() - start < FRAME * 0.8:
                             self.slice()

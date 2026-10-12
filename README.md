@@ -23,7 +23,8 @@ viel gelaufen. Zuschauen kann man ihnen auf [tamagotchi.mahok.de](https://tamago
 
 Die Emulation übernimmt [TamaLIB](https://github.com/jcrona/tamalib) von Jean-Christophe Rona;
 nur der Pocket Pikachu hat einen anderen Prozessor und dafür einen eigenen Kern nach dem Vorbild
-von [BrickEmuPy](https://github.com/azya52/BrickEmuPy). Darum herum liegen eine dünne C-Hülle,
+von [BrickEmuPy](https://github.com/azya52/BrickEmuPy), und das Tamagotchi-Spiel für den Game Boy
+läuft auf [Peanut-GB](https://github.com/deltabeard/Peanut-GB) von Mahyar Koshkouei. Darum herum liegen eine dünne C-Hülle,
 ein Python-Server ohne weitere Abhängigkeiten und ein paar HTML-Seiten.
 
 ## Die ROM gehört nicht dazu
@@ -47,6 +48,7 @@ braucht seine eigene:
 | Digimon V2 | `digimonv2.bin` aus dem MAME-Romset `digimonv2` | 16 384 Bytes | `ab860ca9f31f478532122cb9d20f59964a080a27` | `19a9e54e` |
 | Digimon V3 | `digimonv3.bin` aus dem MAME-Romset `digimonv3` | 16 384 Bytes | `0acd50e623e20d857e13bae150ac03405896cf2b` | `3000cf30` |
 | Pocket Pikachu | `PocketPikachu.bin` (Sammlung zu BrickEmuPy) | 20 480 Bytes | `b96e3eb9f9c973fd9e27dfb01591f4cde4d91f99` | `20c481e4` |
+| Tamagotchi (Game Boy) | `Tamagotchi (USA, Europe) (SGB Enhanced).gb`, vom eigenen Modul | 524 288 Bytes | `7368ec190bed39429812a26e18b2d3e153cf4e81` | `dbf1bd20` |
 
 Ist beim Start keine ROM da, zeigt der Server statt des Tamagotchis die Seite „Optionen“ und
 fragt danach: Man lädt die Datei (oder das ZIP des Romsets) im Browser hoch oder nennt den Pfad,
@@ -58,7 +60,8 @@ einen ganzen Ordner angeben (mehrfach möglich).
 ## Mehrere Tiere
 
 Oben auf der Seite steht für jedes Tier ein Tab mit dem Gehäuse seines Modells als kleinem
-Bild, „+“ legt ein neues an (Modell wählen, Name vergeben), auch mehrere vom selben Modell.
+Bild, „+“ legt ein neues an (das Gehäuse des Modells anklicken, Name vergeben), auch mehrere vom
+selben Modell.
 Jedes Tier hat seinen eigenen Care-Bot, sein Ziel, sein Tempo und seinen Spielstand.
 „Tier entfernen“ schließt den Tab; der Spielstand wird dabei
 nicht gelöscht, sondern nach `deleted/` verschoben.
@@ -68,8 +71,18 @@ Variablen, in einen Prozess passt also nur eines). In Echtzeit braucht ein Tier 
 Prozessorkerns und 25 MB.
 
 Neben dem Spielstand des ersten Tiers (`tama_state.json`) liegen `pets.json` mit der Liste der
-Tiere, `pets/` mit den weiteren Spielständen und `settings.json`. Wer von der Fassung mit nur
+Tiere, `pets/` mit den weiteren Spielständen, `settings.json` und `history.sqlite`. Wer von der Fassung mit nur
 einem Tier kommt, findet es als ersten Tab wieder.
+
+### Verlauf
+
+Was die Tiere erleben, bleibt in einer SQLite-Datei (`history.sqlite`, `history.py`) stehen,
+auch wenn ein Tab entfernt wird: jedes Leben mit Tab, Name, Ziel, Ende und den Figuren, die es
+durchlaufen hat (mit Zeitpunkt und den Werten in dem Moment), und jede Zeile der Protokolle.
+Beim Game Boy zählt jeder der drei Plätze für sich. Die Seite `/verlauf` (Link „Verlauf“ im
+Tab) zeigt die Sammlung der Figuren, die es je Modell schon gab, die Liste der Leben und das
+Protokoll eines Tabs zum Zurückblättern. Die Leben aus der früheren Chronik werden beim ersten
+Start übernommen; sie haben ihre Figuren, aber keine Zeiten dazu.
 
 ![Erster Start ohne ROM](docs/img/optionen.jpg)
 
@@ -582,6 +595,54 @@ um 510; Pikachu liebte den Bot damit am sechsten und am dritten Tag. Im Dauerlau
 70 800 Schritte am Tag zusammen, der Zähler ist so nach gut zwei Wochen voll. Abgezogen wurde
 in keinem Lauf etwas außer den 10 je Stunde.
 
+### Tamagotchi für den Game Boy
+
+Das Spiel von 1997 (Bandai, hier die Fassung für USA und Europa) ist kein Gerät, sondern ein
+Modul: Es läuft auf einem ganzen Game Boy (`src/gb_core.c` mit Peanut-GB, `gameboy.py`). Die
+Seite zeigt statt eines Eis einen Game Boy mit Bild, Steuerkreuz, A, B, Start und Select;
+auf der Tastatur sind das die Pfeiltasten, `A`, `B`, Enter und `S`.
+
+Im Spiel vergeht eine Stunde in zwei Minuten, ein Tag also in 48, und ein Leben ist nach ein,
+zwei echten Tagen vorbei. Es gibt drei Mahlzeiten und zwei Süßigkeiten, drei Spiele, Spritze
+und Tablette, Schimpfen und Loben, und bis zu drei Tiere zugleich. Alle Figuren der ersten
+beiden Tamagotchi kommen vor. Welche es wird, entscheiden zwei Werte, die das Spiel versteckt
+– Stress („Fear“) und Egoismus („Mine“) –, und am Ende, ob IQ oder Körper größer ist
+(`growth_gameboy.py`, Tabelle nach dem
+[Tamagotchi-Wiki](https://tamagotchi.fandom.com/wiki/Tamagotchi_(GB)/Character_list)).
+
+Der Care-Bot (`carebot_gameboy.py`) liest alles aus dem Speicher des Game Boy: Er macht das
+Licht aus, wenn das Tier schläft, gibt die Medizin, die zur Krankheit passt, räumt die Haufen
+weg, füttert das Lieblingsessen der Figur (das senkt den Stress), spielt das Smile-Spiel,
+schimpft, sobald das Tier etwas verweigert, und lobt nach einem gewonnenen Spiel (das senkt
+den Stress um 5). Süßigkeiten gibt er nicht: Zwei kurz hintereinander machen es krank. Das
+Smile-Spiel rät er, der Ausgang steht vorher nicht im Speicher.
+
+Mit einem **Ziel** (einer der zwölf Erwachsenen oder Bill; jeder der drei Plätze hat im Tab
+seine eigene Auswahl, auch „zufällig, mit jedem Ei neu“) steuert er die
+versteckten Werte: Er lässt Verweigerungen ungeschimpft durchgehen, bis der Egoismus dort ist,
+wo das Ziel ihn braucht; ein Kind, das Kuchitamatchi werden soll, lässt er in seinem Dreck
+sitzen, bis der Stress über 40 liegt; und mit dem Teenager spielt er das Lernspiel (IQ) oder
+das Sportspiel (Körper), je nachdem, welcher der beiden Erwachsenen eines Paares es werden
+soll. Im Sportspiel hüpft das Tier mit „Richtung halten und A“ unter den Ball; im Lernspiel
+antwortet es von selbst, je klüger, desto besser. Im Zeitraffer hat der Bot so vom Ei an
+jeden der zwölf Erwachsenen und Bill erreicht. Ein Stress von 100 tötet das Tier; deshalb
+räumt er vor der Nacht immer auf und spielt mit einem gestressten Tier um das Lob.
+
+Das Spiel hat **drei Plätze** und acht Eier. Der Tab zeigt, wer auf welchem Platz lebt und
+wie viele Eier übrig sind; „Zeigen“ holt ein Tier ins Bild, „Neues Ei“ lässt den Bot eines
+ausbrüten und benennen (Namen aus einer Liste), und mit „Tiere zugleich“ hält er von selbst
+ein, zwei oder drei. Sind mehrere da, wechselt er zu dem, das etwas braucht. Stirbt eines,
+legt er es ins Album. Ist das letzte Tier des letzten Eis gestorben, meldet das Spiel „No more
+eggs left“ und beginnt mit allen acht Eiern und leerem Album von vorn; der Bot macht dann
+einfach weiter. Ein gut gepflegtes Tier wurde im Lauf 29 Spieltage alt, das sind etwa
+anderthalb echte Tage.
+
+Ist der Bot ausgeschaltet, läuft der Game Boy nur, solange jemand seinen Tab offen hat, und
+bleibt sonst stehen wie ein zugeklapptes Gerät – das Tier würde sonst unbeaufsichtigt
+verhungern. Der Spielstand des Moduls (Batteriespeicher) wird mit dem Zustand gesichert; „Aus
+und an“ startet das Spiel neu und lässt ihn stehen. Ton gibt es noch nicht. Auf der Seite für
+alle und im Tagesbericht kommt das Spiel nicht vor.
+
 ### Tamagotchi Angel
 
 Der Angel (Tenshitchi no Tamagotchi, hier die japanische Fassung) hat einen ersten Care-Bot.
@@ -711,6 +772,9 @@ src/tama_core.c  C-Hülle: ROM laden, Ticks laufen lassen, LCD/Ton/RAM auslesen,
 tama.py          ctypes-Anbindung
 src/pika_core.c  der Pocket Pikachu: ein eigener Kern für seinen Prozessor (M37520)
 pika.py          dessen ctypes-Anbindung, carebot_pikachu.py und growth_pikachu.py Bot und Regeln
+src/gb_core.c    ein Game Boy für das Tamagotchi-Spiel: Hülle um Peanut-GB (src/peanut/peanut_gb.h)
+gameboy.py       dessen ctypes-Anbindung, carebot_gameboy.py und growth_gameboy.py Bot und Figuren
+history.py       der Verlauf: Leben, Figuren und Protokolle in SQLite
 carebot.py       der Care-Bot (P1, P2, Angel, Morino)
 carebot_umino.py, carebot_mothra.py   die Bots für Umino und Mothra
 growth.py        Wachstumsregeln und Planung für ein Ziel (P1, P2)
@@ -731,6 +795,8 @@ Favicon ist das Icon
 [„Tamagotchi“, erstellt von Magnific – Flaticon](https://www.flaticon.com/de/kostenloses-icon/tamagotchi_743850);
 es steht unter der Flaticon-Lizenz und nicht unter der GPL. Die Zeichnungen der Geräte in
 `web/shells/` stammen aus [BrickEmuPy](https://github.com/azya52/BrickEmuPy) von azya52 (CC0), ebenso
-die Vorlage für den Kern des Pocket Pikachu.
-Tamagotchi ist eine Marke von Bandai, Pikachu eine von Nintendo;
+die Vorlage für den Kern des Pocket Pikachu. `src/peanut/peanut_gb.h` ist
+[Peanut-GB](https://github.com/deltabeard/Peanut-GB) von Mahyar Koshkouei (MIT, mit Teilen aus
+SameBoy von Lior Halphon, ebenfalls MIT; der Lizenztext steht in der Datei).
+Tamagotchi ist eine Marke von Bandai, Pikachu und Game Boy sind Marken von Nintendo;
 dieses Projekt hat mit Bandai nichts zu tun.

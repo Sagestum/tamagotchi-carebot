@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)">
+<title>Tamagotchi – Verlauf</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 14px 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  a { color: var(--accent); }
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  p { margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row > span:first-child { color: var(--muted); }
+  .row > :last-child { text-align: right; }
+  .row.off { opacity: 0.45; }
+  .row.tall { display: block; padding: 5px 0; }
+  .row.tall > span { display: block; text-align: left; }
+  [hidden] { display: none !important; }
+  main { grid-template-columns: minmax(0, 1fr); max-width: 900px; }
+  select, button.plain {
+    font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px;
+  }
+  button.plain { cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; white-space: nowrap; }
+  .chip b { font-weight: 600; }
+  .chip span { color: var(--muted); }
+  h3 { margin: 12px 0 6px; font-size: 14px; }
+  h3:first-of-type { margin-top: 0; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 4px 10px 4px 0; white-space: nowrap; }
+  td { border-top: 1px solid var(--line); padding: 5px 10px 5px 0; vertical-align: top; }
+  td.path { min-width: 220px; }
+  td.nowrap { white-space: nowrap; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .now { color: var(--ok); }
+  #log { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  #log li { display: flex; gap: 12px; padding: 2px 0; }
+  #log time { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Verlauf</h1>
+    <a href="/">← zurück zum Tamagotchi</a>
+  </header>
+  <p class="note">Alles, was die Tiere erlebt haben, bleibt hier stehen – auch von Tabs, die es nicht mehr gibt.
+    Leben von früher (aus der alten Chronik) haben ihre Figuren, aber keine Zeiten dazu.</p>
+  <section>
+    <div class="row"><span>Zeigen</span><select id="tab" aria-label="Welcher Tab"></select></div>
+  </section>
+  <section>
+    <h2>Sammlung: Figuren, die es schon gab</h2>
+    <div id="seen"></div>
+  </section>
+  <section>
+    <h2>Leben <span id="lifeCount"></span></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Beginn</th><th>Tab</th><th>Name</th><th>Figuren</th><th>Ziel</th><th>Ende</th><th>Dauer</th></tr></thead>
+      <tbody id="lives"></tbody>
+    </table></div>
+  </section>
+  <section id="logBox" hidden>
+    <h2>Protokoll dieses Tabs</h2>
+    <ul id="log"></ul>
+    <p style="margin: 10px 0 0"><button class="plain" id="older" hidden>Ältere Zeilen</button></p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const day = (at) => at ? new Date(at * 1000).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '–';
+function span(a, b) {
+  if (!a || !b) return '–';
+  const h = (b - a) / 3600;
+  return h < 48 ? h.toFixed(1).replace('.', ',') + ' h' : (h / 24).toFixed(1).replace('.', ',') + ' Tage';
+}
+let all = null, chosen = new URLSearchParams(location.search).get('pet') || '', oldest = null;
+
+function draw() {
+  const lives = all.lives.filter((l) => !chosen || l.pet === chosen);
+  // the tabs there are, and those there were
+  const tabs = new Map(all.tabs.map((t) => [t.id, t.name + ' (' + t.modelName + ')']));
+  for (const l of all.lives) if (!tabs.has(l.pet)) tabs.set(l.pet, (l.tab || 'Tab ' + l.pet) + ' (' + (all.models[l.model] || l.model) + ', entfernt)');
+  $('tab').innerHTML = '<option value="">alle Tabs</option>' + [...tabs].map(([id, name]) =>
+    `<option value="${esc(id)}"${id === chosen ? ' selected' : ''}>${esc(name)}</option>`).join('');
+
+  const models = chosen ? new Set(lives.map((l) => l.model)) : null;
+  $('seen').innerHTML = Object.entries(all.seen).filter(([m]) => !models || models.has(m)).map(([m, list]) =>
+    `<h3>${esc(all.models[m] || m)}</h3><div class="chips">` + list.map((c) =>
+      `<span class="chip"><b>${esc(c.name)}</b> <span>${c.times}×</span></span>`).join('') + '</div>').join('')
+    || '<p class="note">Noch nichts.</p>';
+
+  $('lifeCount').textContent = '(' + lives.length + ')';
+  $('lives').innerHTML = lives.map((l) => {
+    const path = l.stages.map((s) => esc(s.name)).join(' → ');
+    const reached = l.goal && l.stages.some((s) => s.name === l.goal);
+    const goal = l.goal ? esc(l.goal) + (reached ? ' <span class="ok">✓</span>' : l.ended ? ' ✗' : '') : '–';
+    return `<tr><td class="nowrap">${day(l.began)}</td>
+      <td>${esc(l.tab || l.pet)}${l.model === 'gameboy' ? ', Platz ' + (l.place + 1) : ''}</td>
+      <td>${esc(l.name || '–')}</td><td class="path">${path}</td><td>${goal}</td>
+      <td>${l.ended || !l.began ? esc(l.ending || '–') : '<span class="now">lebt</span>'}</td>
+      <td class="nowrap">${l.ended ? span(l.began, l.ended) : l.began ? span(l.began, Date.now() / 1000) : '–'}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" class="note">Noch keine Leben.</td></tr>';
+}
+
+async function more(first) {
+  if (!chosen) { $('logBox').hidden = true; return; }
+  const res = await fetch('/api/history?log=1&pet=' + encodeURIComponent(chosen) + (first || !oldest ? '' : '&before=' + oldest));
+  const {log} = await res.json();
+  if (first) $('log').textContent = '';
+  $('log').insertAdjacentHTML('beforeend', log.map((l) => `<li><time>${day(l.at)}</time><span>${esc(l.text)}</span></li>`).join(''));
+  if (log.length) oldest = log[log.length - 1].id;
+  $('older').hidden = log.length < 200;
+  $('logBox').hidden = false;
+}
+
+async function load() {
+  all = await (await fetch('/api/history')).json();
+  draw();
+  oldest = null;
+  more(true);
+}
+$('tab').addEventListener('change', (e) => { chosen = e.target.value; draw(); oldest = null; more(true); });
+$('older').addEventListener('click', () => more(false));
+load();
+</script>
+</body>
+</html>

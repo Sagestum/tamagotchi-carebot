@@ -143,6 +143,83 @@
     transform: translateY(3px);
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
   }
+  /* The Game Boy: no drawing of a shell, but a body of its own with the picture and the keys */
+  .gameboy {
+    width: min(100%, 400px);
+    margin: 0 auto;
+    padding: 5% 6% 8%;
+    border-radius: 14px 14px 56px 14px;
+    background: linear-gradient(160deg, #d8d5cc, #b9b5aa);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 14px 26px rgba(0, 0, 0, 0.22);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .gameboy[hidden] { display: none; }
+  .gbPlace { padding: 6px 0 10px; border-top: 1px solid var(--line); }
+  .gbPlace:first-child { border-top: 0; padding-top: 0; }
+  .gbPlace .row { border: 0; padding: 2px 0; }
+  .gbPlace .gbState { font-size: 13.5px; }
+  .gbPlace select { max-width: 55%; }
+  .gameboy .glass {
+    padding: 7% 12% 9%;
+    border-radius: 10px 10px 34px 10px;
+    background: #5d5f6e;
+  }
+  .gameboy canvas {
+    width: 100%;
+    aspect-ratio: 160 / 144;
+    margin: 0;
+    image-rendering: pixelated;
+    background: #c9d4a6;
+    border-radius: 2px;
+  }
+  .gameboy .name { font: italic 700 15px system-ui, sans-serif; color: #2d3277; margin: 10px 4px 0; letter-spacing: 0.02em; }
+  .gameboy .keys { display: flex; justify-content: space-between; align-items: center; margin-top: 9%; }
+  .gameboy .pad { position: relative; width: 34%; aspect-ratio: 1; }
+  .gameboy .pad button {
+    position: absolute;
+    width: 34%;
+    height: 34%;
+    border: 0;
+    background: #2f3037;
+    color: #6d6f7c;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .gameboy .pad [data-btn="up"] { left: 33%; top: 0; border-radius: 5px 5px 0 0; }
+  .gameboy .pad [data-btn="down"] { left: 33%; bottom: 0; border-radius: 0 0 5px 5px; }
+  .gameboy .pad [data-btn="left"] { left: 0; top: 33%; border-radius: 5px 0 0 5px; }
+  .gameboy .pad [data-btn="right"] { right: 0; top: 33%; border-radius: 0 5px 5px 0; }
+  .gameboy .pad i { position: absolute; left: 33%; top: 33%; width: 34%; height: 34%; background: #2f3037; }
+  .gameboy .ab { display: flex; gap: 12%; width: 40%; transform: rotate(-24deg); justify-content: flex-end; }
+  .gameboy .ab button {
+    width: 44%;
+    aspect-ratio: 1;
+    border: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #c2356f, #8d1c4b);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+    color: #f3c6d8;
+    font: 700 13px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .gameboy .small { display: flex; justify-content: center; gap: 7%; margin-top: 7%; }
+  .gameboy .small button {
+    width: 19%;
+    padding: 5px 0;
+    border: 0;
+    border-radius: 999px;
+    background: #8b8d98;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+    color: #e9e9ee;
+    font: 600 10px system-ui, sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transform: rotate(-24deg);
+    cursor: pointer;
+  }
+  .gameboy button.down { filter: brightness(0.75); box-shadow: none; }
+  .gameboy .ab button.down, .gameboy .small button.down { translate: 0 2px; }
   .hint {
     text-align: center;
     color: var(--muted);
@@ -309,6 +386,21 @@
     width: min(340px, 92vw);
   }
   dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+  #newPet { width: min(620px, 94vw); }
+  #newModels { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
+  #newModels button {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px;
+    padding: 8px 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+    color: var(--ink); font: inherit; font-size: 12px; line-height: 1.25; cursor: pointer;
+  }
+  #newModels button img, #newModels button .mini { height: 84px; max-width: 100%; }
+  #newModels button[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+  #newModels .mini {
+    width: 54px; border-radius: 6px 6px 16px 6px; background: linear-gradient(170deg, #d2d0c8, #b9b5aa);
+    position: relative; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  #newModels .mini::before { content: ""; position: absolute; left: 12%; right: 12%; top: 8%; height: 42%; border-radius: 3px 3px 8px 3px; background: #5d5f72; }
+  #newModels .mini::after { content: ""; position: absolute; left: 24%; right: 24%; top: 14%; height: 30%; background: #c9d6a3; }
   dialog label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
   dialog select, dialog input {
     width: 100%;
@@ -330,6 +422,26 @@
 
   <div>
     <div class="art" id="art" hidden></div>
+    <div class="gameboy" id="gb" hidden>
+      <div class="glass"><canvas id="gbLcd" width="160" height="144" role="img" aria-label="Bild des Game Boy"></canvas></div>
+      <p class="name">Tamagotchi <span style="font-weight: 400">für den Game Boy</span></p>
+      <div class="keys">
+        <div class="pad"><i></i>
+          <button data-btn="up" aria-label="Steuerkreuz hoch">▲</button>
+          <button data-btn="left" aria-label="Steuerkreuz links">◀</button>
+          <button data-btn="right" aria-label="Steuerkreuz rechts">▶</button>
+          <button data-btn="down" aria-label="Steuerkreuz runter">▼</button>
+        </div>
+        <div class="ab">
+          <button data-btn="B" aria-label="Taste B">B</button>
+          <button data-btn="A" aria-label="Taste A">A</button>
+        </div>
+      </div>
+      <div class="small">
+        <button data-btn="select" aria-label="Select">Select</button>
+        <button data-btn="start" aria-label="Start">Start</button>
+      </div>
+    </div>
     <div class="shell" id="egg">
       <div class="screen">
         <div class="icons" id="iconsTop"></div>
@@ -352,6 +464,8 @@
     <p class="hint" id="tapRow" hidden><button class="plain" data-btn="T" id="tapBtn" aria-label="Auf das Gehäuse klopfen">Klopfen</button>
       <span id="tapHint">– der Sensor im Gehäuse, Taste <kbd>T</kbd></span></p>
     <p class="hint" id="keysHint">Tastatur: <kbd>←</kbd> A (auswählen) · <kbd>↓</kbd> B (bestätigen) · <kbd>→</kbd> C (abbrechen)</p>
+    <p class="hint" id="keysGb" hidden>Tastatur: Pfeiltasten für das Steuerkreuz · <kbd>A</kbd> und <kbd>B</kbd> ·
+      <kbd>Enter</kbd> Start · <kbd>S</kbd> Select. Der Spielstand liegt wie im Modul im Spiel selbst.</p>
     <p class="hint" id="keysPikachu" hidden>Tastatur: Pfeiltasten für das Steuerkreuz · <kbd>A</kbd> bestätigen ·
       <kbd>B</kbd> zurück · <kbd>Enter</kbd> Start (Einstellungen) · <kbd>S</kbd> Select (Freundschaft)</p>
   </div>
@@ -375,9 +489,13 @@
         <span>Mit zufälliger End-Evolution weitermachen</span>
         <label class="switch"><input type="checkbox" id="shuffle"><b></b></label>
       </div>
-      <div class="row">
+      <div class="row" id="flipRow">
         <span>Zeitumkehrer: Tag und Nacht vertauscht <span class="flag" id="flipNote" hidden></span></span>
         <label class="switch"><input type="checkbox" id="flip"><b></b></label>
+      </div>
+      <div class="row" id="gbKeepRow" hidden>
+        <span>Tiere zugleich</span>
+        <div class="seg" id="gbKeep"><button data-keep="1">1</button><button data-keep="2">2</button><button data-keep="3">3</button></div>
       </div>
       <div class="row" id="goalRow">
         <span>Ziel</span>
@@ -385,18 +503,27 @@
       </div>
     </section>
 
-    <section>
+    <section id="gbPlaces" hidden>
+      <h2 id="gbPlacesTitle">Die Tiere</h2>
+      <div id="gbPlaceList"></div>
+      <div class="row" id="gbMore" hidden><span>Noch ein Tier (bis zu drei)</span>
+        <button class="plain" id="gbMoreEgg" style="white-space: nowrap">Neues Ei</button></div>
+      <p class="hint" style="margin: 8px 0 0">Eier übrig: <b id="gbEggs">–</b> von 8. Jedes lässt sich einmal ausbrüten;
+        ist das letzte Tier des letzten Eis gestorben, beginnt das Spiel mit allen acht von vorn.</p>
+    </section>
+
+    <section id="stateBox">
       <h2>Zustand</h2>
       <div class="row" id="hungerRow"><span>Hunger</span><span class="hearts" id="hunger"></span></div>
       <div class="row" id="happyRow"><span id="happyLabel">Glück</span><span class="hearts" id="happy"></span></div>
       <div class="row" id="practiceRow" hidden><span>Übung</span><span class="hearts" id="practice"></span></div>
       <div class="row" id="fansRow" hidden><span>Beliebtheit</span><span id="fans">–</span></div>
-      <div class="row"><span>Charakter</span><span id="stage">–</span></div>
-      <div class="row"><span id="weightLabel">Gewicht</span><span id="weight">–</span></div>
+      <div class="row" id="stageRow"><span>Charakter</span><span id="stage">–</span></div>
+      <div class="row" id="weightRow"><span id="weightLabel">Gewicht</span><span id="weight">–</span></div>
       <div class="row" id="stepsRow" hidden><span>Schritte</span><span id="pikaSteps">–</span></div>
       <div class="row" id="todayRow" hidden><span>Heute gelaufen</span><span id="pikaToday">–</span></div>
       <div class="row" id="accountRow" hidden><span>Zuneigungskonto</span><span id="pikaAccount">–</span></div>
-      <div class="row"><span>Uhr im Gerät</span><span id="clock">–</span></div>
+      <div class="row"><span id="clockLabel">Uhr im Gerät</span><span id="clock">–</span></div>
       <div class="row" id="gameRow" hidden><span>Spielrunde (steht vorher fest)</span><span id="game"></span></div>
       <div class="flags" id="flags"></div>
     </section>
@@ -413,11 +540,11 @@
         <span>Pause</span>
         <label class="switch"><input type="checkbox" id="paused"><b></b></label>
       </div>
-      <div class="row">
+      <div class="row" id="soundRow">
         <span>Ton (nur bei 1×)</span>
         <label class="switch"><input type="checkbox" id="sound"><b></b></label>
       </div>
-      <div class="row">
+      <div class="row" id="mailRow">
         <span>Tagesbericht per E-Mail</span>
         <button class="plain" id="testmail">Jetzt senden</button>
       </div>
@@ -430,12 +557,12 @@
         <span class="swatches" id="colors"></span>
       </div>
       <div class="row">
-        <span>Von vorn beginnen</span>
+        <span id="resetLabel">Von vorn beginnen</span>
         <button class="plain" id="reset">Neues Ei</button>
       </div>
-      <div class="row">
+      <div class="row" id="cycleRow">
         <span>Dieses Leben ist</span>
-        <span><b id="cycle">–</b> · <a href="/chronik" id="livesLink">Chronik</a></span>
+        <span><b id="cycle">–</b> · <a href="/chronik" id="livesLink">Chronik</a> · <a href="/verlauf" id="historyLink">Verlauf</a></span>
       </div>
       <div class="row">
         <span>Diesen Tab schließen</span>
@@ -453,11 +580,9 @@
 <dialog id="newPet">
   <form method="dialog" id="newForm">
     <h2>Neues Tier</h2>
-    <label for="newModel">Modell</label>
-    <select id="newModel"></select>
+    <div id="newModels" role="radiogroup" aria-label="Modell"></div>
     <label for="newName">Name (steht auf dem Tab)</label>
     <input type="text" id="newName" maxlength="24" autocomplete="off">
-    <span class="swatches" id="newColors" hidden></span>
     <p class="msg" id="newMsg" role="status"></p>
     <div class="actions">
       <button class="plain" type="button" id="newCancel">Abbrechen</button>
@@ -702,7 +827,15 @@ async function drawArt(names, model) {
   artOf = model;
   pixEls = pikaEls = null;
   $('art').hidden = true;
-  $('egg').hidden = false;
+  $('gb').hidden = model !== 'gameboy';
+  $('egg').hidden = model === 'gameboy';
+  if (model === 'gameboy') {
+    iconEls = [];
+    const lcd = lastLcd;
+    lastLcd = null;
+    drawLcd(lcd);
+    return;
+  }
   if (!ART[model]) return;
   let text;
   try {
@@ -801,10 +934,27 @@ const css = getComputedStyle(document.documentElement);
 const LCD_ON = css.getPropertyValue('--lcd-on');
 const LCD_OFF = css.getPropertyValue('--lcd-off');
 let lastLcd = '';
+/* The Game Boy's picture: 160 x 144 dots in four shades, two bits a dot, as base64; nothing
+   while its display is switched off */
+const GB_SHADES = [[0xd3, 0xdd, 0xb0], [0x9d, 0xb0, 0x76], [0x55, 0x6b, 0x47], [0x1c, 0x2a, 0x21]];
+const gbCtx = $('gbLcd').getContext('2d');
+const gbImage = gbCtx.createImageData(160, 144);
+function drawGb(b64) {
+  const px = gbImage.data;
+  let raw = '';
+  try { raw = atob(b64 || ''); } catch (e) { raw = ''; }
+  for (let i = 0; i < 160 * 144; i++) {
+    const shade = raw.length === 5760 ? (raw.charCodeAt(i >> 2) >> (6 - 2 * (i & 3))) & 3 : 0;
+    const c = GB_SHADES[shade];
+    px[4 * i] = c[0]; px[4 * i + 1] = c[1]; px[4 * i + 2] = c[2]; px[4 * i + 3] = 255;
+  }
+  gbCtx.putImageData(gbImage, 0, 0);
+}
 function drawLcd(hex) {
   if (hex === lastLcd) return;
   lastLcd = hex;
   if (artOf === 'pikachu') { drawPika(hex); return; }
+  if (artOf === 'gameboy') { drawGb(hex); return; }
   const cell = canvas.width / 32, gap = cell * 0.09;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let y = 0; y < 16; y++) {
@@ -893,7 +1043,7 @@ const KEYS = {ArrowLeft: 'A', a: 'A', ArrowDown: 'B', s: 'B', b: 'B', ArrowRight
 /* The Pocket Pikachu has a control pad of its own */
 const KEYS_PIKACHU = {ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'A', b: 'B',
                       Enter: 'start', s: 'select', t: 'T'};
-const keyOf = (e) => (artOf === 'pikachu' ? KEYS_PIKACHU : KEYS)[e.key];
+const keyOf = (e) => (artOf === 'pikachu' || artOf === 'gameboy' ? KEYS_PIKACHU : KEYS)[e.key];
 window.addEventListener('keydown', (e) => {
   const name = keyOf(e);
   if (!name || e.repeat || e.ctrlKey || e.metaKey || e.altKey || $('newPet').open) return;
@@ -920,7 +1070,8 @@ $('testmail').addEventListener('click', () => post('/api/test-mail'));
 function twice(id, label, warning, action) {
   let armed = null;
   const btn = $(id);
-  const calm = () => { armed = null; btn.textContent = label; btn.classList.remove('danger'); };
+  const text = (t) => typeof t === 'function' ? t() : t;
+  const calm = () => { armed = null; btn.textContent = text(label); btn.classList.remove('danger'); };
   btn.addEventListener('click', () => {
     if (armed) {
       clearTimeout(armed);
@@ -928,18 +1079,90 @@ function twice(id, label, warning, action) {
       action();
       return;
     }
-    btn.textContent = warning;
+    btn.textContent = text(warning);
     btn.classList.add('danger');
     armed = setTimeout(calm, 4000);
   });
 }
-twice('reset', 'Neues Ei', 'Wirklich? Das Tier geht verloren', () => post('/api/reset'));
+/* The Game Boy is only switched off and on: what the game has saved stays in the cartridge */
+twice('reset', () => artOf === 'gameboy' ? 'Aus und an' : 'Neues Ei',
+      () => artOf === 'gameboy' ? 'Wirklich? Ungespeichertes geht verloren' : 'Wirklich? Das Tier geht verloren',
+      () => post('/api/reset'));
 twice('remove', 'Tier entfernen', 'Wirklich? Der Tab verschwindet',
       () => post('/api/pets/remove').then(() => loadPets()));
 
 /* Live state */
 const AGE = {1: ' (Baby)', 2: ' (Kind)', 3: ' (Teenager)', 4: ' (Teenager)'};
 const AGE_OF = {morino: {1: ' (Baby)', 2: ' (Kind)', 13: ' (Kokon)'}, pikachu: {}};
+/* Game Boy: forecast, the number of pets the bot keeps, and the three places with their goals */
+let gbNames = {}, gbGoals = [];
+function renderGb(msg) {
+  const g = msg.growth;
+  if (g && g.names) { gbNames = g.names; gbGoals = g.goals; }
+  const names = gbNames;
+  $('gbEggs').textContent = msg.eggs === null ? '–' : msg.eggs;
+  document.querySelectorAll('#gbKeep button').forEach((b) => b.classList.toggle('on', Number(b.dataset.keep) === msg.keep));
+  // (not while one of its selects is open: redrawing would close it)
+  if ($('gbPlaceList').contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  /* A free place is only listed if the bot is to fill it (so that its goal can be chosen
+     beforehand), or if there is no pet at all; a further egg has its own button below */
+  const all = msg.pets || [];
+  const used = all.filter((p) => p.stage || p.egg), free = all.filter((p) => !p.stage && !p.egg);
+  const listed = all.filter((p) => p.stage || p.egg || free.indexOf(p) < Math.max(msg.keep - used.length, used.length ? 0 : 1));
+  const spare = free.find((p) => !listed.includes(p));
+  $('gbMore').hidden = !spare || !msg.eggs;
+  $('gbPlacesTitle').textContent = listed.length === 1 ? 'Das Tier' : 'Die Tiere';
+  $('gbPlaceList').innerHTML = listed.map((p) => {
+    const alive = p.stage > 0 && !p.dead;
+    const title = p.egg ? 'Ei, schlüpft gleich' : !p.stage ? 'frei'
+      : `<b>${p.petName || '?'}</b> – ${p.dead ? 'gestorben' : p.name + ' (' + p.stageName + ', ' + p.age + (p.age === 1 ? ' Tag' : ' Tage') + ')'}`;
+    const button = p.shown ? '<span class="flag" style="white-space: nowrap">im Bild</span>'
+      : p.stage || p.egg ? `<button class="plain" data-show="${p.slot}">Zeigen</button>`
+      : msg.eggs ? `<button class="plain" data-egg="${p.slot}">Neues Ei</button>` : '';
+    const flags = [];
+    if (alive && p.poop) flags.push([p.poop + '× Häufchen', true]);
+    if (alive && p.sick) flags.push([p.sickness === 2 ? 'Krank: Spritze' : 'Krank: Tablette', true]);
+    if (alive && p.scold) flags.push(['Verweigert: schimpfen', true]);
+    if (alive && p.asleep) flags.push(['Schläft', false]);
+    if (alive && !p.light) flags.push(['Licht aus', false]);
+    const w = p.wanted;
+    const plan = !w ? '' : 'Bot: Egoismus ' + (w.selfish[0] === w.selfish[1] ? w.selfish[0] : w.selfish[0] + (w.selfish[1] >= 9 ? ' oder mehr' : ' bis ' + w.selfish[1]))
+      + ', mehr ' + (w.more === 'iq' ? 'IQ als Körper' : 'Körper als IQ') + (w.stress ? ', als Kind gestresst' : '');
+    const state = !alive ? '' : `
+      <div class="row gbState"><span>Hunger</span><span class="hearts">${hearts(p.hunger)}</span></div>
+      <div class="row gbState"><span>Glück</span><span class="hearts">${hearts(p.happy)}</span></div>
+      <div class="row gbState"><span>Gewicht</span><span>${p.weight} lb</span></div>
+      <div class="row gbState"><span>IQ · Körper · Benehmen</span><span>${p.iq} · ${p.body} · ${p.deed}</span></div>
+      <div class="row gbState"><span>Stress · Egoismus (versteckt)</span><span>${p.fear} · ${p.mine}</span></div>
+      <div class="row gbState"><span>Wird als Nächstes</span><span>${p.forecast.length ? p.forecast.map((n) => names[n]).join(' oder ') : '–'}</span></div>
+      ${flags.length ? '<div class="flags">' + flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('') + '</div>' : ''}`;
+    const wish = p.wish === null ? '' : String(p.wish);
+    const options = [['', 'kein Ziel (gute Pflege)'], ['-1', 'zufällig, mit jedem Ei neu'], ...gbGoals.map((n) => [String(n), names[n]])]
+      .map(([v, t]) => `<option value="${v}"${v === wish ? ' selected' : ''}>${t}</option>`).join('');
+    const note = p.wish === -1 && p.goal ? ' (ausgelost: ' + names[p.goal] + ')' : '';
+    const late = p.goal && !p.open ? ' <span class="flag warn">für dieses Tier zu spät</span>' : '';
+    return `<div class="gbPlace">
+      <div class="row"><span>${p.slot + 1} · ${title}</span>${button}</div>${state}
+      <div class="row gbState"><span>Ziel${note}${late}</span>
+        <select data-goal="${p.slot}" aria-label="Ziel für Platz ${p.slot + 1}">${options}</select></div>
+      ${plan ? '<p class="hint" style="margin: 2px 0 0; text-align: left">' + plan + '</p>' : ''}
+    </div>`;
+  }).join('');
+}
+$('gbMoreEgg').addEventListener('click', () => post('/api/place', {what: 'egg'}));
+$('gbKeep').addEventListener('click', (e) => {
+  if (e.target.dataset.keep) post('/api/config', {keep: Number(e.target.dataset.keep)});
+});
+$('gbPlaceList').addEventListener('change', (e) => {
+  if (e.target.dataset.goal === undefined) return;
+  post('/api/place', {what: 'goal', slot: Number(e.target.dataset.goal), goal: e.target.value ? Number(e.target.value) : null});
+  e.target.blur();      // the list is drawn again from the next picture on
+});
+$('gbPlaceList').addEventListener('click', (e) => {
+  if (e.target.dataset.show) post('/api/place', {what: 'show', slot: Number(e.target.dataset.show)});
+  else if (e.target.dataset.egg) post('/api/place', {what: 'egg'});
+});
+
 function hearts(n) {
   return '♥'.repeat(n) + '<i>' + '♥'.repeat(4 - n) + '</i>';
 }
@@ -955,17 +1178,31 @@ function render(msg) {
     $('tapHint').innerHTML = pika ? '– das Pendel im Gehäuse; auch ein Klick auf das Display oder Taste <kbd>T</kbd>'
       : '– der Sensor im Gehäuse, Taste <kbd>T</kbd>';
   }
-  $('keysHint').hidden = msg.model === 'yasashii' || pika;     // a button for every action there
+  const gb = msg.model === 'gameboy';
+  $('keysHint').hidden = msg.model === 'yasashii' || pika || gb;     // a button for every action there
   $('keysPikachu').hidden = !pika;
-  $('hungerRow').hidden = pika;
+  $('keysGb').hidden = !gb;
+  $('hungerRow').hidden = pika || gb;
+  $('mailRow').hidden = $('soundRow').hidden = gb;   // its days are not ours, and no sound yet
+  $('flipRow').hidden = gb;             // its clock is the game's own: a day in 48 minutes
+  // the Game Boy's pets are told of place by place; what is left here is the clock
+  $('stageRow').hidden = $('weightRow').hidden = gb;
+  $('clockLabel').textContent = gb ? 'Uhr im Spiel' : 'Uhr im Gerät';
+  if ($('resetLabel').dataset.gb !== String(gb)) {
+    $('resetLabel').dataset.gb = String(gb);
+    $('resetLabel').textContent = gb ? 'Game Boy neu starten' : 'Von vorn beginnen';
+    $('reset').textContent = gb ? 'Aus und an' : 'Neues Ei';
+  }
   $('stepsRow').hidden = $('todayRow').hidden = $('accountRow').hidden = !pika;
   const digimon = kin(msg.model) === 'digimon';
   $('sparRow').hidden = !digimon;
   if (digimon) duelChoice();
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
-  $('happyRow').hidden = !msg.care;
-  $('goalRow').hidden = !msg.goals;
-  $('disciplineRow').hidden = !msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin');
+  $('happyRow').hidden = !msg.care || gb;
+  $('goalRow').hidden = !msg.goals || gb;      // the game has no chart on the bot's page
+  $('gbKeepRow').hidden = $('gbPlaces').hidden = !gb;
+  if (gb) renderGb(msg);
+  $('disciplineRow').hidden = !gb && (!msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin'));
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';
   $('weightLabel').textContent = msg.unit === 'AP' ? 'Angel Power' : pika ? 'Watt' : 'Gewicht';
   $('happyLabel').textContent = msg.unit === 'AP' ? 'Einsatz' : digimon ? 'Stärke' : pika ? 'Zuneigung' : 'Glück';
@@ -982,9 +1219,10 @@ function render(msg) {
     $('practice').innerHTML = alive ? hearts(st.training) : '–';
     $('fans').textContent = alive ? st.fans + (st.fans >= 2 ? ' (beliebt)' : ' (unbeliebt)') : '–';
   }
-  $('stage').textContent = st.dead ? 'Gestorben' : st.name + (msg.care && (AGE_OF[kin(msg.model)] || AGE)[st.stage] || '');
+  $('stage').textContent = st.dead ? 'Gestorben' : gb ? st.name + (alive ? ' (' + st.stageName + ', ' + st.age + (st.age === 1 ? ' Tag' : ' Tage') + ')' : '')
+    : st.name + (msg.care && (AGE_OF[kin(msg.model)] || AGE)[st.stage] || '');
   $('weight').textContent = alive ? st.weight + (msg.unit === 'AP' ? '' : ' ' + msg.unit) : '–';
-  $('clock').textContent = alive ? st.clock : '–';
+  $('clock').textContent = alive || gb ? st.clock : '–';
   if (pika) {
     const n = (v) => v.toLocaleString('de-DE');
     $('happy').innerHTML = alive ? hearts(st.mood) + ' <span class="plainText">' + st.moodName + '</span>' : '–';
@@ -1010,6 +1248,7 @@ function render(msg) {
   if (pika && st.saver) flags.push(['Display aus', false]);
   if (pika && alive && st.mood === 0) flags.push(['Weggelaufen', true]);
   if (pika && alive && st.held && msg.bot) flags.push(['Bot wartet mit dem Laufen: Pikachu schläft oder ist beschäftigt', false]);
+  if (gb) flags.length = 0;     // they stand with each place
   $('flags').innerHTML = flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('');
 
   $('bot').checked = msg.bot;
@@ -1021,7 +1260,7 @@ function render(msg) {
   $('programme').hidden = !msg.programme;
   $('restart').checked = msg.restart || msg.programme;
   $('restart').disabled = msg.programme;
-  $('shuffleRow').hidden = !msg.goals || pika;
+  $('shuffleRow').hidden = !msg.goals || pika || gb;     // there every place can be told to draw lots
   $('shuffle').checked = msg.shuffle && !msg.programme;
   $('shuffle').disabled = !msg.restart || msg.programme;   // it only says how a new life is begun
   $('flip').checked = msg.flip;
@@ -1091,6 +1330,7 @@ function openPet(p) {
   document.title = p.name + ' – Tamagotchi';
   $('botLink').href = '/bot?pet=' + p.id;
   $('livesLink').href = '/chronik?pet=' + p.id;
+  $('historyLink').href = '/verlauf?pet=' + p.id;
   [...held].forEach((name) => { held.delete(name); document.querySelectorAll(`[data-btn="${name}"]`).forEach((el) => el.classList.remove('down')); });
   if (events) events.close();
   $('offline').innerHTML = OFFLINE;
@@ -1140,15 +1380,29 @@ async function loadPets(select) {
            (c) => post('/api/pets/color', {color: c}).then(() => loadPets(cur.id)));
 }
 
-let newColor = null;    // none chosen: the server takes one that is still free
+let newModel = null;
 function newPet() {
   const have = models.filter((m) => m.rom);
-  $('newModel').textContent = '';
-  for (const m of have) $('newModel').append(new Option(m.name, m.id));
+  newModel = have.length ? have[0].id : null;
+  $('newModels').textContent = '';
+  for (const m of have) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.dataset.model = m.id;
+    // the shell it comes in; the Game Boy is drawn by the page itself
+    const art = ART[m.id] ? Object.assign(document.createElement('img'), {src: '/shells/' + ART[m.id] + '.svg', alt: ''})
+      : Object.assign(document.createElement('span'), {className: 'mini'});
+    b.append(art, m.name);
+    $('newModels').append(b);
+  }
+  const mark = () => $('newModels').querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.model === newModel)));
+  $('newModels').onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b) { newModel = b.dataset.model; mark(); }
+  };
+  mark();
   $('newName').value = '';
-  newColor = null;
-  const choose = (c) => { newColor = c; swatches($('newColors'), c, choose); };
-  swatches($('newColors'), null, choose);
   const missing = models.filter((m) => !m.rom).map((m) => m.name);
   $('newMsg').textContent = missing.length ? 'Ohne ROM (unter „Optionen“ angeben): ' + missing.join(', ') : '';
   $('newPet').showModal();
@@ -1160,7 +1414,7 @@ $('newForm').addEventListener('submit', async (e) => {
   const res = await fetch('/api/pets', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({model: $('newModel').value, name: $('newName').value, color: newColor}),
+    body: JSON.stringify({model: newModel, name: $('newName').value}),
   }).catch(() => null);
   const data = res ? await res.json().catch(() => ({})) : {};
   if (!res || !res.ok) { $('newMsg').textContent = data.error || 'Keine Verbindung zum Server.'; return; }

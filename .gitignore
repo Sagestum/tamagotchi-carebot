@@ -27,3 +27,6 @@ Paradise/
 # Other ROM dumps supplied by the user
 /Tamagotchi P2/
 /Tamagotchis/
+
+# The history of all pets (SQLite, next to the states)
+history.sqlite*
