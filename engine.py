@@ -37,6 +37,7 @@ FRAME = 1 / 30                  # seconds between screen updates
 SPEEDS = (1, 2, 5, 20, 0)       # 0 = as fast as possible
 MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
 HANDS_OFF = 60                  # real seconds the bot waits after the user's last input
+SHOT_AFTER = 20                 # emulated seconds a character is given before its picture is taken
 GONE_AFTER = 60                 # emulated seconds without a character until a life counts as over
 LIVES_KEPT = 300                # the chronicle forgets what is older
 STATS = ("hunger", "happy", "poop", "cleaned", "sick")     # counted for every life
@@ -139,7 +140,7 @@ class Engine:
         if life["key"] is None:
             life["key"] = uuid.uuid4().hex
             self.outbox.append(("begin", life["key"], now, place, st.get("petName") or None, goal))
-        life["stage"] = stage
+        life["stage"], life["since"], life["shot"] = stage, self.tama.seconds, False
         data = {k: st[k] for k in ("hunger", "happy", "weight", "age", "mistakes", "missed", "training",
                                    "fear", "mine", "iq", "body", "deed") if st.get(k) is not None}
         self.outbox.append(("stage", life["key"], now, stage, self.model.names.get(stage, "Stufe %d" % stage),
@@ -156,6 +157,14 @@ class Engine:
         if hasattr(self.bot, "pets"):       # the Game Boy: three places, each with its goal
             for place in range(3):
                 self.track(place, self.bot.status(place), names.get(self.bot.goals[place]))
+                # a picture of each character for the history, once it can be seen at ease
+                life = self.tracks[str(place)]
+                if life["key"] is not None and not life.get("shot") and self.bot.in_view(place) \
+                        and self.tama.seconds - life.get("since", 0) >= SHOT_AFTER:
+                    packed = self.tama.packed()
+                    if packed:
+                        life["shot"] = True
+                        self.outbox.append(("picture", life["key"], life["stage"], packed))
             # and what the game remembers by itself: a new entry of its album is told once
             album = [[a["place"], a["name"], a["character"], a["age"], a["weight"]] for a in self.bot.album()]
             if album != self.album_seen:

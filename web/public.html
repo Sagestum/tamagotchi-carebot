@@ -426,11 +426,17 @@ function showLives(lives) {
     const names = life.stages.map((s) => s[1]);
     const b = document.createElement('div');
     b.className = 'chain';
-    life.stages.forEach(([id, name], k) => {
+    life.stages.forEach(([id, name, shot], k) => {
       if (k) { const arrow = document.createElement('span'); arrow.className = 'arrow'; arrow.textContent = '→'; b.append(arrow); }
       const one = document.createElement('div');
       one.className = 'char' + (k === life.stages.length - 1 ? ' last' : '');
-      if (sprites[id]) one.append(picture(sprites, id));     // (none are drawn of the Game Boy's)
+      if (shot) {
+        // the Game Boy game's characters: its screen as it was, kept in the history
+        const img = Object.assign(document.createElement('img'), {src: '/picture?id=' + shot, alt: ''});
+        img.style.cssText = 'display: block; width: 96px; height: 48px; object-fit: cover; object-position: 50% 60%; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px';
+        one.style.width = '100px';
+        one.append(img);
+      } else if (sprites[id]) one.append(picture(sprites, id));
       else one.style.width = 'auto';
       one.append(name);
       b.append(one);

@@ -6,8 +6,10 @@ server is the one that writes.
 """
 import json
 import sqlite3
+import struct
 import threading
 import time
+import zlib
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS lives (
@@ -63,6 +65,10 @@ class History:
         self.db.row_factory = sqlite3.Row
         with self.lock, self.db:
             self.db.executescript(SCHEMA)
+            # a picture of the pet as this character (Game Boy: its screen, 160 x 144 dots of
+            # two bits, four to a byte), added to the first files later
+            if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(stages)")]:
+                self.db.execute("ALTER TABLE stages ADD COLUMN picture BLOB")
 
     def write(self, pet, tab, model, events):
         """What a pet's process has told: a list of tuples, the kind first."""
@@ -83,6 +89,11 @@ class History:
                     self.db.execute("UPDATE lives SET character = ?, character_name = ?, goal = ?, "
                                     "name = COALESCE(?, name) WHERE key = ?",
                                     (number, number_name, goal, name, key))
+                elif kind == "picture":
+                    key, number, packed = rest
+                    self.db.execute(
+                        "UPDATE stages SET picture = ? WHERE rowid = (SELECT MAX(rowid) FROM stages "
+                        "WHERE life = ? AND character = ?)", (packed, key, number))
                 elif kind == "label":
                     key, name, goal = rest
                     self.db.execute("UPDATE lives SET goal = ?, name = COALESCE(?, name) WHERE key = ?",
@@ -131,9 +142,11 @@ class History:
             for row in rows:
                 life = dict(row)
                 life["stages"] = [
-                    {"at": s["at"], "character": s["character"], "name": s["character_name"],
-                     "data": json.loads(s["data"]) if s["data"] else None}
-                    for s in self.db.execute("SELECT * FROM stages WHERE life = ? ORDER BY rowid", (row["key"],))]
+                    {"id": s["id"], "at": s["at"], "character": s["character"], "name": s["character_name"],
+                     "data": json.loads(s["data"]) if s["data"] else None, "picture": bool(s["has"])}
+                    for s in self.db.execute(
+                        "SELECT rowid AS id, at, character, character_name, data, picture IS NOT NULL AS has "
+                        "FROM stages WHERE life = ? ORDER BY rowid", (row["key"],))]
                 out.append(life)
         return out
 
@@ -166,6 +179,12 @@ class History:
                                    (pet, pet)).fetchall()
         return [dict(row, data=json.loads(row["data"]) if row["data"] else None) for row in rows]
 
+    def picture(self, stage_id):
+        """The picture kept with a stage, as a PNG; None if there is none."""
+        with self.lock:
+            row = self.db.execute("SELECT picture FROM stages WHERE rowid = ?", (stage_id,)).fetchone()
+        return gameboy_png(row["picture"]) if row and row["picture"] else None
+
     def counts(self):
         with self.lock:
             return {table: self.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
@@ -178,3 +197,22 @@ class History:
 
 def stamp(at):
     return time.strftime("%d.%m.%Y %H:%M", time.localtime(at)) if at else "–"
+
+
+GB_W, GB_H = 160, 144
+GB_SHADES = bytes((0xd3, 0xdd, 0xb0, 0x9d, 0xb0, 0x76, 0x55, 0x6b, 0x47, 0x1c, 0x2a, 0x21))
+
+
+def gameboy_png(packed):
+    """A Game Boy picture as it is kept (two bits a dot, the first in the high bits: just how
+    a PNG of four colours has them) as a PNG file."""
+    if len(packed) != GB_W * GB_H // 4:
+        return None
+    row = GB_W // 4
+    raw = b"".join(b"\0" + packed[y * row:(y + 1) * row] for y in range(GB_H))
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", GB_W, GB_H, 2, 3, 0, 0, 0))
+            + chunk(b"PLTE", GB_SHADES) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))

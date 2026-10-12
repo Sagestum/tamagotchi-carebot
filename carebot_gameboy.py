@@ -547,6 +547,13 @@ class GameBoyBot(CareBot):
         """Into the log, with the pet's name when there is more than one."""
         self.log((self.pet_name() + ": " if len(self.living()) > 1 else "") + text)
 
+    def in_view(self, slot):
+        """Whether this pet can be seen as it is: on the screen, in its room, awake, the
+        light on and alive."""
+        st = self.status(slot)
+        return slot == self.slot() and self.tama.memory(MEM_SCREEN) == MAIN and st["stage"] \
+            and not st["dead"] and not st["asleep"] and st["light"]
+
     def album(self):
         """What the game itself remembers: the pets in its album, by place."""
         m, out = self.tama.memory, []

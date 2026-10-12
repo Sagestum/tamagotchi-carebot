@@ -585,6 +585,11 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path in ("/favicon.png", "/favicon-dark.png"):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
+        elif url.path == "/api/history/picture":
+            png = self.app.history.picture(int(query.get("id", ["0"])[0] or 0))
+            if png is None:
+                return self.send_body(404, b"not found", "text/plain")
+            self.send_body(200, png, "image/png", [("Cache-Control", "max-age=31536000, immutable")])
         elif url.path == "/api/history":
             # everything the history page shows; the log of one tab on request
             pet = query.get("pet", [None])[0]
@@ -790,6 +795,15 @@ class PublicHandler(BaseHTTPRequestHandler):
             pets = [{"id": p.id, "name": p.name, "model": p.model.id, "modelName": p.model.name,
                      "wiki": models.WIKI.get(p.model.id)} for p in self.shown()]
             self.send_body(200, json.dumps(pets).encode(), "application/json")
+        elif url.path == "/picture":
+            # a picture from the history (the Game Boy game's characters, as they looked)
+            try:
+                png = self.app.history.picture(int(query.get("id", ["0"])[0]))
+            except ValueError:
+                png = None
+            if png is None:
+                return self.send_body(404, b"not found", "text/plain")
+            self.send_body(200, png, "image/png", [("Cache-Control", "max-age=31536000, immutable")])
         elif url.path == "/watch" and self.command == "GET":
             pet = self.app.pets.get(query.get("pet", [""])[0])
             if pet is None or pet not in self.shown():
@@ -821,7 +835,8 @@ class PublicHandler(BaseHTTPRequestHandler):
             return pet.lives
         now = time.time()
         return [{"began": life["began"], "ended": life["ended"], "end": life["ending"],
-                 "name": life["name"], "stages": [[s["character"], s["name"]] for s in life["stages"]],
+                 "name": life["name"],
+                 "stages": [[s["character"], s["name"], s["id"] if s["picture"] else None] for s in life["stages"]],
                  "days": round(((life["ended"] or now) - life["began"]) / 86400, 1)}
                 for life in reversed(self.app.history.lives(pet.id, 60)) if life["began"]]
 
