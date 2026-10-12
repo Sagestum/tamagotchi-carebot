@@ -42,6 +42,10 @@ MEM_SCOLD = 0xD0D6          # counts down while a scolding is called for
 MEM_MINUTE, MEM_HOUR = 0xD48F, 0xD490       # the time of day; a minute takes two seconds
 RECORD = 0x100
 PETS = 3
+# The album ("Memory"): eight places in the cartridge's own memory, each the whole record of a
+# pet as it was when it died. The place is chosen when the pet is put there.
+ALBUM_AT = 0x10000 + 0x1000     # (gameboy.CART_RAM and on)
+ALBUM_PLACES = 8
 # The program
 MEM_EGGS_USED = 0xD481      # of the eight eggs; with the last pet of the last egg the game
                             # says so and begins anew, with all eight
@@ -120,18 +124,23 @@ class GameBoyBot(CareBot):
         self.seen = {}              # of each pet, what was last logged of it
         self.last_name = None
         self.keep = 1               # pets to have at a time
+        self.album_next = 0         # the place of the album to write over once it is full
+        self.eggs_seen = None       # the eggs left when last looked
+        self.egg_back = None        # when one came back, and who died when: a pet that dies
+        self.died = None            # of old age leaves its egg behind
         self.trained = 0.0          # when the last game for IQ or Body was played
         self.no_egg = 0.0           # no new attempt to take an egg before this
         self.passed = None          # the refusal last let pass, so that it is logged once
 
     def memo(self):
-        return {"last_name": self.last_name, "keep": self.keep,
+        return {"last_name": self.last_name, "keep": self.keep, "album_next": self.album_next,
                 "goals": self.goals, "wishes": self.wishes}
 
     def recall(self, memo):
         if isinstance(memo, dict):
             self.last_name = memo.get("last_name")
             self.keep = max(1, min(PETS, int(memo.get("keep") or 1)))
+            self.album_next = int(memo.get("album_next") or 0)
             ok = lambda g: g if g in rules.GOALS else None
             if len(memo.get("goals") or ()) == PETS:
                 self.goals = [ok(g) for g in memo["goals"]]
@@ -476,14 +485,30 @@ class GameBoyBot(CareBot):
                   if p(MEM_BODY) > before else "Sportspiel: %d von 10 gefangen" % caught)
 
     def bury(self):
-        """It has died. A key brings the album: keep it there, in the first place offered."""
+        """It has died. A key brings the album ("Save?"): keep it there, in a free place, or
+        where the last but seven lies."""
         m, p = self.tama.memory, self.pet()
-        for _ in range(8):
-            if p(MEM_TYPE) == 0:
-                break
+        taken = {entry["place"] for entry in self.album()}
+        free = [place for place in range(ALBUM_PLACES) if place not in taken]
+        place = free[0] if free else self.album_next % ALBUM_PLACES
+        if m(MEM_SCREEN) == MAIN:
             yield from self.press(BTN_A, 3.0)
+        if m(MEM_SCREEN) == ALBUM and p(MEM_TYPE):
+            yield from self.press(BTN_A, 3.0)       # "Yes"; now: "Location?"
+            # the places are two to a row, counted row by row
+            for _ in range(6):
+                at = m(MEM_CURSOR)
+                if at == place:
+                    break
+                if at // 2 != place // 2:
+                    yield from self.press(BTN_DOWN if at < place else BTN_UP, 0.4)
+                else:
+                    yield from self.press(BTN_RIGHT if at < place else BTN_LEFT, 0.4)
+            yield from self.press(BTN_A, 3.0)
+            if not p(MEM_TYPE):
+                self.album_next = place + 1
         for _ in range(4):                      # the album's page, then the laboratory
-            if m(MEM_SCREEN) != ALBUM:
+            if m(MEM_SCREEN) != ALBUM or p(MEM_TYPE):
                 break
             yield from self.press(BTN_A, 3.0)
 
@@ -521,6 +546,23 @@ class GameBoyBot(CareBot):
     def note(self, text):
         """Into the log, with the pet's name when there is more than one."""
         self.log((self.pet_name() + ": " if len(self.living()) > 1 else "") + text)
+
+    def album(self):
+        """What the game itself remembers: the pets in its album, by place."""
+        m, out = self.tama.memory, []
+        for place in range(ALBUM_PLACES):
+            at = ALBUM_AT + RECORD * place - MEM_TYPE
+            kind = m(at + MEM_TYPE)
+            if kind not in rules.NAMES:
+                continue
+            name = "".join(LETTER_OF.get(m(at + MEM_NAME + i), "") for i in range(6)
+                           if m(at + MEM_NAME + i) not in (0, 0xFF))
+            out.append({"place": place, "name": name, "character": kind, "characterName": rules.NAMES[kind],
+                        "age": m(at + MEM_DAY), "weight": m(at + MEM_WEIGHT),
+                        "data": {"hunger": m(at + MEM_LIFE), "happy": m(at + MEM_FUN), "iq": m(at + MEM_IQ),
+                                 "body": m(at + MEM_BODY), "deed": m(at + MEM_DEED),
+                                 "fear": m(at + MEM_FEAR), "mine": m(at + MEM_MINE)}})
+        return out
 
     def eggs_left(self):
         return max(0, EGGS - self.tama.memory(MEM_EGGS_USED))
@@ -582,6 +624,7 @@ class GameBoyBot(CareBot):
         kind, asleep, sick, dead = before[:4]
         if st["dead"] and not dead:
             self.log("%s ist gestorben (%d Tage alt)" % (st["petName"] or st["name"], st["age"]))
+            self.died = (self.tama.seconds, st["petName"] or st["name"])
         elif st["stage"] != kind and st["stage"] and kind:
             self.log("%sEntwickelt: %s (%s)" % (who, st["name"], st["stageName"]))
         if st["asleep"] != asleep and not st["dead"] and st["stage"]:
@@ -652,6 +695,14 @@ class GameBoyBot(CareBot):
         states = {slot: self.status(slot) for slot in range(PETS)}
         for slot, st in states.items():
             self.watch(slot, st)
+        # An egg that is there again: the pet that has just died has laid it
+        eggs = self.eggs_left()
+        if self.eggs_seen is not None and eggs == self.eggs_seen + 1:     # (a new game brings all eight)
+            self.egg_back = self.tama.seconds
+        self.eggs_seen = eggs
+        if self.egg_back is not None and self.died is not None and abs(self.egg_back - self.died[0]) < 60:
+            self.log("%s hat ein Ei hinterlassen (Eier übrig: %d von %d)" % (self.died[1], eggs, EGGS))
+            self.egg_back = self.died = None
         living = self.living()
         if not living:
             return self.begin() if self.restart and self.tama.seconds >= self.no_egg else None

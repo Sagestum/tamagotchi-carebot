@@ -39,6 +39,20 @@ CREATE TABLE IF NOT EXISTS log (
     text TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS log_pet ON log(pet, id);
+CREATE TABLE IF NOT EXISTS album (      -- the Game Boy game's own album, entry by entry
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet TEXT NOT NULL,
+    tab TEXT,
+    seen REAL NOT NULL,         -- when the entry was first found there
+    place INTEGER,              -- which of its eight places
+    name TEXT,
+    character INTEGER,
+    character_name TEXT,
+    age INTEGER,
+    weight INTEGER,
+    data TEXT,                  -- JSON: hearts and the other values it had at the end
+    UNIQUE (pet, name, character, age, weight)
+);
 """
 
 
@@ -73,6 +87,14 @@ class History:
                     key, name, goal = rest
                     self.db.execute("UPDATE lives SET goal = ?, name = COALESCE(?, name) WHERE key = ?",
                                     (goal, name, key))
+                elif kind == "album":
+                    at, entries = rest
+                    for a in entries:
+                        self.db.execute(
+                            "INSERT OR IGNORE INTO album (pet, tab, seen, place, name, character, "
+                            "character_name, age, weight, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (pet, tab, at, a["place"], a["name"], a["character"], a["characterName"],
+                             a["age"], a["weight"], json.dumps(a["data"])))
                 elif kind == "end":
                     key, at, how = rest
                     self.db.execute("UPDATE lives SET ended = ?, ending = ? WHERE key = ? AND ended IS NULL",
@@ -137,10 +159,17 @@ class History:
                 {"character": row["character"], "name": row["name"], "times": row["times"], "first": row["first"]})
         return out
 
+    def album(self, pet=None):
+        """The entries of the Game Boy game's album that have been seen, the newest first."""
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM album WHERE (? IS NULL OR pet = ?) ORDER BY id DESC",
+                                   (pet, pet)).fetchall()
+        return [dict(row, data=json.loads(row["data"]) if row["data"] else None) for row in rows]
+
     def counts(self):
         with self.lock:
             return {table: self.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
-                    for table in ("lives", "stages", "log")}
+                    for table in ("lives", "stages", "log", "album")}
 
     def close(self):
         with self.lock:

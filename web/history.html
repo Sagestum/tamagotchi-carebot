@@ -133,6 +133,14 @@
       <tbody id="lives"></tbody>
     </table></div>
   </section>
+  <section id="albumBox" hidden>
+    <h2>Album des Game-Boy-Spiels</h2>
+    <p class="note" style="margin-top: 0">Was das Spiel selbst von seinen Tieren aufhebt: acht Plätze, die es bei einem neuen Spiel leert. Hier bleibt jeder Eintrag stehen.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Eingetragen</th><th>Tab</th><th>Name</th><th>Figur</th><th>Alter</th><th>Gewicht</th><th>IQ · Körper · Benehmen</th><th>Stress · Egoismus</th></tr></thead>
+      <tbody id="album"></tbody>
+    </table></div>
+  </section>
   <section id="logBox" hidden>
     <h2>Protokoll dieses Tabs</h2>
     <ul id="log"></ul>
@@ -165,6 +173,12 @@ function draw() {
       `<span class="chip"><b>${esc(c.name)}</b> <span>${c.times}×</span></span>`).join('') + '</div>').join('')
     || '<p class="note">Noch nichts.</p>';
 
+  const album = (all.album || []).filter((a) => !chosen || a.pet === chosen);
+  $('albumBox').hidden = !album.length;
+  $('album').innerHTML = album.map((a) => `<tr><td class="nowrap">${day(a.seen)}</td><td>${esc(a.tab || a.pet)}</td>
+    <td>${esc(a.name || '–')}</td><td>${esc(a.character_name)}</td><td class="nowrap">${a.age} ${a.age === 1 ? 'Tag' : 'Tage'}</td>
+    <td class="nowrap">${a.weight} lb</td><td>${a.data ? a.data.iq + ' · ' + a.data.body + ' · ' + a.data.deed : '–'}</td>
+    <td>${a.data ? a.data.fear + ' · ' + a.data.mine : '–'}</td></tr>`).join('');
   $('lifeCount').textContent = '(' + lives.length + ')';
   $('lives').innerHTML = lives.map((l) => {
     const path = l.stages.map((s) => esc(s.name)).join(' → ');

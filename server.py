@@ -46,6 +46,7 @@ SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genji
 MAX_UPLOAD = 4 << 20
 PUBLIC_VIEWERS = 60     # the page for everyone: pictures being watched at a time,
 PUBLIC_RATE = 8         # pictures a second for each,
+PUBLIC_RATE_GAMEBOY = 4 # (of the Game Boy game, about 8 KB each)
 PUBLIC_LONGEST = 3600   # and seconds until a viewer has to connect anew
 # the address the page for everyone is reached at, without a slash at the end
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
@@ -592,6 +593,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"log": self.app.history.log(pet, int(before) if before else None)})
             else:
                 self.send_json({"lives": self.app.history.lives(pet, 500), "seen": self.app.history.seen(),
+                                "album": self.app.history.album(pet),
                                 "models": {m.id: m.name for m in models.MODELS},
                                 "tabs": [p.describe() for p in self.app.pets.values()]})
         elif url.path == "/events" and query.get("pet", [""])[0] in self.app.pets:
@@ -727,6 +729,8 @@ class PublicHandler(BaseHTTPRequestHandler):
              "/favicon-dark.png": ("favicon-dark.png", "image/png")}
     STATUS = ("stage", "name", "dead", "asleep", "leaving", "hunger", "happy", "weight", "clock",
               "steps", "moodName", "mood", "saver")
+    PLACE = ("slot", "shown", "egg", "stage", "name", "petName", "stageName", "age", "hunger", "happy",
+             "weight", "asleep", "sick", "dead")
 
     def log_message(self, fmt, *args):
         pass
@@ -756,9 +760,7 @@ class PublicHandler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def shown(self):
-        # not the Game Boy game: that is someone playing, not a pet being looked after
-        return [p for p in list(self.app.pets.values())
-                if p.alive and not p.error and p.model.game != "gameboy"]
+        return [p for p in list(self.app.pets.values()) if p.alive and not p.error]
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
@@ -800,9 +802,28 @@ class PublicHandler(BaseHTTPRequestHandler):
         """What the page for everyone gets to know about a pet."""
         snap = pet.snapshot or {}
         status = snap.get("status") or {}
-        return {"model": pet.model.id, "lcd": snap.get("lcd", ""), "icons": snap.get("icons", 0),
+        told = {"model": pet.model.id, "lcd": snap.get("lcd", ""), "icons": snap.get("icons", 0),
                 "unit": snap.get("unit"), "goalName": snap.get("goalName"),
                 "status": {key: status.get(key) for key in self.STATUS}}
+        if snap.get("pets"):            # the Game Boy game: up to three pets, each with its goal
+            names = pet.model.names
+            told["pets"] = [dict({key: p.get(key) for key in self.PLACE},
+                                 goalName=names.get(p.get("goal")),
+                                 forecast=[names.get(n) for n in p.get("forecast") or []])
+                            for p in snap["pets"] if p.get("stage") or p.get("egg")]
+            told["eggs"] = snap.get("eggs")
+        return told
+
+    def lives(self, pet):
+        """The lives to show. Those of the Game Boy game come from the history, where each of
+        its three places is kept; the chronicle of the tab follows the first place only."""
+        if pet.model.game != "gameboy":
+            return pet.lives
+        now = time.time()
+        return [{"began": life["began"], "ended": life["ended"], "end": life["ending"],
+                 "name": life["name"], "stages": [[s["character"], s["name"]] for s in life["stages"]],
+                 "days": round(((life["ended"] or now) - life["began"]) / 86400, 1)}
+                for life in reversed(self.app.history.lives(pet.id, 60)) if life["began"]]
 
     def watch(self, pet):
         """The picture of one pet as it changes, PUBLIC_RATE times a second at most."""
@@ -821,6 +842,9 @@ class PublicHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.settimeout(30)
             sent, lives_sent, quiet, began = None, None, 0.0, time.monotonic()
+            looked_up, lives_now = -1000.0, None
+            # the Game Boy's picture is forty times the size of a Tamagotchi's and always moving
+            rate = PUBLIC_RATE_GAMEBOY if pet.model.game == "gameboy" else PUBLIC_RATE
             woke = 0.0
             while pet.alive and pet.id in self.app.pets and time.monotonic() - began < PUBLIC_LONGEST:
                 if time.monotonic() - woke > PUBLIC_WAKE:
@@ -829,7 +853,9 @@ class PublicHandler(BaseHTTPRequestHandler):
                     woke = time.monotonic()
                     pet.send("wake")
                 msg = self.told(pet)
-                lives = pet.lives
+                if time.monotonic() - looked_up > 20:       # (the history is not asked every time)
+                    looked_up, lives_now = time.monotonic(), self.lives(pet)
+                lives = lives_now
                 if msg != sent or lives != lives_sent:
                     out = dict(msg)
                     if lives != lives_sent:
@@ -841,8 +867,8 @@ class PublicHandler(BaseHTTPRequestHandler):
                     quiet = 0.0
                     self.wfile.write(b": keepalive\n\n")
                     self.wfile.flush()
-                time.sleep(1 / PUBLIC_RATE)
-                quiet += 1 / PUBLIC_RATE
+                time.sleep(1 / rate)
+                quiet += 1 / rate
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             pass
         finally:

@@ -88,6 +88,7 @@ class Engine:
         self.lives_sent = -1
         self.outbox = []        # for the history: what the server is to write down
         self.tracks = {}        # place -> the life there that the history knows of
+        self.album_seen = []    # Game Boy: the entries of the game's album already told
         self.egg_for = 0        # emulated seconds without a character
         self.leaving = False    # it was taking its leave when last seen
         self.cared = None       # (hunger, happy, poop, sick) when last seen
@@ -155,6 +156,14 @@ class Engine:
         if hasattr(self.bot, "pets"):       # the Game Boy: three places, each with its goal
             for place in range(3):
                 self.track(place, self.bot.status(place), names.get(self.bot.goals[place]))
+            # and what the game remembers by itself: a new entry of its album is told once
+            album = [[a["place"], a["name"], a["character"], a["age"], a["weight"]] for a in self.bot.album()]
+            if album != self.album_seen:
+                fresh = [a for a in self.bot.album()
+                         if [a["place"], a["name"], a["character"], a["age"], a["weight"]] not in self.album_seen]
+                self.album_seen = album
+                if fresh:
+                    self.outbox.append(("album", time.time(), fresh))
         else:
             self.track(0, status, names.get(self.bot.goal))
 
@@ -187,6 +196,7 @@ class Engine:
         self.report.from_dict(data.get("report", {}))
         self.lives = data.get("lives", [])
         self.tracks = data.get("tracks", {})
+        self.album_seen = data.get("album", [])
         if not data.get("history"):
             # A state from before the history: hand over what the chronicle holds. The life
             # that is still going on is taken up where it stands.
@@ -217,6 +227,7 @@ class Engine:
                 "report": self.report.to_dict(),
                 "lives": self.lives,
                 "tracks": self.tracks,
+                "album": self.album_seen,
                 "history": True,        # the lives from before the history have been handed over
             }
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
@@ -496,7 +507,8 @@ class Engine:
         self.slices += 1
         if self.slices % 32 == 0:   # once per emulated second
             status = self.bot.status()
-            self.chronicle(status)
+            # (the Game Boy's chronicle follows its first place; all three are in the history)
+            self.chronicle(self.bot.status(0) if hasattr(self.bot, "pets") else status)
             self.track_all(status)
             if self.outbox:
                 self.tell("history", self.outbox)

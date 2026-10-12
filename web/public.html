@@ -87,6 +87,24 @@
   .art.tall { width: min(100%, 360px); }
   .art svg { display: block; width: 100%; height: auto; overflow: visible; }
   .art .seg { opacity: 0.06; transition: opacity 0.08s; }
+  /* The Game Boy has no drawing of its shell: it is made of boxes */
+  .gameboy {
+    width: min(100%, 340px); margin: 0 auto; padding: 5% 6% 8%; border-radius: 14px 14px 56px 14px;
+    background: linear-gradient(160deg, #d8d5cc, #b9b5aa);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 14px 26px rgba(0, 0, 0, 0.22);
+  }
+  .gameboy .glass { padding: 7% 12% 9%; border-radius: 10px 10px 34px 10px; background: #5d5f6e; }
+  .gameboy canvas { display: block; width: 100%; aspect-ratio: 160 / 144; image-rendering: pixelated; background: #c9d4a6; border-radius: 2px; }
+  .gameboy .name { font: italic 700 15px system-ui, sans-serif; color: #2d3277; margin: 10px 4px 0; letter-spacing: 0.02em; }
+  .gameboy .keys { display: flex; justify-content: space-between; align-items: center; margin-top: 9%; }
+  .gameboy .pad { position: relative; width: 34%; aspect-ratio: 1; }
+  .gameboy .pad i { position: absolute; background: #2f3037; }
+  .gameboy .pad i:first-child { left: 33%; top: 0; width: 34%; height: 100%; border-radius: 5px; }
+  .gameboy .pad i:last-child { left: 0; top: 33%; width: 100%; height: 34%; border-radius: 5px; }
+  .gameboy .ab { display: flex; gap: 12%; width: 40%; transform: rotate(-24deg); justify-content: flex-end; }
+  .gameboy .ab i { width: 44%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #c2356f, #8d1c4b); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3); }
+  .gameboy .small { display: flex; justify-content: center; gap: 7%; margin-top: 7%; }
+  .gameboy .small i { width: 19%; height: 14px; border-radius: 999px; background: #8b8d98; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); transform: rotate(-24deg); }
   .art .seg.on { opacity: 1; }
   .more { text-align: center; color: var(--muted); font-size: 14px; margin: 6px 0 0; }
   [hidden] { display: none !important; }
@@ -140,7 +158,8 @@
     niemand.</p>
   <p class="lead">Alle Geräte laufen nativ mit <a href="https://github.com/jcrona/tamalib">TamaLIB</a> – außer dem
     Pocket Pikachu, der einen anderen Prozessor hat (Mitsubishi M37520) und dafür einen eigenen Kern nach dem Vorbild
-    von <a href="https://github.com/azya52/BrickEmuPy">BrickEmuPy</a> bekommen hat. Der Quelltext liegt auf
+    von <a href="https://github.com/azya52/BrickEmuPy">BrickEmuPy</a> bekommen hat, und dem Tamagotchi-Spiel für den
+    Game Boy, das auf <a href="https://github.com/deltabeard/Peanut-GB">Peanut-GB</a> läuft. Der Quelltext liegt auf
     <a href="https://github.com/Sagestum/tamagotchi-carebot">GitHub</a>. Die ROMs sind aus rechtlichen Gründen nicht
     dabei.</p>
 
@@ -250,6 +269,11 @@
         <p>Digital Monster Ver. 3 von 1998, wieder mit eigenen Monstern. Trainiert wird hier durch schnelles Drücken.</p>
         <p class="note">Der Bot drückt schnell genug und kämpft gegen einen gedachten Gegner.</p>
       </article>
+      <article data-model="gameboy">
+        <h3>Tamagotchi (Game Boy)</h3>
+        <p>Das Tamagotchi-Spiel für den Game Boy von 1997. Ein Spieltag dauert 48 Minuten, bis zu drei Tiere leben zugleich, und alle Figuren der ersten beiden Tamagotchi kommen vor. Welche es wird, entscheiden zwei versteckte Werte, Stress und Egoismus, und ob das Tier klüger oder stärker ist.</p>
+        <p class="note">Der Bot liest den Speicher des Spiels: Er füttert das Lieblingsessen, räumt auf, gibt Spritze oder Tablette, schimpft und lobt und spielt die drei Spiele. Für jedes Tier kann er auf eine bestimmte Figur hinarbeiten.</p>
+      </article>
       <article data-model="pikachu">
         <h3>Pocket Pikachu</h3>
         <p>Der Pocket Pikachu von Nintendo, März 1998: ein Schrittzähler, in dem Pikachu wohnt. Je 20 Schritte gibt es ein Watt; wer läuft und Watt verschenkt, wird gemocht.</p>
@@ -259,7 +283,7 @@
   </section>
 
   <footer>
-    <p>Tamagotchi und Digimon sind Marken von Bandai, Pikachu ist eine Marke von Nintendo. Diese Seite ist ein
+    <p>Tamagotchi und Digimon sind Marken von Bandai, Pikachu und Game Boy sind Marken von Nintendo. Diese Seite ist ein
       privates Bastelprojekt ohne Einnahmen und hat mit beiden nichts zu tun. Die Zeichnungen der Geräte stammen
       aus BrickEmuPy von azya52 (CC0).</p>
     <h2 id="kontakt">Kontakt</h2>
@@ -308,9 +332,49 @@ function row(label, value, html) {
 const num = (v) => v.toLocaleString('de-DE');
 const day = (t) => new Date(t * 1000).toLocaleDateString('de-DE', {day: 'numeric', month: 'short', year: 'numeric'});
 
+/* The Game Boy game: its picture (160 x 144 dots in four shades, two bits a dot, as base64)
+   and the pets that live in it, up to three */
+const GB_SHADES = [[0xd3, 0xdd, 0xb0], [0x9d, 0xb0, 0x76], [0x55, 0x6b, 0x47], [0x1c, 0x2a, 0x21]];
+function mountGameBoy(box) {
+  box.innerHTML = `<div class="gameboy"><div class="glass"><canvas width="160" height="144" role="img"></canvas></div>
+    <p class="name">Tamagotchi <span style="font-weight: 400">für den Game Boy</span></p>
+    <div class="keys"><div class="pad"><i></i><i></i></div><div class="ab"><i></i><i></i></div></div>
+    <div class="small"><i></i><i></i></div></div>`;
+  const ctx = box.querySelector('canvas').getContext('2d'), image = ctx.createImageData(160, 144);
+  let last = null;
+  return (b64) => {
+    if (b64 === last) return;
+    last = b64;
+    let raw = '';
+    try { raw = atob(b64 || ''); } catch (e) { raw = ''; }
+    const px = image.data;
+    for (let i = 0; i < 160 * 144; i++) {
+      const c = GB_SHADES[raw.length === 5760 ? (raw.charCodeAt(i >> 2) >> (6 - 2 * (i & 3))) & 3 : 0];
+      px[4 * i] = c[0]; px[4 * i + 1] = c[1]; px[4 * i + 2] = c[2]; px[4 * i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+  };
+}
+function showGameBoy(msg, box) {
+  const list = msg.pets || [];
+  if (!list.length) box.append(row('Zustand', 'gerade kein Tier'));
+  for (const p of list) {
+    const who = p.egg ? 'Ei, schlüpft gleich' : p.dead ? 'gestorben'
+      : p.name + ' (' + p.stageName + ', ' + p.age + (p.age === 1 ? ' Tag' : ' Tage') + ')';
+    box.append(row(p.petName || 'Platz ' + (p.slot + 1), who + (p.shown && list.length > 1 ? ' · im Bild' : '')));
+    if (p.egg || p.dead) continue;
+    box.append(row('Hunger · Glück', hearts(p.hunger) + ' ' + hearts(p.happy) + (p.asleep ? ' · schläft' : '') + (p.sick ? ' · krank' : ''), true));
+    box.append(row('Ziel des Bots', p.goalName || 'keins: einfach gut pflegen'));
+    if (p.forecast.length) box.append(row('Wird als Nächstes', p.forecast.join(' oder ')));
+  }
+  if (msg.status && msg.status.clock) box.append(row('Uhr im Spiel', msg.status.clock));
+  if (msg.eggs !== null && msg.eggs !== undefined) box.append(row('Eier übrig', msg.eggs + ' von 8'));
+}
+
 function showNow(msg) {
   const st = msg.status, box = $('now');
   box.textContent = '';
+  if (msg.model === 'gameboy') { showGameBoy(msg, box); return; }
   if (!st || st.stage === null) { box.append(row('Zustand', 'startet gerade')); return; }
   const pika = msg.model === 'pikachu', digi = (msg.model || '').startsWith('digimon');
   const alive = st.stage > 0 && !st.dead;
@@ -366,14 +430,16 @@ function showLives(lives) {
       if (k) { const arrow = document.createElement('span'); arrow.className = 'arrow'; arrow.textContent = '→'; b.append(arrow); }
       const one = document.createElement('div');
       one.className = 'char' + (k === life.stages.length - 1 ? ' last' : '');
-      one.append(picture(sprites, id), name);
+      if (sprites[id]) one.append(picture(sprites, id));     // (none are drawn of the Game Boy's)
+      else one.style.width = 'auto';
+      one.append(name);
       b.append(one);
     });
     if (!names.length) b.textContent = 'Ei';
     const when = document.createElement('span');
     when.className = 'when';
     const days = life.days === 1 ? '1 Tag' : String(life.days).replace('.', ',') + ' Tage';
-    when.textContent = 'Nr. ' + (n + 1) + ' · ' + day(life.began) + ' · ' + days + ' · ';
+    when.textContent = 'Nr. ' + (n + 1) + (life.name ? ' · ' + life.name : '') + ' · ' + day(life.began) + ' · ' + days + ' · ';
     const end = document.createElement('span');
     end.textContent = life.ended ? (life.end || 'vorbei') : 'läuft noch';
     if (!life.ended) end.className = 'now';
@@ -417,12 +483,18 @@ async function open(id) {
   if (events) events.close();
   draw = null;
   const mine = pet;
-  const text = await shell(pet.model);
-  if (pet !== mine) return;
   const art = $('art');
-  art.classList.toggle('tall', pet.model === 'pikachu');
-  draw = mountShell(art, text, pet.model);
-  art.querySelector('svg').setAttribute('aria-label', pet.modelName + ', live');
+  if (pet.model === 'gameboy') {
+    art.classList.remove('tall');
+    draw = mountGameBoy(art);
+    art.querySelector('canvas').setAttribute('aria-label', pet.modelName + ', live');
+  } else {
+    const text = await shell(pet.model);
+    if (pet !== mine) return;
+    art.classList.toggle('tall', pet.model === 'pikachu');
+    draw = mountShell(art, text, pet.model);
+    art.querySelector('svg').setAttribute('aria-label', pet.modelName + ', live');
+  }
   events = new EventSource('/watch?pet=' + encodeURIComponent(pet.id));
   events.onmessage = (e) => {
     if (pet !== mine) return;

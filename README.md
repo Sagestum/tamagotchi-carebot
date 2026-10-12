@@ -632,16 +632,18 @@ Das Spiel hat **drei Plätze** und acht Eier. Der Tab zeigt, wer auf welchem Pla
 wie viele Eier übrig sind; „Zeigen“ holt ein Tier ins Bild, „Neues Ei“ lässt den Bot eines
 ausbrüten und benennen (Namen aus einer Liste), und mit „Tiere zugleich“ hält er von selbst
 ein, zwei oder drei. Sind mehrere da, wechselt er zu dem, das etwas braucht. Stirbt eines,
-legt er es ins Album. Ist das letzte Tier des letzten Eis gestorben, meldet das Spiel „No more
-eggs left“ und beginnt mit allen acht Eiern und leerem Album von vorn; der Bot macht dann
-einfach weiter. Ein gut gepflegtes Tier wurde im Lauf 29 Spieltage alt, das sind etwa
+legt er es ins Album, jedes auf einen eigenen der acht Plätze. Ein Tier, das an Altersschwäche
+stirbt, hinterlässt sein Ei: Es steht dann wieder zur Wahl, mit guter Pflege gehen die Eier
+also nie aus. Stirbt ein Tier jung, ist sein Ei verbraucht; ist so das letzte Tier des letzten
+Eis gestorben, meldet das Spiel „No more eggs left“ und beginnt mit allen acht Eiern und
+leerem Album von vorn. Der Bot macht in beiden Fällen einfach weiter. Ein gut gepflegtes Tier wurde im Lauf 29 Spieltage alt, das sind etwa
 anderthalb echte Tage.
 
 Ist der Bot ausgeschaltet, läuft der Game Boy nur, solange jemand seinen Tab offen hat, und
 bleibt sonst stehen wie ein zugeklapptes Gerät – das Tier würde sonst unbeaufsichtigt
 verhungern. Der Spielstand des Moduls (Batteriespeicher) wird mit dem Zustand gesichert; „Aus
-und an“ startet das Spiel neu und lässt ihn stehen. Ton gibt es noch nicht. Auf der Seite für
-alle und im Tagesbericht kommt das Spiel nicht vor.
+und an“ startet das Spiel neu und lässt ihn stehen. Ton gibt es noch nicht. Die Seite für
+alle zeigt das Spiel mit seinen bis zu drei Tieren; im Tagesbericht kommt es nicht vor.
 
 ### Tamagotchi Angel
 
