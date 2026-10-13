@@ -151,6 +151,7 @@ class GameBoyBot(CareBot):
         self.restart = True
         self.seen = {}              # of each pet, what was last logged of it
         self.last_name = None
+        self.used = []                  # the names given so far, until all have had their turn
         self.keep = 1               # pets to have at a time
         self.pace = 1               # the game's speed of time to hold it at (PACES)
         self.contests = True        # let the adults go in for the contests
@@ -164,12 +165,13 @@ class GameBoyBot(CareBot):
         self.passed = None          # the refusal last let pass, so that it is logged once
 
     def memo(self):
-        return {"last_name": self.last_name, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
+        return {"last_name": self.last_name, "used": self.used, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
                 "goals": self.goals, "wishes": self.wishes}
 
     def recall(self, memo):
         if isinstance(memo, dict):
             self.last_name = memo.get("last_name")
+            self.used = [n for n in memo.get("used") or () if n in rules.PET_NAMES]
             self.keep = max(1, min(PETS, int(memo.get("keep") or 1)))
             self.pace = memo.get("pace") if memo.get("pace") in PACES else 1
             self.contests = bool(memo.get("contests", True))
@@ -610,6 +612,17 @@ class GameBoyBot(CareBot):
             yield from self.press(BTN_A, 3.0)
         return m(MEM_SCREEN) != NAME_ENTRY
 
+    def fresh_name(self):
+        """A name by lot that no pet has had yet: not one given before, nor one in the game's
+        album, nor one of those alive. Once all have had their turn, they start anew."""
+        about = {self.last_name} | {self.pet_name(slot) for slot in range(PETS)}
+        taken = about | set(self.used) | {entry["name"] for entry in self.album()}
+        free = [n for n in rules.PET_NAMES if n not in taken]
+        if not free:
+            self.used = []
+            free = [n for n in rules.PET_NAMES if n not in about]
+        return random.choice(free)
+
     def name_cursor(self, x, y):
         m = self.tama.memory
         for _ in range(NAME_COLUMNS + 6):
@@ -714,9 +727,10 @@ class GameBoyBot(CareBot):
         if m(MEM_CURSOR):                       # letters of an attempt that went wrong
             for _ in range(6):
                 yield from self.press(BTN_B, 0.4)
-        name = random.choice([n for n in rules.PET_NAMES if n != self.last_name])
+        name = self.fresh_name()
         if (yield from self.type_name(name)):
             self.last_name = name
+            self.used.append(name)
             self.no_egg = 0.0
             self.log("Neues Ei: %s" % name)
             if self.reborn and not had:
