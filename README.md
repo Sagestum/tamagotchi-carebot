@@ -651,7 +651,8 @@ räumt er vor der Nacht immer auf und spielt mit einem gestressten Tier um das L
 
 Das Spiel hat **drei Plätze** und acht Eier. Der Tab zeigt, wer auf welchem Platz lebt und
 wie viele Eier übrig sind; „Zeigen“ holt ein Tier ins Bild, „Neues Ei“ lässt den Bot eines
-ausbrüten und benennen (Namen aus einer Liste), und mit „Tiere zugleich“ hält er von selbst
+ausbrüten und benennen (kein Name zweimal; wer auf ein gestorbenes Tier folgt, trägt die
+letzten drei Buchstaben von dessen Namen und drei neue: Anaris, Risome, Omekel), und mit „Tiere zugleich“ hält er von selbst
 ein, zwei oder drei. Sind mehrere da, wechselt er zu dem, das etwas braucht. Stirbt eines,
 legt er es ins Album, jedes auf einen eigenen der acht Plätze. Der Verlauf hebt jeden Eintrag
 auf, samt einem Bild der „Memory“-Seite des Spiels, wie sie mit ihm aussah. Ein Tier, das an Altersschwäche

@@ -48,6 +48,8 @@ PETS = 3
 ALBUM_AT = 0x10000 + 0x1000     # (gameboy.CART_RAM and on)
 ALBUM_PLACES = 8
 # The program
+MEM_EGG = 0xD002            # the egg it came from, 0 to 7 as they stand in the egg room
+MEM_HAND = 0xD498           # egg room: the egg the hand is on
 MEM_EGGS_USED = 0xD481      # of the eight eggs; with the last pet of the last egg the game
                             # says so and begins anew, with all eight
 EGGS = 8
@@ -151,6 +153,8 @@ class GameBoyBot(CareBot):
         self.restart = True
         self.seen = {}              # of each pet, what was last logged of it
         self.last_name = None
+        self.egg_pictures = {}          # the eggs as they stood in the egg room, by their number
+        self.heirs = []                 # the dead whose name no pet bears on yet, the oldest first
         self.used = []                  # the names given so far, until all have had their turn
         self.keep = 1               # pets to have at a time
         self.pace = 1               # the game's speed of time to hold it at (PACES)
@@ -165,13 +169,14 @@ class GameBoyBot(CareBot):
         self.passed = None          # the refusal last let pass, so that it is logged once
 
     def memo(self):
-        return {"last_name": self.last_name, "used": self.used, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
+        return {"last_name": self.last_name, "used": self.used, "heirs": self.heirs, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
                 "goals": self.goals, "wishes": self.wishes}
 
     def recall(self, memo):
         if isinstance(memo, dict):
             self.last_name = memo.get("last_name")
-            self.used = [n for n in memo.get("used") or () if n in rules.PET_NAMES]
+            self.used = [n for n in memo.get("used") or () if isinstance(n, str)]
+            self.heirs = [n for n in memo.get("heirs") or () if isinstance(n, str)]
             self.keep = max(1, min(PETS, int(memo.get("keep") or 1)))
             self.pace = memo.get("pace") if memo.get("pace") in PACES else 1
             self.contests = bool(memo.get("contests", True))
@@ -229,6 +234,7 @@ class GameBoyBot(CareBot):
             "petName": self.pet_name(slot) if kind else "", "stageName": rules.STAGES.get(stage, "–"),
             "fear": m(MEM_FEAR), "mine": m(MEM_MINE),
             "iq": m(MEM_IQ), "body": m(MEM_BODY), "deed": m(MEM_DEED),
+            "egg": m(MEM_EGG) if kind else None,
             "awards": [bool(m(MEM_AWARD + which)) for which in CONTESTS] if kind else [False] * 3,
             "contested": bool(m(MEM_CONTESTED)),
         }
@@ -613,15 +619,23 @@ class GameBoyBot(CareBot):
         return m(MEM_SCREEN) != NAME_ENTRY
 
     def fresh_name(self):
-        """A name by lot that no pet has had yet: not one given before, nor one in the game's
-        album, nor one of those alive. Once all have had their turn, they start anew."""
+        """A name by lot that no pet has had yet, and whose child the pet is. One that follows a
+        dead pet bears the last three letters of its name and three new ones (Anaris, Risome);
+        the first of a line, or one whose forebear's name cannot be carried on, gets a name of
+        the list. Once all have had their turn, they start anew."""
         about = {self.last_name} | {self.pet_name(slot) for slot in range(PETS)}
         taken = about | set(self.used) | {entry["name"] for entry in self.album()}
+        parent = self.heirs[0] if self.heirs else None
+        for known in (taken, about):
+            names = [n for n in rules.heir(parent, known) if n not in known]
+            if names:
+                return random.choice(names), parent
         free = [n for n in rules.PET_NAMES if n not in taken]
         if not free:
             self.used = []
             free = [n for n in rules.PET_NAMES if n not in about]
-        return random.choice(free)
+        # (rather one that can be carried on)
+        return random.choice([n for n in free if rules.heir(n)] or free), None
 
     def name_cursor(self, x, y):
         m = self.tama.memory
@@ -695,6 +709,27 @@ class GameBoyBot(CareBot):
             t.load(keep)
         return picture
 
+    def egg_picture(self):
+        """Keep the picture of the egg under the hand, cut out of the egg room (20 dots a side,
+        packed as the screen is). The hand hides it, so in a copy of the game the hand goes
+        to another egg first; with the last egg it stays in the picture."""
+        t = self.tama
+        egg, keep = t.memory(MEM_HAND), t.save()
+        try:
+            for btn in (BTN_RIGHT, BTN_DOWN, BTN_LEFT):
+                t.button(btn, True)
+                t.run(int(0.15 * TICK_HZ))
+                t.button(btn, False)
+                t.run(int(0.6 * TICK_HZ))
+                if t.memory(MEM_HAND) != egg:
+                    break
+            packed = t.packed()
+        finally:
+            t.load(keep)
+        if packed and egg < EGGS:
+            x, y = (48 + 24 * (egg % 4)) // 4, 46 + 32 * (egg // 4)
+            self.egg_pictures[egg] = b"".join(packed[row * 40 + x:row * 40 + x + 5] for row in range(y, y + 20))
+
     def eggs_left(self):
         return max(0, EGGS - self.tama.memory(MEM_EGGS_USED))
 
@@ -713,7 +748,10 @@ class GameBoyBot(CareBot):
                 return
             if screen in (INTRO, TITLE):
                 yield from self.press(BTN_START, 2.0)
-            elif screen in (WELCOME, LAB, EGG_ROOM, NO_EGGS):
+            elif screen == EGG_ROOM:
+                self.egg_picture()
+                yield from self.press(BTN_A, 3.0)       # the egg under the hand
+            elif screen in (WELCOME, LAB, NO_EGGS):
                 yield from self.press(BTN_A, 3.0)       # "Choose egg" and the egg under the hand
             elif screen == MAIN:
                 yield from self.icon(ICON_LAB)
@@ -727,12 +765,14 @@ class GameBoyBot(CareBot):
         if m(MEM_CURSOR):                       # letters of an attempt that went wrong
             for _ in range(6):
                 yield from self.press(BTN_B, 0.4)
-        name = self.fresh_name()
+        name, parent = self.fresh_name()
         if (yield from self.type_name(name)):
             self.last_name = name
             self.used.append(name)
+            if self.heirs:
+                del self.heirs[0]       # (one whose name could not be carried on has no heir)
             self.no_egg = 0.0
-            self.log("Neues Ei: %s" % name)
+            self.log("Neues Ei: %s%s" % (name, " (folgt auf %s)" % parent if parent else ""))
             if self.reborn and not had:
                 self.reborn()
             yield 20.0                          # it hatches
@@ -757,6 +797,8 @@ class GameBoyBot(CareBot):
         if st["dead"] and not dead:
             self.log("%s ist gestorben (%d Tage alt)" % (st["petName"] or st["name"], st["age"]))
             self.died = (self.tama.seconds, st["petName"] or st["name"])
+            if st["petName"]:
+                self.heirs.append(st["petName"])    # the next egg is named after it
         elif st["stage"] != kind and st["stage"] and kind:
             self.log("%sEntwickelt: %s (%s)" % (who, st["name"], st["stageName"]))
         if st["asleep"] != asleep and not st["dead"] and st["stage"]:

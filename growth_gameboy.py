@@ -190,3 +190,66 @@ PET_NAMES = (
     "Tucker", "Verity", "Victor", "Violet", "Vivian", "Warren", "Waylon", "Wesley", "Weston",
     "Wilbur", "Willow", "Winter", "Xander", "Xavier", "Zander",
 )
+
+
+# -- names that tell the descent ------------------------------------------------------------
+# A pet that follows one that died bears the last three letters of that one's name, and three
+# new ones behind them: Anaris, Risome, Omekel. So that the names can be spoken, the new
+# letters are a syllable of one of four shapes, and the two halves have to go together.
+VOWELS = "aeiou"
+ONSETS = "bdfghklmnprstvz"              # consonants a syllable may begin with
+CODAS = "dklmnrst"                      # and end with
+SOFT = "lmnrs"                          # the ones another consonant may follow
+PAIRS = ("ia", "io", "ea", "eo", "ei", "ai", "au", "ie")    # two vowels in a row
+ENDS = ("nd", "ld", "rt", "nt", "rn", "rd", "st", "rk")
+# nothing a pet should be called, in German or in English
+UNFIT = ("ars", "ass", "cum", "fag", "fck", "fic", "fik", "fuc", "fuk", "fut", "hur", "jud", "kak", "kot", "nig",
+         "nut", "pim", "pis", "sau", "sex", "tit", "tot", "wix", "nazi", "anal", "anus", "homo", "sado", "dildo")
+
+
+def speakable(text):
+    """Whether these letters can be said: never three vowels or three consonants in a row,
+    two vowels only as one of the known pairs, and two consonants inside only after a soft
+    one. (A y counts as a vowel: it comes with the names of old.)"""
+    text = text.lower()
+    if not text.isalpha() or any(bad in text for bad in UNFIT):
+        return False
+    vowel = [c in VOWELS + "y" for c in text]
+    for i in range(len(text) - 1):
+        a, b = text[i], text[i + 1]
+        if i + 2 < len(text) and vowel[i] == vowel[i + 1] == vowel[i + 2]:
+            return False
+        if vowel[i] and vowel[i + 1] and a + b not in PAIRS:
+            return False
+        if not vowel[i] and not vowel[i + 1] and (a == b or (a not in SOFT and (i == 0 or a + b not in ENDS))):
+            return False
+    return not (len(text) > 1 and not vowel[0] and not vowel[1])    # nor two consonants in front
+
+
+SYLLABLES = tuple(s for s in sorted(set(
+    [c + v + d for c in ONSETS for v in VOWELS for d in CODAS]              # kel, ris
+    + [v + c + w for v in VOWELS for c in ONSETS for w in "aeio"]           # ome, ana
+    + [c + p for c in ONSETS for p in PAIRS]                                # lia, neo
+    + [v + e for v in "aeio" for e in ENDS])) if speakable(s))              # and, ert
+
+
+def pleasant(name):
+    """Whether a name of two syllables also sounds like one: no letter three times, no two
+    letters twice, and vowels in a row or consonants at the end only in one of its halves."""
+    name = name.lower()
+    twos = [name[i:i + 2] for i in range(len(name) - 1)]
+    vowel = [c in VOWELS + "y" for c in name]
+    doubled = sum(vowel[i] and vowel[i + 1] for i in range(len(name) - 1))
+    return max(name.count(c) for c in name) < 3 and len(set(twos)) == len(twos) and doubled < 2 \
+        and not (name[1:3] in ENDS and name[-2:] in ENDS)
+
+
+def heir(parent, taken=()):
+    """The names a child of this one may bear: its last three letters and a new syllable that
+    none of the taken names ends with. Empty if the parent's end cannot begin a name."""
+    head = (parent or "")[-3:].lower()
+    if len(head) < 3 or not speakable(head):
+        return []
+    gone = {name[-3:].lower() for name in taken if name}
+    return [(head + new).capitalize() for new in SYLLABLES
+            if new != head and new not in gone and speakable(head + new) and pleasant(head + new)]
