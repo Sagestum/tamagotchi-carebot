@@ -108,6 +108,7 @@
   .chain .char.shot { width: 100px; }
   .chain svg { display: block; width: 44px; height: 44px; margin: 0 auto 3px; }
   /* of the Game Boy's screen the part with the room: the bars above and below say nothing of the pet */
+  img.memory { display: block; width: 160px; height: 144px; image-rendering: pixelated; border-radius: 3px; }
   .chain img { display: block; width: 96px; height: 48px; object-fit: cover; object-position: 50% 60%; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px; }
   .chain .lcd { fill: #b7c4a1; stroke: var(--line); stroke-width: 1.5; }
   .chain .px { fill: #20281c; }
@@ -146,7 +147,7 @@
     <h2>Album des Game-Boy-Spiels</h2>
     <p class="note" style="margin-top: 0">Was das Spiel selbst von seinen Tieren aufhebt: acht Plätze, die es bei einem neuen Spiel leert. Hier bleibt jeder Eintrag stehen.</p>
     <div class="scroll"><table>
-      <thead><tr><th>Eingetragen</th><th>Tab</th><th>Name</th><th>Figur</th><th>Alter</th><th>Gewicht</th><th>IQ · Körper · Benehmen</th><th>Stress · Egoismus</th></tr></thead>
+      <thead><tr><th>Eingetragen</th><th>Tab</th><th>Name</th><th>Figur</th><th>Alter</th><th>Gewicht</th><th>IQ · Körper · Benehmen</th><th>Stress · Egoismus</th><th>Memory im Spiel</th></tr></thead>
       <tbody id="album"></tbody>
     </table></div>
   </section>
@@ -207,7 +208,8 @@ function draw() {
   $('album').innerHTML = album.map((a) => `<tr><td class="nowrap">${day(a.seen)}</td><td>${esc(a.tab || a.pet)}</td>
     <td>${esc(a.name || '–')}</td><td>${esc(a.character_name)}</td><td class="nowrap">${a.age} ${a.age === 1 ? 'Tag' : 'Tage'}</td>
     <td class="nowrap">${a.weight} lb</td><td>${a.data ? a.data.iq + ' · ' + a.data.body + ' · ' + a.data.deed : '–'}</td>
-    <td>${a.data ? a.data.fear + ' · ' + a.data.mine : '–'}</td></tr>`).join('');
+    <td>${a.data ? a.data.fear + ' · ' + a.data.mine : '–'}</td>
+    <td>${a.picture ? `<a href="/api/history/picture?album=1&id=${a.id}" target="_blank"><img class="memory" src="/api/history/picture?album=1&id=${a.id}" alt="Memory-Seite des Spiels"></a>` : '–'}</td></tr>`).join('');
   $('lifeCount').textContent = '(' + lives.length + ')';
   $('lives').innerHTML = lives.map((l) => {
     const path = chain(l);

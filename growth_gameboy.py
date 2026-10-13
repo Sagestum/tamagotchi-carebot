@@ -134,6 +134,31 @@ def stage(number):
     return CHARACTERS[number][1] if number in CHARACTERS else 0
 
 
+# What a meal does, measured: the pounds it adds and what it does to the stress by itself.
+# On top of that its favourite calms a pet by 2 and what it dislikes stresses it by 2 – and a
+# meal that brings the weight to a full ten stresses it by 10, every meal at 99 pounds by 20.
+# (That, not age, is what wears a pet down: one that eats bread grows a pound with every meal.)
+MEALS = {BREAD: (1, 0), MEAT: (2, 2), CARROT: (0, -1)}
+HEAVIEST = 99
+
+
+def meal_stress(number, food, weight):
+    """What this meal would do to the stress of this character at this weight."""
+    gain, stress = MEALS[food]
+    liked, disliked = CHARACTERS[number][2:] if number in CHARACTERS else (BREAD, None)
+    stress += -2 if food == liked else 2 if food == disliked else 0
+    if gain and weight + gain >= HEAVIEST:
+        stress += 20
+    elif (weight + gain) // 10 > weight // 10:
+        stress += 10
+    return stress
+
+
+def meal(number, weight):
+    """The meal that is best for its nerves; of two as good the lighter one."""
+    return min(MEALS, key=lambda food: (meal_stress(number, food, weight), MEALS[food][0]))
+
+
 def favourite(number):
     """The food that fills it and calms it; bread for one that is not known."""
     return CHARACTERS[number][2] if number in CHARACTERS else BREAD

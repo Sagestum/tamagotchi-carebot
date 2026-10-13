@@ -497,6 +497,10 @@
         <span>Tiere zugleich</span>
         <div class="seg" id="gbKeep"><button data-keep="1">1</button><button data-keep="2">2</button><button data-keep="3">3</button></div>
       </div>
+      <div class="row" id="gbPaceRow" hidden>
+        <span>Spielzeit</span>
+        <div class="seg" id="gbPace"><button data-pace="0" title="ein Spieltag ≈ 24 Minuten">schnell</button><button data-pace="1" title="ein Spieltag ≈ 48 Minuten, so ist das Spiel eingestellt">mittel</button><button data-pace="2" title="ein Spieltag ≈ 72 Minuten">langsam</button></div>
+      </div>
       <div class="row" id="goalRow">
         <span>Ziel</span>
         <span><b id="goal">keins</b> · <a href="/bot" id="botLink">Wachstum und Ziel</a></span>
@@ -1102,6 +1106,7 @@ function renderGb(msg) {
   const names = gbNames;
   $('gbEggs').textContent = msg.eggs === null ? '–' : msg.eggs;
   document.querySelectorAll('#gbKeep button').forEach((b) => b.classList.toggle('on', Number(b.dataset.keep) === msg.keep));
+  document.querySelectorAll('#gbPace button').forEach((b) => b.classList.toggle('on', Number(b.dataset.pace) === msg.pace));
   // (not while one of its selects is open: redrawing would close it)
   if ($('gbPlaceList').contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
   /* A free place is only listed if the bot is to fill it (so that its goal can be chosen
@@ -1150,6 +1155,9 @@ function renderGb(msg) {
   }).join('');
 }
 $('gbMoreEgg').addEventListener('click', () => post('/api/place', {what: 'egg'}));
+$('gbPace').addEventListener('click', (e) => {
+  if (e.target.dataset.pace) post('/api/config', {pace: Number(e.target.dataset.pace)});
+});
 $('gbKeep').addEventListener('click', (e) => {
   if (e.target.dataset.keep) post('/api/config', {keep: Number(e.target.dataset.keep)});
 });
@@ -1200,7 +1208,7 @@ function render(msg) {
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care || gb;
   $('goalRow').hidden = !msg.goals || gb;      // the game has no chart on the bot's page
-  $('gbKeepRow').hidden = $('gbPlaces').hidden = !gb;
+  $('gbKeepRow').hidden = $('gbPaceRow').hidden = $('gbPlaces').hidden = !gb;
   if (gb) renderGb(msg);
   $('disciplineRow').hidden = !gb && (!msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin'));
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';

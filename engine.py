@@ -36,6 +36,7 @@ CHUNK = 1024                    # ticks per emulation slice (1/32 s)
 FRAME = 1 / 30                  # seconds between screen updates
 SPEEDS = (1, 2, 5, 20, 0)       # 0 = as fast as possible
 MIN_HOLD = int(0.1 * TICK_HZ)   # shortest button press the ROM reliably sees
+STUCK = 30                      # emulated seconds after which a key that is still down is let go
 HANDS_OFF = 60                  # real seconds the bot waits after the user's last input
 SHOT_AFTER = 20                 # emulated seconds a character is given before its picture is taken
 GONE_AFTER = 60                 # emulated seconds without a character until a life counts as over
@@ -170,9 +171,12 @@ class Engine:
             if album != self.album_seen:
                 fresh = [a for a in self.bot.album()
                          if [a["place"], a["name"], a["character"], a["age"], a["weight"]] not in self.album_seen]
-                self.album_seen = album
-                if fresh:
-                    self.outbox.append(("album", time.time(), fresh))
+                # with a picture of the game's own page of it; while the bot holds a key that
+                # has to wait for the next look
+                if not fresh or self.bot.held is None:
+                    self.album_seen = album
+                    if fresh:
+                        self.outbox.append(("album", time.time(), fresh, self.bot.memory_picture()))
         else:
             self.track(0, status, names.get(self.bot.goal))
 
@@ -344,11 +348,15 @@ class Engine:
                                                      else self.model.names[goal] if goal else "keins"))
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
-                  restart=None, shuffle=None, flip=None, keep=None):
+                  restart=None, shuffle=None, flip=None, keep=None, pace=None):
         with self.lock:
             if keep in (1, 2, 3) and hasattr(self.bot, "keep") and keep != self.bot.keep:
                 self.bot.keep = keep
                 self.add_log("Der Bot hält %s" % ("ein Tier" if keep == 1 else "%d Tiere zugleich" % keep))
+            if pace in (0, 1, 2) and hasattr(self.bot, "pace") and pace != self.bot.pace:
+                self.bot.pace = pace
+                self.bot.set_pace()
+                self.add_log("Die Zeit im Spiel läuft jetzt %s" % self.bot.PACES[pace])
             if bot is not None and bool(bot) != self.bot_enabled:
                 self.bot_enabled = bool(bot)
                 self.hands_off = None
@@ -502,6 +510,11 @@ class Engine:
         tama = self.tama
         tama.run(CHUNK)
         now = tama.ticks
+        for btn, at in self.pressed.items():
+            # a key whose release never came (the page closed with it down, a finger slid off
+            # it): it is let go, or the bot would wait for the user for ever
+            if btn not in self.release and now - at > STUCK * TICK_HZ:
+                self.release[btn] = now
         for btn, at in list(self.release.items()):
             if now >= at:
                 tama.button(btn, False)
@@ -580,6 +593,7 @@ class Engine:
             "goalName": self.model.names.get(self.bot.goal),
             "pets": self.bot.pets() if hasattr(self.bot, "pets") else None,
             "keep": getattr(self.bot, "keep", None),
+            "pace": getattr(self.bot, "pace", None),
             "eggs": self.bot.eggs_left() if hasattr(self.bot, "eggs_left") else None,
             "speed": self.speed,
             "paused": self.paused,

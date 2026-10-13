@@ -612,10 +612,21 @@ beiden Tamagotchi kommen vor. Welche es wird, entscheiden zwei Werte, die das Sp
 
 Der Care-Bot (`carebot_gameboy.py`) liest alles aus dem Speicher des Game Boy: Er macht das
 Licht aus, wenn das Tier schläft, gibt die Medizin, die zur Krankheit passt, räumt die Haufen
-weg, füttert das Lieblingsessen der Figur (das senkt den Stress), spielt das Smile-Spiel,
+weg, füttert die Mahlzeit, die das Tier bei seinem Gewicht am meisten beruhigt (meist das
+Lieblingsessen; eine Mahlzeit, die das Gewicht auf volle zehn Pfund bringt, stresst es aber
+um 10, bei 99 Pfund jede um 20 – dann gibt es Karotte, die nichts wiegt, und das Sportspiel
+nimmt zwei Pfund ab), spielt das Smile-Spiel,
 schimpft, sobald das Tier etwas verweigert, und lobt nach einem gewonnenen Spiel (das senkt
 den Stress um 5). Süßigkeiten gibt er nicht: Zwei kurz hintereinander machen es krank. Das
 Smile-Spiel rät er, der Ausgang steht vorher nicht im Speicher.
+
+Hält er mehrere Tiere, geht er zuerst zu dem, das es am nötigsten hat (krank, Licht, leerer
+Magen, keine Freude vor Haufen, vor dem übrigen). Mit „Spielzeit“ stellt er die Uhr des
+Spiels ein wie dessen eigene Option „Time speed“: schnell, mittel (so kommt das Spiel) oder
+langsam – ein Spieltag dauert dann etwa 24, 48 oder 72 Minuten. Mit dem Alter verliert ein
+Tier seine Herzen immer schneller (bis Tag 11 neun Hunger-Herzen am Tag, an Tag 28 um die
+siebzig); daran, nicht an einem Alter, endet sein Leben, und zwei oder drei Tiere zugleich
+werden deshalb nicht so alt wie eines.
 
 Mit einem **Ziel** (einer der zwölf Erwachsenen oder Bill; jeder der drei Plätze hat im Tab
 seine eigene Auswahl, auch „zufällig, mit jedem Ei neu“) steuert er die
@@ -632,7 +643,8 @@ Das Spiel hat **drei Plätze** und acht Eier. Der Tab zeigt, wer auf welchem Pla
 wie viele Eier übrig sind; „Zeigen“ holt ein Tier ins Bild, „Neues Ei“ lässt den Bot eines
 ausbrüten und benennen (Namen aus einer Liste), und mit „Tiere zugleich“ hält er von selbst
 ein, zwei oder drei. Sind mehrere da, wechselt er zu dem, das etwas braucht. Stirbt eines,
-legt er es ins Album, jedes auf einen eigenen der acht Plätze. Ein Tier, das an Altersschwäche
+legt er es ins Album, jedes auf einen eigenen der acht Plätze. Der Verlauf hebt jeden Eintrag
+auf, samt einem Bild der „Memory“-Seite des Spiels, wie sie mit ihm aussah. Ein Tier, das an Altersschwäche
 stirbt, hinterlässt sein Ei: Es steht dann wieder zur Wahl, mit guter Pflege gehen die Eier
 also nie aus. Stirbt ein Tier jung, ist sein Ei verbraucht; ist so das letzte Tier des letzten
 Eis gestorben, meldet das Spiel „No more eggs left“ und beginnt mit allen acht Eiern und

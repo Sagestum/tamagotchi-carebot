@@ -69,6 +69,9 @@ class History:
             # two bits, four to a byte), added to the first files later
             if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(stages)")]:
                 self.db.execute("ALTER TABLE stages ADD COLUMN picture BLOB")
+            # and one of the game's own page of its album, as it was with the new entry
+            if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(album)")]:
+                self.db.execute("ALTER TABLE album ADD COLUMN picture BLOB")
 
     def write(self, pet, tab, model, events):
         """What a pet's process has told: a list of tuples, the kind first."""
@@ -99,13 +102,13 @@ class History:
                     self.db.execute("UPDATE lives SET goal = ?, name = COALESCE(?, name) WHERE key = ?",
                                     (goal, name, key))
                 elif kind == "album":
-                    at, entries = rest
+                    at, entries, picture = (tuple(rest) + (None,))[:3]
                     for a in entries:
                         self.db.execute(
                             "INSERT OR IGNORE INTO album (pet, tab, seen, place, name, character, "
-                            "character_name, age, weight, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            "character_name, age, weight, data, picture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (pet, tab, at, a["place"], a["name"], a["character"], a["characterName"],
-                             a["age"], a["weight"], json.dumps(a["data"])))
+                             a["age"], a["weight"], json.dumps(a["data"]), picture))
                 elif kind == "end":
                     key, at, how = rest
                     self.db.execute("UPDATE lives SET ended = ?, ending = ? WHERE key = ? AND ended IS NULL",
@@ -175,14 +178,19 @@ class History:
     def album(self, pet=None):
         """The entries of the Game Boy game's album that have been seen, the newest first."""
         with self.lock:
-            rows = self.db.execute("SELECT * FROM album WHERE (? IS NULL OR pet = ?) ORDER BY id DESC",
-                                   (pet, pet)).fetchall()
-        return [dict(row, data=json.loads(row["data"]) if row["data"] else None) for row in rows]
+            rows = self.db.execute(
+                "SELECT id, pet, tab, seen, place, name, character, character_name, age, weight, data, "
+                "picture IS NOT NULL AS picture FROM album WHERE (? IS NULL OR pet = ?) ORDER BY id DESC",
+                (pet, pet)).fetchall()
+        return [dict(row, data=json.loads(row["data"]) if row["data"] else None, picture=bool(row["picture"]))
+                for row in rows]
 
-    def picture(self, stage_id):
-        """The picture kept with a stage, as a PNG; None if there is none."""
+    def picture(self, number, album=False):
+        """The picture kept with a stage (or with an entry of the album), as a PNG; None if
+        there is none."""
         with self.lock:
-            row = self.db.execute("SELECT picture FROM stages WHERE rowid = ?", (stage_id,)).fetchone()
+            row = self.db.execute("SELECT picture FROM %s WHERE rowid = ?" % ("album" if album else "stages"),
+                                  (number,)).fetchone()
         return gameboy_png(row["picture"]) if row and row["picture"] else None
 
     def counts(self):

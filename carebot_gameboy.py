@@ -21,6 +21,7 @@ import random
 
 import growth_gameboy as rules
 from carebot import CareBot
+from tama import TICK_HZ
 from gameboy import (BTN_A, BTN_B, BTN_DOWN, BTN_LEFT, BTN_RIGHT, BTN_START, BTN_UP)
 
 # The record of the first pet; the second and third follow at 0xD100 and 0xD200. Up to three
@@ -68,13 +69,18 @@ MIDDLE = 80                 # where a ball comes down on the middle one of the f
 
 MAIN, ALBUM, STATUS, FOOD_MENU, LAB, EGG_ROOM, NAME_ENTRY = 0, 2, 3, 4, 5, 6, 7
 GAME_MENU, MEDICINE_MENU, SCOLD_MENU, TITLE, WELCOME, SMILE_GAME, INTRO = 9, 10, 11, 12, 14, 29, 46
+OPTION = 59                     # the options behind the title: the speed of time and the album
 STUDY_LEVEL, STUDY_GAME, SPORTS_LEVEL, SPORTS_GAME = 15, 30, 42, 43
 NO_EGGS = 51                        # "No more eggs left": A, and the game begins anew
 SMILE, STUDY, SPORTS = 0, 1, 2      # the entries of the game menu
 SCOLD, PRAISE = 0, 1                # and of the menu of the discipline icon
 STUDY_HOURS = range(10, 17)         # studying early or late in the day stresses it
-TRAIN_EVERY = 300                   # seconds between two games for IQ or Body
+MEM_PACE = 0xD480               # the game's "Time speed": 0 fast, 1 medium, 2 slow (1, 2, 3 s a minute)
+PACES = {0: "schnell", 1: "mittel", 2: "langsam"}
+TRAIN_EVERY = 300                   # seconds between two games for IQ or Body, at medium pace
 UNEASY, CALM_EVERY = 30, 120        # from this much stress on, a game for the praise, this often
+PATIENCE = 15                       # how much more another pet must need the bot for it to leave this one
+HEAVY = 8                           # from this many pounds over a full ten on, sports to lose weight
 ENOUGH = 2                          # the lead the wanted one of the two is kept at
 TIDY_FROM = 18                      # the hour from which it is cleaned up in any case
 STRESS_HIGH = 48                    # a child that is to be stressed is left in its dirt up to here
@@ -97,6 +103,8 @@ RANDOM = -1                 # as the wish of a place: another goal, drawn by lot
 
 
 class GameBoyBot(CareBot):
+    PACES = PACES
+
     # Every place has a goal of its own. What the rest of the program calls the goal is the
     # one of the pet on the screen.
     @property
@@ -124,6 +132,7 @@ class GameBoyBot(CareBot):
         self.seen = {}              # of each pet, what was last logged of it
         self.last_name = None
         self.keep = 1               # pets to have at a time
+        self.pace = 1               # the game's speed of time to hold it at (PACES)
         self.album_next = 0         # the place of the album to write over once it is full
         self.eggs_seen = None       # the eggs left when last looked
         self.egg_back = None        # when one came back, and who died when: a pet that dies
@@ -133,13 +142,14 @@ class GameBoyBot(CareBot):
         self.passed = None          # the refusal last let pass, so that it is logged once
 
     def memo(self):
-        return {"last_name": self.last_name, "keep": self.keep, "album_next": self.album_next,
+        return {"last_name": self.last_name, "keep": self.keep, "pace": self.pace, "album_next": self.album_next,
                 "goals": self.goals, "wishes": self.wishes}
 
     def recall(self, memo):
         if isinstance(memo, dict):
             self.last_name = memo.get("last_name")
             self.keep = max(1, min(PETS, int(memo.get("keep") or 1)))
+            self.pace = memo.get("pace") if memo.get("pace") in PACES else 1
             self.album_next = int(memo.get("album_next") or 0)
             ok = lambda g: g if g in rules.GOALS else None
             if len(memo.get("goals") or ()) == PETS:
@@ -571,6 +581,31 @@ class GameBoyBot(CareBot):
                                  "fear": m(at + MEM_FEAR), "mine": m(at + MEM_MINE)}})
         return out
 
+    def memory_picture(self):
+        """The game's own page of its album ("Memory", behind OPTION on the title): its picture,
+        packed as the screen is. The game goes on as if nothing had been: its state is put
+        aside, the machine switched off and on, and the state brought back. None if the page
+        could not be reached."""
+        t = self.tama
+        if self.held is not None:
+            return None
+        keep, picture = t.save(), None
+        try:
+            t.reset()
+            t.run(int(8 * TICK_HZ))
+            for btn, pause, screen in ((BTN_START, 2, TITLE), (BTN_DOWN, 1, TITLE), (BTN_DOWN, 1, TITLE),
+                                       (BTN_A, 1.5, OPTION), (BTN_DOWN, 1, OPTION), (BTN_A, 2, ALBUM)):
+                t.button(btn, True)
+                t.run(int(0.15 * TICK_HZ))
+                t.button(btn, False)
+                t.run(int(pause * TICK_HZ))
+                if t.memory(MEM_SCREEN) != screen:
+                    return None
+            picture = t.packed() or None
+        finally:
+            t.load(keep)
+        return picture
+
     def eggs_left(self):
         return max(0, EGGS - self.tama.memory(MEM_EGGS_USED))
 
@@ -640,11 +675,12 @@ class GameBoyBot(CareBot):
             self.log(who + "Krank")
 
     def food(self, st, way):
-        """What to feed: its favourite, which calms it. A child that is to become
-        Kuchitamatchi is to stay stressed and gets what it dislikes."""
+        """What to feed: the meal that calms it most at the weight it has (its favourite, unless
+        that would bring it to a full ten pounds). A child that is to become Kuchitamatchi is
+        to stay stressed and gets what it dislikes."""
         if way and way[0] == rules.KUCHITAMATCHI and st["stage"] == rules.MARUTCHI:
             return rules.CHARACTERS[st["stage"]][3]
-        return rules.favourite(st["stage"])
+        return rules.meal(st["stage"], st["weight"])
 
     def wants(self, st):
         """What a pet needs done: (name of the method that does it, arguments), or None."""
@@ -683,11 +719,17 @@ class GameBoyBot(CareBot):
         if st["happy"] < self.play_below:
             return ("play",)
         if st["fear"] >= UNEASY and not stressing and kind >= rules.CHILD \
-                and self.tama.seconds - self.trained >= CALM_EVERY:
+                and self.tama.seconds - self.trained >= CALM_EVERY * self.slower():
             # a game it wins is praised, and praise calms it. (At 100 the stress kills.)
             clever = bool(way) and way[3] == rules.CLEVER
             return ("study",) if clever and st["hour"] in STUDY_HOURS else None if clever else ("sports",)
-        if way and kind == rules.TEEN and self.tama.seconds - self.trained >= TRAIN_EVERY:
+        if (st["weight"] % 10 >= HEAVY or st["weight"] >= rules.HEAVIEST - 2) and not stressing \
+                and kind >= rules.CHILD and not (kind == rules.TEEN and way and way[3] == rules.CLEVER) \
+                and self.tama.seconds - self.trained >= CALM_EVERY * self.slower():
+            # the next full ten pounds are near, and reaching them would stress it: the sports
+            # game takes two off. (Not with a teenager that is to be the cleverer kind.)
+            return ("sports",)
+        if way and kind == rules.TEEN and self.tama.seconds - self.trained >= TRAIN_EVERY * self.slower():
             more, less = (st["iq"], st["body"]) if way[3] == rules.CLEVER else (st["body"], st["iq"])
             if more < less + ENOUGH:
                 if way[3] == rules.STRONG:
@@ -696,9 +738,36 @@ class GameBoyBot(CareBot):
                     return ("study",)
         return None
 
+    def urgency(self, st, want):
+        """How badly a pet needs what it wants done (0: nothing)."""
+        if not want:
+            return 0
+        what = want[0]
+        if what in ("bury", "heal", "light"):
+            return 90
+        if what == "feed":
+            return 80 if st["hunger"] == 0 else 30 + 5 * (FULL - st["hunger"])
+        if what in ("scold", "praise"):
+            return 60                                   # there is only a while for these
+        if what == "clean":
+            return 50
+        if what == "play":
+            return 70 if st["happy"] == 0 else 20
+        return 10                                       # the games for IQ, Body and weight
+
+    def slower(self):
+        """How much longer than at medium pace the game's time takes."""
+        return (self.pace + 1) / 2
+
+    def set_pace(self):
+        """The game's own setting (OPTION on the title) is one cell; a new game puts it back."""
+        if self.tama.memory(MEM_PACE) != self.pace:
+            self.tama.poke(MEM_PACE, self.pace)
+
     def plan(self):
         m = self.tama.memory
         screen = m(MEM_SCREEN)
+        self.set_pace()
         states = {slot: self.status(slot) for slot in range(PETS)}
         for slot, st in states.items():
             self.watch(slot, st)
@@ -717,15 +786,27 @@ class GameBoyBot(CareBot):
             return self.press(BTN_START, 2.0)           # "Continue"
         if screen == NO_EGGS:
             return self.press(BTN_A, 3.0)
+        if screen == ALBUM and states[self.slot()]["dead"] and self.restart:
+            # "Save?" is already asked (a key of the user's, or the bot was held up on its
+            # way): B does not leave this page, so go on from here
+            return self.bury()
         if screen != MAIN:
             return self.home()
         here = self.slot()
-        want = self.wants(states[here])
+        wants = {slot: self.wants(st) if st["stage"] else None for slot, st in states.items()}
+        # Of several the one that needs it most comes first, not the one on the screen until
+        # it has everything: an empty stomach or no joy at all stresses a grown pet by 20
+        # every time, and the others must not wait for a game to be won.
+        need = {slot: self.urgency(states[slot], want) for slot, want in wants.items()}
+        worst = max(need, key=lambda slot: (need[slot], slot == here))
+        if worst != here and (need[worst] >= need[here] + PATIENCE or not states[here]["stage"]) \
+                and states[worst]["stage"]:
+            return self.show(worst)
+        want = wants[here]
         if want:
             return getattr(self, want[0])(*want[1:])
-        # the one on the screen is content: is there another that is not?
-        for slot, st in states.items():
-            if slot != here and (self.wants(st) or not states[here]["stage"]) and st["stage"]:
+        for slot, st in states.items():                 # (a place left empty on the screen)
+            if slot != here and not states[here]["stage"] and st["stage"]:
                 return self.show(slot)
         if len(living) < self.keep and self.restart and self.eggs_left() \
                 and self.tama.seconds >= self.no_egg:
