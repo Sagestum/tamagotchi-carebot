@@ -131,6 +131,13 @@ class Engine:
                 self.finish(place, "verabschiedet" if life["left"] else "neu begonnen")
             return
         life["gone"], life["left"] = 0, bool(st.get("leaving"))
+        if life["key"] is not None and st.get("awards"):
+            # (Game Boy) an award won in one of the contests
+            had = life.get("awards") or [False] * len(st["awards"])
+            for which, won in enumerate(st["awards"]):
+                if won and not had[which]:
+                    self.outbox.append(("award", life["key"], now, self.bot.CONTESTS[which]))
+            life["awards"] = list(st["awards"])
         label = [st.get("petName") or None, goal]
         if life["key"] is not None and life["stage"] == stage:
             if life.get("label") != label:      # named, or given another goal, meanwhile
@@ -140,6 +147,7 @@ class Engine:
         life["label"] = label
         if life["key"] is None:
             life["key"] = uuid.uuid4().hex
+            life["awards"] = None
             self.outbox.append(("begin", life["key"], now, place, st.get("petName") or None, goal))
         life["stage"], life["since"], life["shot"] = stage, self.tama.seconds, False
         data = {k: st[k] for k in ("hunger", "happy", "weight", "age", "mistakes", "missed", "training",
@@ -151,6 +159,7 @@ class Engine:
         life = self.tracks.get(str(place))
         if life and life["key"] is not None:
             self.outbox.append(("end", life["key"], time.time(), how))
+            life["last"] = life["key"]
             life["key"], life["stage"] = None, 0
 
     def track_all(self, status):
@@ -166,6 +175,14 @@ class Engine:
                     if packed:
                         life["shot"] = True
                         self.outbox.append(("picture", life["key"], life["stage"], packed))
+            # a pet that had won all three contests is shown in the game's hall at its end
+            if self.bot.in_honour():
+                life = self.tracks[str(self.bot.slot())]
+                key = life["key"] or life.get("last")
+                packed = self.tama.packed()
+                if key and packed and life.get("honoured") != key:
+                    life["honoured"] = key
+                    self.outbox.append(("award", key, time.time(), "Hall of Fame", packed))
             # and what the game remembers by itself: a new entry of its album is told once
             album = [[a["place"], a["name"], a["character"], a["age"], a["weight"]] for a in self.bot.album()]
             if album != self.album_seen:
@@ -348,11 +365,14 @@ class Engine:
                                                      else self.model.names[goal] if goal else "keins"))
 
     def configure(self, bot=None, discipline=None, speed=None, paused=None, goal=False,
-                  restart=None, shuffle=None, flip=None, keep=None, pace=None):
+                  restart=None, shuffle=None, flip=None, keep=None, pace=None, contests=None):
         with self.lock:
             if keep in (1, 2, 3) and hasattr(self.bot, "keep") and keep != self.bot.keep:
                 self.bot.keep = keep
                 self.add_log("Der Bot hält %s" % ("ein Tier" if keep == 1 else "%d Tiere zugleich" % keep))
+            if contests is not None and hasattr(self.bot, "contests") and bool(contests) != self.bot.contests:
+                self.bot.contests = bool(contests)
+                self.add_log("Der Bot geht %s zu den Wettbewerben" % ("jetzt" if contests else "nicht mehr"))
             if pace in (0, 1, 2) and hasattr(self.bot, "pace") and pace != self.bot.pace:
                 self.bot.pace = pace
                 self.bot.set_pace()
@@ -594,6 +614,7 @@ class Engine:
             "pets": self.bot.pets() if hasattr(self.bot, "pets") else None,
             "keep": getattr(self.bot, "keep", None),
             "pace": getattr(self.bot, "pace", None),
+            "contests": getattr(self.bot, "contests", None),
             "eggs": self.bot.eggs_left() if hasattr(self.bot, "eggs_left") else None,
             "speed": self.speed,
             "paused": self.paused,

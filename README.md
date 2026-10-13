@@ -620,6 +620,16 @@ schimpft, sobald das Tier etwas verweigert, und lobt nach einem gewonnenen Spiel
 den Stress um 5). Süßigkeiten gibt er nicht: Zwei kurz hintereinander machen es krank. Das
 Smile-Spiel rät er, der Ausgang steht vorher nicht im Speicher.
 
+Mit „Geht zu den Wettbewerben“ meldet er jedes erwachsene Tier einmal am Tag im Labor an
+(„Pick test“): zuerst zum Schönheitswettbewerb (den gewinnt ein zufriedenes, gut erzogenes
+Tier), dann abwechselnd zum Rennen und zum Wissenstest. Für die beiden trainiert er vorher
+Körper und IQ mit dem Sport- und dem Lernspiel, auf den höheren Stufen, sobald die leichte
+nichts mehr bringt (beide Werte gehen von 0 bis 4). Im Rennen drückt er nichts: A soll
+antreiben, erschöpft das Tier aber sofort. Im Wissenstest geht das Tier von selbst zu der
+Antwort, an die es glaubt – eine Taste lässt es nur losgehen. Jeder Sieg eines Erwachsenen
+bringt eine Auszeichnung; sie stehen beim Tier und im Verlauf, alle drei sind die „Hall of
+Fame“ des Spiels.
+
 Hält er mehrere Tiere, geht er zuerst zu dem, das es am nötigsten hat (krank, Licht, leerer
 Magen, keine Freude vor Haufen, vor dem übrigen). Mit „Spielzeit“ stellt er die Uhr des
 Spiels ein wie dessen eigene Option „Time speed“: schnell, mittel (so kommt das Spiel) oder

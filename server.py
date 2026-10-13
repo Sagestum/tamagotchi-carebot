@@ -586,7 +586,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
         elif url.path == "/api/history/picture":
-            png = self.app.history.picture(int(query.get("id", ["0"])[0] or 0), bool(query.get("album")))
+            png = self.app.history.picture(int(query.get("id", ["0"])[0] or 0), "album" if query.get("album") else "awards" if query.get("award") else "stages")
             if png is None:
                 return self.send_body(404, b"not found", "text/plain")
             self.send_body(200, png, "image/png", [("Cache-Control", "max-age=31536000, immutable")])
@@ -693,7 +693,7 @@ class Handler(BaseHTTPRequestHandler):
                 app.pet(data["pet"]).send("configure", data.get("bot"), data.get("discipline"),
                                           data.get("speed"), data.get("paused"), goal,
                                           data.get("restart"), data.get("shuffle"), data.get("flip"),
-                                          data.get("keep"), data.get("pace"))
+                                          data.get("keep"), data.get("pace"), data.get("contests"))
             elif self.path == "/api/place":
                 goal = data.get("goal")
                 if data.get("what") not in ("show", "egg", "goal") or data.get("slot", 0) not in range(3) \

@@ -41,6 +41,13 @@ CREATE TABLE IF NOT EXISTS log (
     text TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS log_pet ON log(pet, id);
+CREATE TABLE IF NOT EXISTS awards (     -- Game Boy: the contests a pet has won
+    life TEXT NOT NULL REFERENCES lives(key),
+    at REAL,
+    name TEXT NOT NULL,
+    picture BLOB,               -- of the hall of fame: the game's screen
+    UNIQUE (life, name)
+);
 CREATE TABLE IF NOT EXISTS album (      -- the Game Boy game's own album, entry by entry
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pet TEXT NOT NULL,
@@ -70,6 +77,8 @@ class History:
             if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(stages)")]:
                 self.db.execute("ALTER TABLE stages ADD COLUMN picture BLOB")
             # and one of the game's own page of its album, as it was with the new entry
+            if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(awards)")]:
+                self.db.execute("ALTER TABLE awards ADD COLUMN picture BLOB")
             if "picture" not in [row[1] for row in self.db.execute("PRAGMA table_info(album)")]:
                 self.db.execute("ALTER TABLE album ADD COLUMN picture BLOB")
 
@@ -97,6 +106,10 @@ class History:
                     self.db.execute(
                         "UPDATE stages SET picture = ? WHERE rowid = (SELECT MAX(rowid) FROM stages "
                         "WHERE life = ? AND character = ?)", (packed, key, number))
+                elif kind == "award":
+                    key, at, name, picture = (tuple(rest) + (None,))[:4]
+                    self.db.execute("INSERT OR IGNORE INTO awards (life, at, name, picture) VALUES (?, ?, ?, ?)",
+                                    (key, at, name, picture))
                 elif kind == "label":
                     key, name, goal = rest
                     self.db.execute("UPDATE lives SET goal = ?, name = COALESCE(?, name) WHERE key = ?",
@@ -150,6 +163,10 @@ class History:
                     for s in self.db.execute(
                         "SELECT rowid AS id, at, character, character_name, data, picture IS NOT NULL AS has "
                         "FROM stages WHERE life = ? ORDER BY rowid", (row["key"],))]
+                life["awards"] = [{"id": a["id"], "at": a["at"], "name": a["name"], "picture": bool(a["has"])}
+                                  for a in self.db.execute(
+                    "SELECT rowid AS id, at, name, picture IS NOT NULL AS has FROM awards "
+                    "WHERE life = ? ORDER BY rowid", (row["key"],))]
                 out.append(life)
         return out
 
@@ -185,12 +202,13 @@ class History:
         return [dict(row, data=json.loads(row["data"]) if row["data"] else None, picture=bool(row["picture"]))
                 for row in rows]
 
-    def picture(self, number, album=False):
-        """The picture kept with a stage (or with an entry of the album), as a PNG; None if
-        there is none."""
+    def picture(self, number, of="stages"):
+        """The picture kept with a stage (or with an entry of the album, or an award), as a
+        PNG; None if there is none."""
+        if of not in ("stages", "album", "awards"):
+            return None
         with self.lock:
-            row = self.db.execute("SELECT picture FROM %s WHERE rowid = ?" % ("album" if album else "stages"),
-                                  (number,)).fetchone()
+            row = self.db.execute("SELECT picture FROM %s WHERE rowid = ?" % of, (number,)).fetchone()
         return gameboy_png(row["picture"]) if row and row["picture"] else None
 
     def counts(self):

@@ -79,6 +79,23 @@ MEM_PACE = 0xD480               # the game's "Time speed": 0 fast, 1 medium, 2 s
 PACES = {0: "schnell", 1: "mittel", 2: "langsam"}
 TRAIN_EVERY = 300                   # seconds between two games for IQ or Body, at medium pace
 UNEASY, CALM_EVERY = 30, 120        # from this much stress on, a game for the praise, this often
+# The contests in the laboratory ("Pick test"): one a day for every pet; an adult that wins is
+# given an award, kept in a cell each. Race: the pet runs by itself, and A, which is to spur it
+# on, tires it out at once (fastest without). Beauty: won by a pet that is happy and well
+# behaved. Knowledge: sums as in the study game. What decides the other two is Body and IQ.
+RACE, BEAUTY, KNOWLEDGE = range(3)
+CONTESTS = {RACE: "Rennen", BEAUTY: "Schönheit", KNOWLEDGE: "Wissen"}
+MEM_AWARD = 0xD003              # +0 race, +1 beauty, +2 knowledge: 1 once it is won
+MEM_CONTESTED = 0xD0DC          # 1: it has been in a contest today
+MEM_PHASE = 0xD5B8              # race: 2 while they run, 3 and more once they are in
+CONTEST_SCREENS = (31, 45, 30)
+HONOUR = 75                     # "Honorary member": the hall a pet with all three awards is shown in at its end
+LAB_TEST = 2                    # "Pick test" in the laboratory's menu
+CONTEST_HOURS = range(10, 18)
+SKILL = {RACE: "body", KNOWLEDGE: "iq"}
+SKILLED = 4                     # Body and IQ go from 0 to 4
+GAMES_A_DAY = 4                 # training games for each of the two a day (they do not always add)
+READY_EVERY = 60                # seconds between two games to get there
 PATIENCE = 15                       # how much more another pet must need the bot for it to leave this one
 HEAVY = 8                           # from this many pounds over a full ten on, sports to lose weight
 ENOUGH = 2                          # the lead the wanted one of the two is kept at
@@ -104,6 +121,7 @@ RANDOM = -1                 # as the wish of a place: another goal, drawn by lot
 
 class GameBoyBot(CareBot):
     PACES = PACES
+    CONTESTS = CONTESTS
 
     # Every place has a goal of its own. What the rest of the program calls the goal is the
     # one of the pet on the screen.
@@ -133,6 +151,8 @@ class GameBoyBot(CareBot):
         self.last_name = None
         self.keep = 1               # pets to have at a time
         self.pace = 1               # the game's speed of time to hold it at (PACES)
+        self.contests = True        # let the adults go in for the contests
+        self.trainings = {}         # (place, contest) -> (day of its life, games for it that day)
         self.album_next = 0         # the place of the album to write over once it is full
         self.eggs_seen = None       # the eggs left when last looked
         self.egg_back = None        # when one came back, and who died when: a pet that dies
@@ -142,7 +162,7 @@ class GameBoyBot(CareBot):
         self.passed = None          # the refusal last let pass, so that it is logged once
 
     def memo(self):
-        return {"last_name": self.last_name, "keep": self.keep, "pace": self.pace, "album_next": self.album_next,
+        return {"last_name": self.last_name, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
                 "goals": self.goals, "wishes": self.wishes}
 
     def recall(self, memo):
@@ -150,6 +170,7 @@ class GameBoyBot(CareBot):
             self.last_name = memo.get("last_name")
             self.keep = max(1, min(PETS, int(memo.get("keep") or 1)))
             self.pace = memo.get("pace") if memo.get("pace") in PACES else 1
+            self.contests = bool(memo.get("contests", True))
             self.album_next = int(memo.get("album_next") or 0)
             ok = lambda g: g if g in rules.GOALS else None
             if len(memo.get("goals") or ()) == PETS:
@@ -204,6 +225,8 @@ class GameBoyBot(CareBot):
             "petName": self.pet_name(slot) if kind else "", "stageName": rules.STAGES.get(stage, "–"),
             "fear": m(MEM_FEAR), "mine": m(MEM_MINE),
             "iq": m(MEM_IQ), "body": m(MEM_BODY), "deed": m(MEM_DEED),
+            "awards": [bool(m(MEM_AWARD + which)) for which in CONTESTS] if kind else [False] * 3,
+            "contested": bool(m(MEM_CONTESTED)),
         }
 
     def way(self, st):
@@ -240,7 +263,7 @@ class GameBoyBot(CareBot):
             out.append({key: st[key] for key in (
                 "slot", "stage", "name", "petName", "stageName", "age", "hunger", "happy", "weight",
                 "poop", "asleep", "light", "sick", "sickness", "scold", "dead", "iq", "body", "deed",
-                "fear", "mine")} | {
+                "fear", "mine", "awards", "contested")} | {
                 "shown": slot == here, "egg": self.pet(slot)(MEM_TYPE) == 1,
                 "goal": self.goals[slot], "wish": self.wishes[slot],
                 "open": self.goals[slot] is None or not st["stage"]
@@ -412,8 +435,8 @@ class GameBoyBot(CareBot):
         if not p(MEM_PRAISE):
             self.note("%s (Stress %d → %d)" % (why, before, p(MEM_FEAR)) if p(MEM_FEAR) < before else why)
 
-    def game(self, which, level_screen, game_screen):
-        """Into one of the two games with levels, at level A; True once it runs."""
+    def game(self, which, level_screen, game_screen, level=0):
+        """Into one of the two games with levels (0: level A); True once it runs."""
         m = self.tama.memory
         if not (yield from self.icon(ICON_GAME)) or m(MEM_SCREEN) != GAME_MENU:
             return False
@@ -425,19 +448,19 @@ class GameBoyBot(CareBot):
             if self.pet()(MEM_SCOLD):
                 self.note("Will nicht spielen")
             return False
-        if not (yield from self.entry(0)):
+        if not (yield from self.entry(level)):
             yield from self.home()
             return False
         yield from self.press(BTN_A, 1.5)
         return m(MEM_SCREEN) == game_screen
 
-    def study(self):
+    def study(self, level=0):
         """The study game: three sums, and the pet goes to the answer it believes in. There
         is nothing to do but to go on; the cleverer it is, the better it does."""
         m, p = self.tama.memory, self.pet()
         before = p(MEM_IQ)
         self.trained = self.tama.seconds
-        if not (yield from self.game(STUDY, STUDY_LEVEL, STUDY_GAME)):
+        if not (yield from self.game(STUDY, STUDY_LEVEL, STUDY_GAME, level)):
             return
         for _ in range(40):
             if m(MEM_SCREEN) != STUDY_GAME:
@@ -445,6 +468,50 @@ class GameBoyBot(CareBot):
             yield from self.press(BTN_A, 2.0)
         yield 3.0
         self.note("Lernspiel: IQ %d" % p(MEM_IQ) if p(MEM_IQ) > before else "Lernspiel: nichts gelernt")
+
+    def in_honour(self):
+        """The game shows the hall of its honorary members: the end of a pet that has won all
+        three contests."""
+        return self.tama.memory(MEM_SCREEN) == HONOUR
+
+    def honour(self):
+        """Let the hall be seen for a while (and its picture be taken), then go on to the
+        album."""
+        self.log("%s ist Ehrenmitglied in der Hall of Fame des Spiels" % (self.pet_name() or "Das Tier"))
+        yield 6.0
+        yield from self.press(BTN_A, 3.0)
+
+    def contest(self, which):
+        """Into one of the contests and through it. The race is run without a key; the other
+        two only want A to go on."""
+        m, p = self.tama.memory, self.pet()
+        before, name = p(MEM_AWARD + which), CONTESTS[which]
+        if not (yield from self.icon(ICON_LAB)) or m(MEM_SCREEN) != LAB:
+            yield from self.home()
+            return
+        if not (yield from self.entry(LAB_TEST, per_row=1)):
+            yield from self.home()
+            return
+        yield from self.press(BTN_A, 1.5)               # "Which one?"
+        if not (yield from self.entry(which, per_row=1)):
+            yield from self.home()
+            return
+        yield from self.press(BTN_A, 1.5)               # "Go for it!"
+        yield from self.press(BTN_A, 1.0)
+        if m(MEM_SCREEN) != CONTEST_SCREENS[which]:     # (not today, or not at its age)
+            yield from self.home()
+            return
+        for _ in range(900):
+            if m(MEM_SCREEN) != CONTEST_SCREENS[which]:
+                break
+            if which == RACE and m(MEM_PHASE) < 3:
+                yield 0.2
+            else:
+                yield from self.press(BTN_A, 2.0)
+        yield 3.0
+        won = p(MEM_AWARD + which) and not before
+        self.note("Wettbewerb %s: %s" % (name, "gewonnen – Auszeichnung!" if won else
+                                         "gewonnen" if p(MEM_AWARD + which) else "nicht gewonnen"))
 
     def sprites(self):
         """Sports game: where the pet stands and where the ball is, (x, y) each or None."""
@@ -461,13 +528,13 @@ class GameBoyBot(CareBot):
                 pet = (x, y) if pet is None else (min(x, pet[0]), max(y, pet[1]))
         return pet, ball
 
-    def sports(self):
+    def sports(self, level=0):
         """The sports game: ten balls fall onto five places, and the pet has to stand where
         one comes down. A direction held and A make it hop one place that way."""
         m, p = self.tama.memory, self.pet()
         before = p(MEM_BODY)
         self.trained = self.tama.seconds
-        if not (yield from self.game(SPORTS, SPORTS_LEVEL, SPORTS_GAME)):
+        if not (yield from self.game(SPORTS, SPORTS_LEVEL, SPORTS_GAME, level)):
             return
         last, caught = None, 0
         for _ in range(4000):
@@ -723,6 +790,22 @@ class GameBoyBot(CareBot):
             # a game it wins is praised, and praise calms it. (At 100 the stress kills.)
             clever = bool(way) and way[3] == rules.CLEVER
             return ("study",) if clever and st["hour"] in STUDY_HOURS else None if clever else ("sports",)
+        if self.contests and kind == rules.ADULT and not all(st["awards"]) \
+                and st["hour"] in CONTEST_HOURS and st["hunger"] == FULL:
+            # A contest a day, one it has not won yet: happy into the beauty contest, and with
+            # what Body or IQ the day's games have given it into the race or the test of
+            # knowledge (those two by turns).
+            open_ = [which for which in (RACE, KNOWLEDGE) if not st["awards"][which]]
+            which = BEAUTY if not st["awards"][BEAUTY] else open_[st["age"] % len(open_)]
+            if not st["contested"]:
+                if which == BEAUTY:
+                    return ("contest", BEAUTY) if st["happy"] == FULL else ("play",)
+                if st[SKILL[which]] >= SKILLED or not self.trainable(st, which):
+                    return ("contest", which)
+            if self.tama.seconds - self.trained >= READY_EVERY * self.slower():
+                for which in sorted(open_, key=lambda w: w != which):
+                    if self.trainable(st, which) and (which == RACE or st["hour"] in STUDY_HOURS):
+                        return self.training(st, which)
         if (st["weight"] % 10 >= HEAVY or st["weight"] >= rules.HEAVIEST - 2) and not stressing \
                 and kind >= rules.CHILD and not (kind == rules.TEEN and way and way[3] == rules.CLEVER) \
                 and self.tama.seconds - self.trained >= CALM_EVERY * self.slower():
@@ -737,6 +820,21 @@ class GameBoyBot(CareBot):
                 if st["hour"] in STUDY_HOURS:
                     return ("study",)
         return None
+
+    def trainable(self, st, which):
+        """Whether a game for the Body (RACE) or the IQ could still add to it today."""
+        day, games = self.trainings.get((st["slot"], which), (None, 0))
+        return st[SKILL[which]] < SKILLED and (day != st["age"] or games < GAMES_A_DAY)
+
+    def training(self, st, which):
+        """The game that adds to it, at the level that still does: level A brings it to 2,
+        the higher ones further."""
+        day, games = self.trainings.get((st["slot"], which), (None, 0))
+        self.trainings[(st["slot"], which)] = (st["age"], games + 1 if day == st["age"] else 1)
+        have = st[SKILL[which]]
+        if which == RACE:
+            return ("sports", 0 if have < 2 else 2)
+        return ("study", 0 if have < 1 else 1 if have < 3 else 2)
 
     def urgency(self, st, want):
         """How badly a pet needs what it wants done (0: nothing)."""
@@ -786,6 +884,8 @@ class GameBoyBot(CareBot):
             return self.press(BTN_START, 2.0)           # "Continue"
         if screen == NO_EGGS:
             return self.press(BTN_A, 3.0)
+        if screen == HONOUR:
+            return self.honour()
         if screen == ALBUM and states[self.slot()]["dead"] and self.restart:
             # "Save?" is already asked (a key of the user's, or the bot was held up on its
             # way): B does not leave this page, so go on from here

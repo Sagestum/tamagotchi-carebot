@@ -493,6 +493,10 @@
         <span>Zeitumkehrer: Tag und Nacht vertauscht <span class="flag" id="flipNote" hidden></span></span>
         <label class="switch"><input type="checkbox" id="flip"><b></b></label>
       </div>
+      <div class="row" id="gbContestsRow" hidden>
+        <span>Geht zu den Wettbewerben</span>
+        <label class="switch"><input type="checkbox" id="gbContests"><b></b></label>
+      </div>
       <div class="row" id="gbKeepRow" hidden>
         <span>Tiere zugleich</span>
         <div class="seg" id="gbKeep"><button data-keep="1">1</button><button data-keep="2">2</button><button data-keep="3">3</button></div>
@@ -1061,6 +1065,7 @@ window.addEventListener('blur', () => [...held].forEach((name) => setButton(name
 $('bot').addEventListener('change', (e) => post('/api/config', {bot: e.target.checked}));
 $('discipline').addEventListener('change', (e) => post('/api/config', {discipline: e.target.checked}));
 $('restart').addEventListener('change', (e) => post('/api/config', {restart: e.target.checked}));
+$('gbContests').addEventListener('change', (e) => post('/api/config', {contests: e.target.checked}));
 $('flip').addEventListener('change', (e) => post('/api/config', {flip: e.target.checked}));
 $('shuffle').addEventListener('change', (e) => post('/api/config', {shuffle: e.target.checked}));
 $('paused').addEventListener('change', (e) => post('/api/config', {paused: e.target.checked}));
@@ -1098,6 +1103,12 @@ twice('remove', 'Tier entfernen', 'Wirklich? Der Tab verschwindet',
 /* Live state */
 const AGE = {1: ' (Baby)', 2: ' (Kind)', 3: ' (Teenager)', 4: ' (Teenager)'};
 const AGE_OF = {morino: {1: ' (Baby)', 2: ' (Kind)', 13: ' (Kokon)'}, pikachu: {}};
+/* Game Boy: the contests a pet has won; all three make it one of the Hall of Fame */
+function awards(won) {
+  const names = ['Rennen', 'Schönheit', 'Wissen'].filter((n, k) => won && won[k]);
+  return names.length === 3 ? '★ alle drei (Hall of Fame)' : names.join(', ') || '–';
+}
+
 /* Game Boy: forecast, the number of pets the bot keeps, and the three places with their goals */
 let gbNames = {}, gbGoals = [];
 function renderGb(msg) {
@@ -1139,6 +1150,7 @@ function renderGb(msg) {
       <div class="row gbState"><span>Gewicht</span><span>${p.weight} lb</span></div>
       <div class="row gbState"><span>IQ · Körper · Benehmen</span><span>${p.iq} · ${p.body} · ${p.deed}</span></div>
       <div class="row gbState"><span>Stress · Egoismus (versteckt)</span><span>${p.fear} · ${p.mine}</span></div>
+      <div class="row gbState"><span>Auszeichnungen</span><span>${awards(p.awards)}</span></div>
       <div class="row gbState"><span>Wird als Nächstes</span><span>${p.forecast.length ? p.forecast.map((n) => names[n]).join(' oder ') : '–'}</span></div>
       ${flags.length ? '<div class="flags">' + flags.map(([t, warn]) => `<span class="flag${warn ? ' warn' : ''}">${t}</span>`).join('') + '</div>' : ''}`;
     const wish = p.wish === null ? '' : String(p.wish);
@@ -1208,7 +1220,8 @@ function render(msg) {
   $('careBox').hidden = !msg.care;      // no bot for this model (yet)
   $('happyRow').hidden = !msg.care || gb;
   $('goalRow').hidden = !msg.goals || gb;      // the game has no chart on the bot's page
-  $('gbKeepRow').hidden = $('gbPaceRow').hidden = $('gbPlaces').hidden = !gb;
+  $('gbKeepRow').hidden = $('gbPaceRow').hidden = $('gbContestsRow').hidden = $('gbPlaces').hidden = !gb;
+  $('gbContests').checked = !!msg.contests;
   if (gb) renderGb(msg);
   $('disciplineRow').hidden = !gb && (!msg.goals || !(msg.menu.includes('discipline') || msg.model === 'genjin'));
   $('disciplineLabel').textContent = msg.model === 'genjin' ? 'Darf loben' : 'Darf schimpfen';

@@ -108,6 +108,7 @@
   .chain .char.shot { width: 100px; }
   .chain svg { display: block; width: 44px; height: 44px; margin: 0 auto 3px; }
   /* of the Game Boy's screen the part with the room: the bars above and below say nothing of the pet */
+  .prizes { clear: both; font-size: .85em; color: #8a6d1f; padding-top: 4px; }
   img.memory { display: block; width: 160px; height: 144px; image-rendering: pixelated; border-radius: 3px; }
   .chain img { display: block; width: 96px; height: 48px; object-fit: cover; object-position: 50% 60%; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px; }
   .chain .lcd { fill: #b7c4a1; stroke: var(--line); stroke-width: 1.5; }
@@ -210,6 +211,13 @@ function draw() {
     <td class="nowrap">${a.weight} lb</td><td>${a.data ? a.data.iq + ' · ' + a.data.body + ' · ' + a.data.deed : '–'}</td>
     <td>${a.data ? a.data.fear + ' · ' + a.data.mine : '–'}</td>
     <td>${a.picture ? `<a href="/api/history/picture?album=1&id=${a.id}" target="_blank"><img class="memory" src="/api/history/picture?album=1&id=${a.id}" alt="Memory-Seite des Spiels"></a>` : '–'}</td></tr>`).join('');
+  const prizes = (l) => {
+    const won = (l.awards || []).filter((a) => a.name !== 'Hall of Fame'), hall = (l.awards || []).find((a) => a.name === 'Hall of Fame');
+    if (!won.length && !hall) return '';
+    const shot = hall && hall.picture ? `<a href="/api/history/picture?award=1&id=${hall.id}" target="_blank"><img class="memory" src="/api/history/picture?award=1&id=${hall.id}" alt="Hall of Fame im Spiel"></a>` : '';
+    return `<div class="prizes">${won.length === 3 || hall ? '★ Hall of Fame · ' : ''}Auszeichnungen: `
+      + won.map((a) => `<span title="${a.at ? day(a.at) : ''}">${esc(a.name)}</span>`).join(', ') + shot + '</div>';
+  };
   $('lifeCount').textContent = '(' + lives.length + ')';
   $('lives').innerHTML = lives.map((l) => {
     const path = chain(l);
@@ -217,7 +225,7 @@ function draw() {
     const goal = l.goal ? esc(l.goal) + (reached ? ' <span class="ok">✓</span>' : l.ended ? ' ✗' : '') : '–';
     return `<tr><td class="nowrap">${day(l.began)}</td>
       <td>${esc(l.tab || l.pet)}${l.model === 'gameboy' ? ', Platz ' + (l.place + 1) : ''}</td>
-      <td>${esc(l.name || '–')}</td><td class="path">${path}</td><td>${goal}</td>
+      <td>${esc(l.name || '–')}</td><td class="path">${path}${prizes(l)}</td><td>${goal}</td>
       <td>${l.ended || !l.began ? esc(l.ending || '–') : '<span class="now">lebt</span>'}</td>
       <td class="nowrap">${l.ended ? span(l.began, l.ended) : l.began ? span(l.began, Date.now() / 1000) : '–'}</td></tr>`;
   }).join('') || '<tr><td colspan="7" class="note">Noch keine Leben.</td></tr>';
