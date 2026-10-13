@@ -125,6 +125,18 @@
   #lives li { padding: 8px 0; }
   #lives li + li { border-top: 1px solid var(--line); }
   #lives .when { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .row.who { align-items: center; }
+  .row.who > :last-child { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+  .row.who svg, .row.who img { flex: none; width: 48px; height: 48px; image-rendering: pixelated; border-radius: 4px; }
+  .row.who .lcd { fill: #b7c4a1; stroke: var(--line); stroke-width: 1.5; }
+  .row.who .px { fill: #20281c; }
+  .zoom { cursor: zoom-in; }
+  #big { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--panel); color: var(--ink); max-width: 94vw; text-align: center; cursor: zoom-out; }
+  #big::backdrop { background: rgba(0, 0, 0, 0.55); }
+  #big img, #big svg { display: block; width: min(480px, 84vw); height: auto; image-rendering: pixelated; border-radius: 6px; margin: 0 auto 8px; }
+  #big svg { width: min(300px, 84vw); }
+  #big .lcd { fill: #b7c4a1; stroke: var(--line); stroke-width: 0.5; }
+  #big .px { fill: #20281c; }
   .chain { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 2px; }
   .chain .char { width: 64px; text-align: center; font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
   .chain svg { display: block; width: 44px; height: 44px; margin: 0 auto 3px; }
@@ -300,6 +312,7 @@
       und zu den Wikis führen erst beim Anklicken zu deren Servern.</p>
   </footer>
 </main>
+<dialog id="big" aria-label="Bild in groß"><div id="bigArt"></div><div id="bigName"></div></dialog>
 
 <script src="/shellart.js"></script>
 <script src="/sprites.js"></script>
@@ -314,7 +327,7 @@ for (const art of document.querySelectorAll('#devices article')) {
   ABOUT[art.dataset.model] = [about.textContent, bot.textContent];
 }
 
-let pets = [], pet = null, draw = null, events = null, artFor = '';
+let pets = [], pet = null, draw = null, events = null, artFor = '', shownKey = '';
 const shells = {};
 
 function hearts(n) {
@@ -361,14 +374,19 @@ function showGameBoy(msg, box) {
   for (const p of list) {
     const who = p.egg ? 'Ei, schlüpft gleich' : p.dead ? 'gestorben'
       : p.name + ' (' + p.stageName + ', ' + p.age + (p.age === 1 ? ' Tag' : ' Tage') + ')';
-    box.append(row(p.petName || 'Platz ' + (p.slot + 1), who + (p.shown && list.length > 1 ? ' · im Bild' : '')));
+    const line = row(p.petName || 'Platz ' + (p.slot + 1), who + (p.shown && list.length > 1 ? ' · im Bild' : ''));
+    box.append(line);
     if (p.egg || p.dead) continue;
+    // (the character as the chart shows it: awake, whatever it is doing just now)
+    line.classList.add('who');
+    line.lastChild.prepend(zoomable(Object.assign(document.createElement('img'), {src: '/gameboy/' + p.stage + '.png', alt: ''}), p.name));
     box.append(row('Hunger · Glück', hearts(p.hunger) + ' ' + hearts(p.happy) + (p.asleep ? ' · schläft' : '') + (p.sick ? ' · krank' : ''), true));
     box.append(row('Ziel des Bots', p.goalName || 'keins: einfach gut pflegen'));
     if (p.forecast.length) box.append(row('Wird als Nächstes', p.forecast.join(' oder ')));
   }
   if (msg.status && msg.status.clock) box.append(row('Uhr im Spiel', msg.status.clock));
   if (msg.eggs !== null && msg.eggs !== undefined) box.append(row('Eier übrig', msg.eggs + ' von 8'));
+  box.append(row('Stammbaum', '<a href="/stammbaum?pet=' + encodeURIComponent(pet.id) + '">alle Figuren und der Weg dorthin</a>', true));
 }
 
 function showNow(msg) {
@@ -378,7 +396,13 @@ function showNow(msg) {
   if (!st || st.stage === null) { box.append(row('Zustand', 'startet gerade')); return; }
   const pika = msg.model === 'pikachu', digi = (msg.model || '').startsWith('digimon');
   const alive = st.stage > 0 && !st.dead;
-  box.append(row('Charakter', st.dead ? 'gestorben' : st.stage > 0 ? st.name : 'noch ein Ei'));
+  const who = row('Charakter', st.dead ? 'gestorben' : st.stage > 0 ? st.name : 'noch ein Ei');
+  const sprites = (pet && SPRITES_OF[pet.model]) || {};
+  if (alive && sprites[st.stage]) {     // the character itself: the screen may show it asleep, or a menu
+    who.classList.add('who');
+    who.lastChild.prepend(zoomable(picture(sprites, st.stage), st.name));
+  }
+  box.append(who);
   if (alive && pika) {
     box.append(row('Zuneigung', hearts(st.mood) + ' ' + st.moodName, true));
     box.append(row('Schritte', num(st.steps)));
@@ -391,6 +415,27 @@ function showNow(msg) {
   if (alive) box.append(row('Uhr im Gerät', st.clock + (st.asleep ? ' · schläft' : '')));
   box.append(row('Ziel des Bots', msg.goalName || (pika ? '5.000 Schritte am Tag' : 'keins: einfach gut pflegen')));
 }
+
+/* A picture in large: a click on a small one opens it, a click anywhere closes it again.
+   (Of the Game Boy game's pictures the whole screen is shown, as it was then.) */
+function zoomable(node, name, full) {
+  node.classList.add('zoom');
+  node.tabIndex = 0;
+  node.setAttribute('role', 'button');
+  node.setAttribute('aria-label', name + ' in groß zeigen');
+  const show = (e) => {
+    e.preventDefault();
+    const art = full ? Object.assign(document.createElement('img'), {src: full, alt: name}) : node.cloneNode(true);
+    art.removeAttribute('style'); art.removeAttribute('tabindex'); art.removeAttribute('role'); art.classList.remove('zoom');
+    $('bigArt').replaceChildren(art);
+    $('bigName').textContent = name;
+    $('big').showModal();
+  };
+  node.addEventListener('click', show);
+  node.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') show(e); });
+  return node;
+}
+$('big').addEventListener('click', () => $('big').close());
 
 /* One character as on the bot's growth chart: the first picture of its idle animation */
 const SVG = 'http://www.w3.org/2000/svg', BOX = 50;
@@ -432,11 +477,11 @@ function showLives(lives) {
       one.className = 'char' + (k === life.stages.length - 1 ? ' last' : '');
       if (shot) {
         // the Game Boy game's characters: its screen as it was, kept in the history
-        const img = Object.assign(document.createElement('img'), {src: '/picture?id=' + shot, alt: ''});
-        img.style.cssText = 'display: block; width: 96px; height: 48px; object-fit: cover; object-position: 50% 60%; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px';
-        one.style.width = '100px';
-        one.append(img);
-      } else if (sprites[id]) one.append(picture(sprites, id));
+        const img = Object.assign(document.createElement('img'), {src: '/picture?zoom=1&id=' + shot, alt: ''});
+        img.style.cssText = 'display: block; width: 60px; height: 60px; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px';
+        one.style.width = '88px';
+        one.append(zoomable(img, name, '/picture?id=' + shot));
+      } else if (sprites[id]) one.append(zoomable(picture(sprites, id), name));
       else one.style.width = 'auto';
       one.append(name);
       b.append(one);
@@ -488,6 +533,7 @@ async function open(id) {
   $('raised').textContent = '';
   if (events) events.close();
   draw = null;
+  shownKey = '';
   const mine = pet;
   const art = $('art');
   if (pet.model === 'gameboy') {
@@ -507,7 +553,9 @@ async function open(id) {
     $('offline').classList.remove('show');
     const msg = JSON.parse(e.data);
     if (draw) draw(msg.lcd, msg.icons);
-    showNow(msg);
+    // (only when something else than the picture changed: the rows are built anew)
+    const key = JSON.stringify(Object.assign({}, msg, {lcd: '', icons: 0, lives: 0}));
+    if (key !== shownKey) { shownKey = key; showNow(msg); }
     if (msg.lives) showLives(msg.lives);
   };
   events.onerror = () => $('offline').classList.add('show');

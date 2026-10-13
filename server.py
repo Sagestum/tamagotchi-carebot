@@ -746,12 +746,13 @@ class PublicHandler(BaseHTTPRequestHandler):
     FILES = {"/": ("public.html", "text/html; charset=utf-8"),
              "/shellart.js": ("shellart.js", "text/javascript; charset=utf-8"),
              "/sprites.js": ("sprites.js", "text/javascript; charset=utf-8"),
+             "/stammbaum": ("gameboy.html", "text/html; charset=utf-8"),
              "/vorschau.png": ("vorschau.png", "image/png"),
              "/favicon.png": ("favicon.png", "image/png"),
              "/favicon-dark.png": ("favicon-dark.png", "image/png")}
     STATUS = ("stage", "name", "dead", "asleep", "leaving", "hunger", "happy", "weight", "clock",
               "steps", "moodName", "mood", "saver")
-    PLACE = ("slot", "shown", "egg", "stage", "name", "petName", "stageName", "age", "hunger", "happy",
+    PLACE = ("slot", "shown", "egg", "stage", "goal", "name", "petName", "stageName", "age", "hunger", "happy",
              "weight", "asleep", "sick", "dead")
 
     def log_message(self, fmt, *args):
@@ -812,10 +813,16 @@ class PublicHandler(BaseHTTPRequestHandler):
             pets = [{"id": p.id, "name": p.name, "model": p.model.id, "modelName": p.model.name,
                      "wiki": models.WIKI.get(p.model.id)} for p in self.shown()]
             self.send_body(200, json.dumps(pets).encode(), "application/json")
+        elif re.fullmatch(r"/gameboy/(egg)?\d{1,2}\.png", url.path) \
+                and os.path.isfile(os.path.join(HERE, "web", url.path[1:])):
+            with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
+                self.send_body(200, f.read(), "image/png", [("Cache-Control", "max-age=86400")])
+        elif url.path == "/api/gameboy/chart":
+            self.send_body(200, json.dumps(growth_gameboy.chart()).encode(), "application/json")
         elif url.path == "/picture":
             # a picture from the history (the Game Boy game's characters, as they looked)
             try:
-                png = self.app.history.picture(int(query.get("id", ["0"])[0]))
+                png = self.app.history.picture(int(query.get("id", ["0"])[0]), zoom=bool(query.get("zoom")))
             except ValueError:
                 png = None
             if png is None:

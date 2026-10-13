@@ -193,6 +193,7 @@ PAIRS.forEach(([a, b], i) => { AT[a] = [X.left, row(i)]; AT[b] = [X.right, row(i
 const HEADS = [[X.egg, 'Ei'], [X.baby, 'Baby'], [X.child, 'Kind'], [X.teen, 'Teenager'],
                [X.left, 'klüger'], [X.right, 'stärker'], [X.secret, 'Geheim']];
 
+let open_ = false;      // on the page for everyone
 let C = null, picked = new URLSearchParams(location.search).get('figur'), pets = [];
 const isEgg = (id) => String(id)[0] === 'e';
 const nameOf = (id) => isEgg(id) ? 'Ei ' + C.eggs[id.slice(1)].join(', ') : C.names[id];
@@ -286,7 +287,7 @@ function about() {
     }
     steps = C.steps[picked];
     if (c.stage === 4) note = 'Sind IQ und Körper gleich, lost das Spiel zwischen den beiden des Paars.';
-    if (C.goals.includes(Number(picked))) note += (note ? ' ' : '') + 'Als Ziel wählbar: im Tab bei jedem der drei Plätze.';
+    if (C.goals.includes(Number(picked))) note += (note ? ' ' : '') + (open_ ? 'Eine der Figuren, die der Care-Bot als Ziel ansteuern kann.' : 'Als Ziel wählbar: im Tab bei jedem der drei Plätze.');
   }
   if (!isEgg(picked)) {
     add(right, 'h4', 'So entsteht die Figur im Spiel');
@@ -312,14 +313,17 @@ async function connect() {
   if (!(picked in AT)) picked = null;
   draw();
   about();
-  const all = (await (await fetch('/api/pets')).json()).pets;
-  const mine = all.find((p) => p.id === pet) || all.find((p) => p.model === 'gameboy');
+  // (the page for everyone has this page too: its list and its stream are called otherwise)
+  let all = await fetch('/api/pets').then((r) => r.ok ? r.json() : null).catch(() => null);
+  open_ = !all;
+  all = all ? all.pets : await (await fetch('/pets')).json();
+  const mine = all.find((p) => p.id === pet && p.model === 'gameboy') || all.find((p) => p.model === 'gameboy');
   if (!mine) return;
   pet = mine.id;
   $('who').textContent = ' · ' + mine.name;
   $('back').href = '/#' + pet;
   $('back').textContent = '← zurück zu ' + mine.name;
-  const events = new EventSource('/events?pet=' + pet);
+  const events = new EventSource((open_ ? '/watch?pet=' : '/events?pet=') + pet);
   let told = '';
   events.onmessage = (e) => {
     const msg = JSON.parse(e.data);
@@ -337,6 +341,7 @@ async function connect() {
     draw();
     about();
   };
+  about();
   events.onerror = () => $('offline').classList.add('show');
 }
 connect();
