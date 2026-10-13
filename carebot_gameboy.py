@@ -89,6 +89,9 @@ RACE, BEAUTY, KNOWLEDGE = range(3)
 CONTESTS = {RACE: "Rennen", BEAUTY: "Schönheit", KNOWLEDGE: "Wissen"}
 MEM_AWARD = 0xD003              # +0 race, +1 beauty, +2 knowledge: 1 once it is won
 MEM_CONTESTED = 0xD0DC          # 1: it has been in a contest today
+MEM_CHANCE = 0xFFB9             # the game's chance; its lowest bit tells the left-or-right game
+SMILE_LOST = 0.1                # the share of these games the bot loses on purpose
+SMILE_ROUND = 5.0               # seconds a round of it takes until the next key counts
 MEM_SHADES = 0xFF47             # the shades of the background and of the figures; others while fading
 SHADES = (0xE4, 0xE0)
 MEM_PHASE = 0xD5B8              # race: 2 while they run, 3 and more once they are in
@@ -308,6 +311,9 @@ class GameBoyBot(CareBot):
             return False
         for _ in range(12):
             at = m(MEM_ICON) - 4
+            if at < 0:                  # in the row of the pets (the user went there): down again
+                yield from self.press(BTN_DOWN, 0.4)
+                continue
             if at == wanted:
                 yield from self.press(BTN_A, 1.0)
                 return True
@@ -413,10 +419,16 @@ class GameBoyBot(CareBot):
             if p(MEM_SCOLD):
                 self.note("Will nicht spielen")
             return
+        # which way it will look is told beforehand by a bit of the game's chance, turned
+        # round with every round (measured: 48 games of 48 won five to nothing). One game
+        # in ten is lost all the same, three of its five rounds answered wrongly.
+        wrong = random.sample(range(5), 3) if random.random() < SMILE_LOST else ()
         for _ in range(8):
             if m(MEM_SCREEN) != SMILE_GAME:
                 break
-            yield from self.press(random.choice((BTN_LEFT, BTN_RIGHT)), 8.0)
+            played = m(MEM_WINS) + m(MEM_LOSSES)
+            left = (m(MEM_CHANCE) ^ played ^ (played in wrong)) & 1
+            yield from self.press(BTN_LEFT if left else BTN_RIGHT, SMILE_ROUND)
         if m(MEM_WINS) > m(MEM_LOSSES):
             self.note("Spiel %d:%d gewonnen (Glück %d/%d)" % (m(MEM_WINS), m(MEM_LOSSES), p(MEM_FUN), FULL))
         else:
@@ -955,6 +967,9 @@ class GameBoyBot(CareBot):
             # "Save?" is already asked (a key of the user's, or the bot was held up on its
             # way): B does not leave this page, so go on from here
             return self.bury()
+        if screen in (NAME_ENTRY, WELCOME):
+            # an egg taken by hand (or the bot was held up there): B does not lead back, name it
+            return self.begin()
         if screen != MAIN:
             return self.home()
         here = self.slot()
