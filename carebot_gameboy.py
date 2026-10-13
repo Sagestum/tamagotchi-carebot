@@ -43,6 +43,7 @@ MEM_SCOLD = 0xD0D6          # counts down while a scolding is called for
 MEM_URGE = 0xD0D3           # 1 for the five seconds before its droppings come. A teenager or an
                             # adult goes to the potty if the toilet icon is chosen then: nothing
                             # to clean, and praise is called for (2 while it sits)
+SITTING = 2
 MEM_MINUTE, MEM_HOUR = 0xD48F, 0xD490       # the time of day; a minute takes two seconds
 RECORD = 0x100
 PETS = 3
@@ -394,12 +395,21 @@ class GameBoyBot(CareBot):
 
     def potty(self):
         """The toilet icon while the pet is about to: it sits down on the potty. No droppings
-        then, and it wants to be praised for it (plan() does that next)."""
+        then, and it wants to be praised for it – at once when it has got up again (no menu
+        opens before): at the fast pace of the game there are not four seconds left then."""
         p = self.pet()
-        if (yield from self.icon(ICON_TOILET)):
-            yield 9.0                   # (until it has got up again: no menu opens before)
-            if not p(MEM_POOP):
-                self.note("Töpfchen")
+        if not (yield from self.icon(ICON_TOILET)):
+            return
+        if p(MEM_URGE) != SITTING:      # too late (the bot was busy): the icon cleans up then
+            yield 8.0
+            return
+        for _ in range(100):
+            if p(MEM_URGE) != SITTING:
+                break
+            yield 0.1
+        self.note("Töpfchen")
+        if p(MEM_PRAISE):
+            yield from self.praise("Loben fürs Töpfchen")
 
     def feed(self, food=None):
         m, p = self.tama.memory, self.pet()
