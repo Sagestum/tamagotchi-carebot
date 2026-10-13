@@ -177,6 +177,7 @@ function draw(lives, model) {
     add(box, 'h3', '', 'Leben Nr. ' + (i + 1));
     add(box, 'div', 'when', day(life.began) + (life.ended ? ' bis ' + day(life.ended) : ' bis heute') +
       ' · ' + String(life.days).replace('.', ',') + (life.days === 1 ? ' Tag' : ' Tage') + ' gelebt' +
+      (life.age != null ? ' · ' + life.age + (life.age === 1 ? ' Spieltag' : ' Spieltage') + ' alt' : '') +
       ' · ' + (life.end || 'lebt'));
     const stages = add(box, 'div', 'stages');
     life.stages.forEach(([id, name], n) => {

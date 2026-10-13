@@ -480,6 +480,9 @@ class Engine:
         life["seconds"] += 1
         if life["seconds"] % 8640 == 0:     # the days are told in tenths
             self.lives_id += 1
+        if hasattr(self.bot, "pets") and life.get("age") != status["age"]:
+            life["age"] = status["age"]     # the Game Boy game: its own days, far shorter than ours
+            self.lives_id += 1
         if not life["stages"] or life["stages"][-1][0] != stage:
             life["stages"].append([stage, self.model.names.get(stage, "Stufe %d" % stage)])
             self.lives_id += 1
@@ -499,7 +502,7 @@ class Engine:
     def lives_told(self):
         """The chronicle for the web UI."""
         return [{"began": life["began"], "ended": life["ended"], "end": life["end"],
-                 "days": round(life["seconds"] / 86400, 1),
+                 "days": round(life["seconds"] / 86400, 1), "age": life.get("age"),
                  "stages": life["stages"], "stats": life.get("stats")} for life in self.lives]
 
     def set_smtp(self, smtp):
