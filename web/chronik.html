@@ -94,6 +94,9 @@
   .stages { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 4px; margin-bottom: 10px; }
   .stage { width: 78px; text-align: center; font-size: 12px; overflow-wrap: anywhere; }
   .stage svg { display: block; width: 50px; height: 50px; margin: 0 auto 3px; }
+  .stage img { display: block; width: 80px; height: 80px; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px; }
+  .stages:has(img) .stage { width: 90px; }
+  .stages:has(img) .arrow { line-height: 80px; }
   .stage .lcd { fill: var(--lcd); stroke: var(--line); stroke-width: 1.5; }
   .stage .px { fill: var(--lcd-on); }
   .arrow { color: var(--muted); line-height: 50px; }
@@ -179,7 +182,14 @@ function draw(lives, model) {
     life.stages.forEach(([id, name], n) => {
       if (n) add(stages, 'span', 'arrow', '→');
       const stage = add(stages, 'div', 'stage');
-      stage.append(picture(sprites, id));
+      /* the Game Boy game: the picture kept in the history, if there is one */
+      if (model === 'gameboy') {
+        const img = new Image();
+        img.src = `/api/history/picture?pet=${pet}&character=${id}`;
+        img.alt = '';
+        img.onerror = () => img.replaceWith(picture(sprites, id));
+        stage.append(img);
+      } else stage.append(picture(sprites, id));
       add(stage, 'span', '', name);
     });
     const counts = add(box, 'div', 'counts');

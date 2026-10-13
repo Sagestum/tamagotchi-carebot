@@ -202,6 +202,14 @@ class History:
         return [dict(row, data=json.loads(row["data"]) if row["data"] else None, picture=bool(row["picture"]))
                 for row in rows]
 
+    def portrait(self, pet, character, zoom=True):
+        """The latest picture kept of a character of this tab, as a PNG; None if there is none."""
+        with self.lock:
+            row = self.db.execute(
+                "SELECT s.picture FROM stages s JOIN lives l ON l.key = s.life WHERE l.pet = ? AND s.character = ? "
+                "AND s.picture IS NOT NULL ORDER BY s.rowid DESC LIMIT 1", (str(pet), character)).fetchone()
+        return gameboy_png(row["picture"], zoom) if row else None
+
     def picture(self, number, of="stages", zoom=False):
         """The picture kept with a stage (or with an entry of the album, or an award), as a
         PNG; None if there is none."""
