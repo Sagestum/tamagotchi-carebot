@@ -169,7 +169,7 @@ class Engine:
                 self.track(place, self.bot.status(place), names.get(self.bot.goals[place]))
                 # a picture of each character for the history, once it can be seen at ease
                 life = self.tracks[str(place)]
-                if life["key"] is not None and not life.get("shot") and self.bot.in_view(place) \
+                if life["key"] is not None and not life.get("shot") and self.bot.at_ease(place) \
                         and self.tama.seconds - life.get("since", 0) >= SHOT_AFTER:
                     packed = self.tama.packed()
                     if packed:

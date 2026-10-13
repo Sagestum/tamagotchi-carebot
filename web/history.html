@@ -105,15 +105,16 @@
   td.path { min-width: 260px; }
   .chain { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 2px; }
   .chain .char { width: 70px; text-align: center; font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
-  .chain .char.shot { width: 100px; }
+  .chain .char.shot { width: 90px; }
   .chain svg { display: block; width: 44px; height: 44px; margin: 0 auto 3px; }
   /* of the Game Boy's screen the part with the room: the bars above and below say nothing of the pet */
   .prizes { clear: both; font-size: .85em; color: #8a6d1f; padding-top: 4px; }
   img.memory { display: block; width: 160px; height: 144px; image-rendering: pixelated; border-radius: 3px; }
-  .chain img { display: block; width: 96px; height: 48px; object-fit: cover; object-position: 50% 60%; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px; }
+  .chain img { display: block; width: 80px; height: 80px; margin: 0 auto 3px; image-rendering: pixelated; border-radius: 3px; }
   .chain .lcd { fill: #b7c4a1; stroke: var(--line); stroke-width: 1.5; }
   .chain .px { fill: #20281c; }
   .chain .arrow { color: var(--muted); line-height: 44px; }
+  .chain:has(.shot) .arrow { line-height: 80px; }
   td.nowrap { white-space: nowrap; }
   .ok { color: var(--ok); font-weight: 600; }
   .now { color: var(--ok); }
@@ -176,7 +177,7 @@ function sprite(rows0) {
 function chain(life) {
   const sprites = (typeof SPRITES_OF !== 'undefined' && SPRITES_OF[life.model]) || {};
   return '<div class="chain">' + life.stages.map((s, k) => {
-    const art = s.picture ? `<img src="/api/history/picture?id=${s.id}" alt="">`
+    const art = s.picture ? `<a href="/api/history/picture?id=${s.id}" target="_blank" title="Ganzes Bild"><img src="/api/history/picture?id=${s.id}&zoom=1" alt=""></a>`
       : sprites[s.character] ? sprite(sprites[s.character]) : '';
     return (k ? '<span class="arrow">→</span>' : '') + `<div class="char${s.picture ? ' shot' : ''}">${art}${esc(s.name)}</div>`;
   }).join('') + '</div>';

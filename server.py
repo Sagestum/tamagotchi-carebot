@@ -586,7 +586,8 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
         elif url.path == "/api/history/picture":
-            png = self.app.history.picture(int(query.get("id", ["0"])[0] or 0), "album" if query.get("album") else "awards" if query.get("award") else "stages")
+            png = self.app.history.picture(int(query.get("id", ["0"])[0] or 0), "album" if query.get("album") else "awards" if query.get("award") else "stages",
+                                           bool(query.get("zoom")))
             if png is None:
                 return self.send_body(404, b"not found", "text/plain")
             self.send_body(200, png, "image/png", [("Cache-Control", "max-age=31536000, immutable")])

@@ -87,6 +87,8 @@ RACE, BEAUTY, KNOWLEDGE = range(3)
 CONTESTS = {RACE: "Rennen", BEAUTY: "Schönheit", KNOWLEDGE: "Wissen"}
 MEM_AWARD = 0xD003              # +0 race, +1 beauty, +2 knowledge: 1 once it is won
 MEM_CONTESTED = 0xD0DC          # 1: it has been in a contest today
+MEM_SHADES = 0xFF47             # the shades of the background and of the figures; others while fading
+SHADES = (0xE4, 0xE0)
 MEM_PHASE = 0xD5B8              # race: 2 while they run, 3 and more once they are in
 CONTEST_SCREENS = (31, 45, 30)
 HONOUR = 75                     # "Honorary member": the hall a pet with all three awards is shown in at its end
@@ -630,6 +632,13 @@ class GameBoyBot(CareBot):
         st = self.status(slot)
         return slot == self.slot() and self.tama.memory(MEM_SCREEN) == MAIN and st["stage"] \
             and not st["dead"] and not st["asleep"] and st["light"]
+
+    def at_ease(self, slot):
+        """Whether this pet can be seen alone and at rest, for its picture: nothing being
+        done, nothing lying about, and the screen not fading."""
+        st = self.status(slot)
+        return self.in_view(slot) and self.task is None and not st["poop"] and not st["sick"] \
+            and (self.tama.memory(MEM_SHADES), self.tama.memory(MEM_SHADES + 1)) == SHADES
 
     def album(self):
         """What the game itself remembers: the pets in its album, by place."""

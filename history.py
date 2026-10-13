@@ -202,14 +202,14 @@ class History:
         return [dict(row, data=json.loads(row["data"]) if row["data"] else None, picture=bool(row["picture"]))
                 for row in rows]
 
-    def picture(self, number, of="stages"):
+    def picture(self, number, of="stages", zoom=False):
         """The picture kept with a stage (or with an entry of the album, or an award), as a
         PNG; None if there is none."""
         if of not in ("stages", "album", "awards"):
             return None
         with self.lock:
             row = self.db.execute("SELECT picture FROM %s WHERE rowid = ?" % of, (number,)).fetchone()
-        return gameboy_png(row["picture"]) if row and row["picture"] else None
+        return gameboy_png(row["picture"], zoom) if row and row["picture"] else None
 
     def counts(self):
         with self.lock:
@@ -229,16 +229,51 @@ GB_W, GB_H = 160, 144
 GB_SHADES = bytes((0xd3, 0xdd, 0xb0, 0x9d, 0xb0, 0x76, 0x55, 0x6b, 0x47, 0x1c, 0x2a, 0x21))
 
 
-def gameboy_png(packed):
+GB_FLOOR = range(80, 110)       # the lines of the room's floor, which is empty but for what stands on it
+GB_ZOOM = 40                    # dots a side of the cut around the pet
+
+
+def gameboy_pet(packed):
+    """Where the pet stands in a picture of its room: the left and top dot of a square of
+    GB_ZOOM dots around the widest thing on the floor (the left one a multiple of four, a
+    whole byte). None if the floor is empty."""
+    row = GB_W // 4
+    dark = [any(packed[y * row + x // 4] >> (6 - x % 4 * 2) & 3 for y in GB_FLOOR) for x in range(GB_W)]
+    runs, start, gap = [], None, 0
+    for x in range(GB_W + 3):
+        if x < GB_W and dark[x]:
+            start, gap = (x if start is None else start), 0
+        elif start is not None:
+            gap += 1
+            if gap > 2:
+                runs.append((x - gap - start + 1, start, x - gap))
+                start = None
+    if not runs:
+        return None
+    _, left, right = max(runs)
+    feet = max(y for y in GB_FLOOR for x in range(left, right + 1)
+               if packed[y * row + x // 4] >> (6 - x % 4 * 2) & 3)
+    x0 = min(max((left + right + 1 - GB_ZOOM) // 2, 0), GB_W - GB_ZOOM) // 4 * 4
+    return x0, min(max(feet + 5 - GB_ZOOM, 0), GB_H - GB_ZOOM)
+
+
+def gameboy_png(packed, zoom=False):
     """A Game Boy picture as it is kept (two bits a dot, the first in the high bits: just how
-    a PNG of four colours has them) as a PNG file."""
+    a PNG of four colours has them) as a PNG file; zoomed, only the pet in its room."""
     if len(packed) != GB_W * GB_H // 4:
         return None
     row = GB_W // 4
-    raw = b"".join(b"\0" + packed[y * row:(y + 1) * row] for y in range(GB_H))
+    at = gameboy_pet(packed) if zoom else None
+    if at:
+        raw = b"".join(b"\0" + packed[y * row + at[0] // 4:y * row + (at[0] + GB_ZOOM) // 4]
+                       for y in range(at[1], at[1] + GB_ZOOM))
+        size = (GB_ZOOM, GB_ZOOM)
+    else:
+        raw = b"".join(b"\0" + packed[y * row:(y + 1) * row] for y in range(GB_H))
+        size = (GB_W, GB_H)
 
     def chunk(kind, data):
         body = kind + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", GB_W, GB_H, 2, 3, 0, 0, 0))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", *size, 2, 3, 0, 0, 0))
             + chunk(b"PLTE", GB_SHADES) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
