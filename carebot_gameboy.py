@@ -40,6 +40,9 @@ MEM_LIGHT_OFF, MEM_ASLEEP = 0xD0CA, 0xD0CB
 MEM_SICK = 0xD0CF           # 1 wants the pill, 2 the shot
 MEM_DOSES = 0xD0D0          # doses still needed
 MEM_SCOLD = 0xD0D6          # counts down while a scolding is called for
+MEM_URGE = 0xD0D3           # 1 for the five seconds before its droppings come. A teenager or an
+                            # adult goes to the potty if the toilet icon is chosen then: nothing
+                            # to clean, and praise is called for (2 while it sits)
 MEM_MINUTE, MEM_HOUR = 0xD48F, 0xD490       # the time of day; a minute takes two seconds
 RECORD = 0x100
 PETS = 3
@@ -230,6 +233,7 @@ class GameBoyBot(CareBot):
             "temperature": None, "friendship": None, "sweetness": None, "look": None, "back": False,
             "asleep": bool(m(MEM_ASLEEP)) and kind != 0, "light": not m(MEM_LIGHT_OFF),
             "attention": False, "scold": bool(m(MEM_SCOLD)), "praise": bool(m(MEM_PRAISE)),
+            "urge": m(MEM_URGE) == 1,
             "dead": dead, "game": None, "hour": device(MEM_HOUR) % 24,
             "clock": "%02d:%02d" % (device(MEM_HOUR) % 24, device(MEM_MINUTE) % 60),
             # what only this one has
@@ -387,6 +391,15 @@ class GameBoyBot(CareBot):
             yield 8.0
             if not p(MEM_POOP):
                 self.note("Toilette (%d Haufen)" % heaps)
+
+    def potty(self):
+        """The toilet icon while the pet is about to: it sits down on the potty. No droppings
+        then, and it wants to be praised for it (plan() does that next)."""
+        p = self.pet()
+        if (yield from self.icon(ICON_TOILET)):
+            yield 9.0                   # (until it has got up again: no menu opens before)
+            if not p(MEM_POOP):
+                self.note("Töpfchen")
 
     def feed(self, food=None):
         m, p = self.tama.memory, self.pet()
@@ -837,6 +850,8 @@ class GameBoyBot(CareBot):
             return ("light", False) if st["light"] else None
         if not st["light"]:
             return ("light", True)
+        if st["urge"] and kind >= rules.TEEN and st["slot"] == self.slot():
+            return ("potty",)           # (at once: there are five seconds for it)
         if st["sick"]:
             return ("heal",)
         if st["scold"]:
@@ -916,6 +931,8 @@ class GameBoyBot(CareBot):
         if not want:
             return 0
         what = want[0]
+        if what == "potty":
+            return 95
         if what in ("bury", "heal", "light"):
             return 90
         if what == "feed":
