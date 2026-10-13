@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)">
+<title>Tamagotchi – Stammbaum</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3efe6;
+    --panel: #fffdf8;
+    --ink: #2b2a27;
+    --muted: #7a766c;
+    --line: #e2dccd;
+    --accent: #e4572e;
+    --lcd: #b7c4a1;
+    --lcd-on: #20281c;
+    --ok: #3a8f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18;
+      --panel: #262421;
+      --ink: #efeadf;
+      --muted: #9d978a;
+      --line: #3a3732;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 14px 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  a { color: var(--accent); }
+  aside { display: grid; gap: 14px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  p { margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row > span:first-child { color: var(--muted); }
+  .row > :last-child { text-align: right; }
+  .row.off { opacity: 0.45; }
+  .row.tall { display: block; padding: 5px 0; }
+  .row.tall > span { display: block; text-align: left; }
+  [hidden] { display: none !important; }
+  main { grid-template-columns: minmax(0, 1fr); max-width: 860px; }
+  .scroll { overflow-x: auto; }
+  #chart { display: block; width: 100%; min-width: 640px; height: auto; }
+  #chart text { font: 11px system-ui, sans-serif; fill: var(--ink); text-anchor: middle; }
+  #chart text.head { fill: var(--muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  #chart .edge { fill: none; stroke: var(--line); stroke-width: 2; }
+  #chart .edge.plan { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .pair { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  #chart .node { cursor: pointer; }
+  #chart .node:focus { outline: none; }
+  #chart .node .box { fill: #d5dcb4; stroke: var(--line); stroke-width: 1.5; }
+  #chart .node image { image-rendering: pixelated; }
+  #chart .node:hover .box, #chart .node:focus-visible .box { stroke: var(--ink); }
+  #chart .node.out { opacity: 0.4; }
+  #chart .node.on .box { stroke: var(--accent); stroke-width: 3.5; }
+  #chart .node.on text { font-weight: 600; }
+  #chart .node.here .box { stroke: var(--ink); stroke-width: 3.5; }
+  #chart .node.here.on .box { stroke: var(--accent); }
+  #chart .tag { font-size: 10px; fill: var(--panel); font-weight: 600; }
+  #chart .tagbg { fill: var(--ink); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; }
+  .legend svg { width: 26px; height: 8px; vertical-align: middle; margin-right: 6px; }
+  #about { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 16px; align-items: start; }
+  #about img { width: 96px; height: 96px; image-rendering: pixelated; border-radius: 4px; background: #d5dcb4; }
+  #about .eggs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  #about .eggs img { width: 46px; height: 46px; }
+  #about h3 { margin: 0 0 2px; font-size: 17px; }
+  #about h4 { margin: 12px 0 4px; font-size: 13px; }
+  #about ul, #about ol { margin: 0; padding-left: 20px; }
+  #about li { margin-bottom: 5px; }
+  #about li b { font-weight: 600; }
+  @media (max-width: 520px) { #about { grid-template-columns: minmax(0, 1fr); } }
+  #offline {
+    display: none;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 14px;
+  }
+  #offline.show { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Stammbaum<span id="who"></span></h1>
+    <a href="/" id="back">← zurück zum Tamagotchi</a>
+  </header>
+  <div id="offline">Keine Verbindung zum Server – bitte die Seite neu laden.</div>
+
+  <section>
+    <h2>Wer aus wem wird</h2>
+    <div class="scroll">
+      <svg id="chart" viewBox="0 0 760 560" role="group" aria-label="Stammbaum des Game-Boy-Spiels"></svg>
+    </div>
+    <div class="legend note">
+      <span><svg><line x1="0" y1="4" x2="26" y2="4" stroke="var(--accent)" stroke-width="3.5"/></svg>Weg des Care-Bots zur gewählten Figur</span>
+      <span>dicker Rahmen mit Namen = dort steht gerade ein Tier</span>
+      <span>blass = gibt es in unserer Fassung nicht</span>
+    </div>
+    <p class="note" style="margin:8px 0 0">Eine Figur antippen: Darunter steht, wie sie im Spiel entsteht und was der Care-Bot dafür tut.
+      Von jedem Paar Erwachsener wird es der linke, wenn der Teenager klüger ist (IQ über Körper), sonst der rechte.</p>
+  </section>
+
+  <section id="aboutBox" hidden>
+    <h2>Die gewählte Figur</h2>
+    <div id="about"></div>
+  </section>
+
+  <section>
+    <h2>Woher das stammt</h2>
+    <p class="note" style="margin:0">Die Regeln folgen dem Tamagotchi-Wiki; welches Ei welches Baby bringt, ist hier im Emulator
+      gemessen. Im Zeitraffer hat der Care-Bot so jeden der zwölf Erwachsenen und Bill erreicht. Oyajitchi und Sekitoritchi
+      gibt es nach dem Wiki nur in der japanischen Fassung; wir spielen die internationale, in der Maskutchi und Zuccitchi
+      gleich zu Bill werden. Stress („Fear“) und Egoismus („Mine“) zeigt das Spiel nicht an,
+      beide beginnen mit jeder neuen Figur wieder bei 0. Stress 100 tötet das Tier.</p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  if (parent) parent.appendChild(node);
+  return node;
+}
+let pet = new URLSearchParams(location.search).get('pet');
+
+/* Where everything stands: a column for every stage, the adults in their six pairs (the
+   cleverer one on the left). An egg node is one of the two groups of eggs, named by its baby. */
+const BOX = 56, ROW = 86, TOP = 62;
+const row = (i) => TOP + ROW * i;
+const X = {egg: 46, baby: 150, child: 254, teen: 358, left: 480, right: 554, secret: 680};
+const PAIRS = [[10, 11], [12, 13], [14, 15], [16, 17], [19, 18], [21, 20]];
+const AT = {
+  e2: [X.egg, row(1)], e3: [X.egg, row(3.5)], 2: [X.baby, row(1)], 3: [X.baby, row(3.5)],
+  4: [X.child, row(1)], 5: [X.child, row(3.5)],
+  6: [X.teen, row(0.5)], 7: [X.teen, row(2)], 8: [X.teen, row(3.5)], 9: [X.teen, row(5)],
+  24: [X.secret, row(2)], 22: [X.secret, row(4)], 23: [X.secret, row(5)],
+};
+PAIRS.forEach(([a, b], i) => { AT[a] = [X.left, row(i)]; AT[b] = [X.right, row(i)]; });
+const HEADS = [[X.egg, 'Ei'], [X.baby, 'Baby'], [X.child, 'Kind'], [X.teen, 'Teenager'],
+               [X.left, 'klüger'], [X.right, 'stärker'], [X.secret, 'Geheim']];
+
+let C = null, picked = new URLSearchParams(location.search).get('figur'), pets = [];
+const isEgg = (id) => String(id)[0] === 'e';
+const nameOf = (id) => isEgg(id) ? 'Ei ' + C.eggs[id.slice(1)].join(', ') : C.names[id];
+
+function draw() {
+  const chart = $('chart');
+  chart.textContent = '';
+  for (const [x, text] of HEADS) el('text', {class: 'head', x, y: 14}, chart, text);
+  // the way of the bot to the one that is picked
+  const way = picked && !isEgg(picked) ? C.way[picked] || [] : [];
+  const onWay = (from, to) => way.some((n, i) => to.includes(n) && (i ? way[i - 1] === from : C.characters[from].stage === 1));
+  const curve = (x1, y1, x2, y2, plan) => {
+    const mid = (x1 + x2) / 2;
+    return el('path', {class: 'edge' + (plan ? ' plan' : ''), d: `M${x1} ${y1}C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`});
+  };
+  const lines = [];
+  for (const baby of Object.keys(C.eggs)) {
+    lines.push(curve(X.egg + BOX / 2, AT['e' + baby][1], X.baby - BOX / 2, AT[baby][1], false));
+  }
+  for (const e of C.edges) {
+    const [x1, y1] = AT[e.from], [x2, y2] = AT[e.to[0]];
+    // (from the right one of a pair on to Bill, the line begins at the pair's edge)
+    lines.push(curve((AT[e.from][0] === X.left ? X.right : x1) + BOX / 2 + (C.characters[e.from].stage === 4 ? 6 : 0),
+                     y1, x2 - BOX / 2 - (e.to.length > 1 ? 6 : 0), y2, onWay(e.from, e.to)));
+  }
+  lines.sort((a, b) => a.classList.contains('plan') - b.classList.contains('plan')).forEach((l) => chart.appendChild(l));
+  for (const [a] of PAIRS) {
+    el('rect', {class: 'pair', x: X.left - BOX / 2 - 6, y: AT[a][1] - BOX / 2 - 6, width: X.right - X.left + BOX + 12,
+                height: BOX + 26, rx: 8}, chart);
+  }
+  for (const id of Object.keys(AT)) {
+    const [x, y] = AT[id];
+    const here = pets.filter((p) => String(p.stage) === id && !p.dead);
+    const node = el('g', {class: 'node' + (id === picked ? ' on' : '') + (C.absent[id] ? ' out' : '') + (here.length ? ' here' : ''), tabindex: 0,
+                          role: 'button', 'aria-label': nameOf(id)}, chart);
+    el('rect', {class: 'box', x: x - BOX / 2, y: y - BOX / 2, width: BOX, height: BOX, rx: 6}, node);
+    if (isEgg(id)) {
+      C.eggs[id.slice(1)].forEach((egg, i) => el('image', {
+        href: `/gameboy/egg${egg}.png`, x: x - 25 + (i % 2) * 26, y: y - 25 + (i >> 1) * 26, width: 24, height: 24}, node));
+    } else {
+      el('image', {href: `/gameboy/${id}.png`, x: x - 26, y: y - 26, width: 52, height: 52}, node);
+    }
+    el('text', {x, y: y + BOX / 2 + 13}, node, nameOf(id));
+    if (here.length) {
+      const text = here.map((p) => p.petName || '?').join(', ');
+      const w = text.length * 6 + 10;
+      el('rect', {class: 'tagbg', x: x - w / 2, y: y - BOX / 2 - 9, width: w, height: 14, rx: 7}, node);
+      el('text', {class: 'tag', x, y: y - BOX / 2 + 1.5}, node, text);
+    }
+    const pick = () => { picked = id; draw(); about(); };
+    node.addEventListener('click', pick);
+    node.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  }
+}
+
+/* What is told of the one that is picked: how the game makes it, and what the bot does */
+function about() {
+  const box = $('about');
+  $('aboutBox').hidden = !picked;
+  if (!picked) return;
+  const add = (parent, tag, text, html) => {
+    const node = document.createElement(tag);
+    if (html) node.innerHTML = text; else if (text !== undefined) node.textContent = text;
+    parent.appendChild(node);
+    return node;
+  };
+  box.textContent = '';
+  const left = add(box, 'div'), right = add(box, 'div');
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'})[c]);
+  let made = [], steps, note = '';
+  if (isEgg(picked)) {
+    const baby = picked.slice(1);
+    left.className = 'eggs';
+    for (const egg of C.eggs[baby]) add(left, 'img').src = `/gameboy/egg${egg}.png`;
+    add(right, 'h3', nameOf(picked));
+    add(right, 'div', 'Aus jedem dieser vier Eier schlüpft ' + C.names[baby] + '. Die Eier stehen im Eierraum in zwei Reihen: 1 bis 4 oben, 5 bis 8 unten.').className = 'note';
+    steps = C.steps[baby].slice(0, 1);
+  } else {
+    const c = C.characters[picked];
+    add(left, 'img').src = `/gameboy/${picked}.png`;
+    add(right, 'h3', C.names[picked]);
+    add(right, 'div', C.stageNames[c.stage] + ' · mag ' + C.foods[c.likes]
+        + (c.dislikes === null ? '' : ' · mag ' + C.foods[c.dislikes] + ' nicht')).className = 'note';
+    if (c.stage === 1) made.push('aus Ei ' + C.eggs[picked].join(', ') + ' – aus jedem davon immer');
+    for (const e of C.edges) {
+      const i = e.to.indexOf(Number(picked));
+      if (i < 0) continue;
+      const which = e.to.length < 2 ? '' : i ? 'Körper größer als IQ' : 'IQ größer als Körper';
+      const when = [e.when, which].filter(Boolean).join(', ');
+      made.push('aus <b>' + esc(C.names[e.from]) + '</b>' + (when ? ': ' + esc(when) : ''));
+    }
+    steps = C.steps[picked];
+    if (c.stage === 4) note = 'Sind IQ und Körper gleich, lost das Spiel zwischen den beiden des Paars.';
+    if (C.goals.includes(Number(picked))) note += (note ? ' ' : '') + 'Als Ziel wählbar: im Tab bei jedem der drei Plätze.';
+  }
+  if (!isEgg(picked)) {
+    add(right, 'h4', 'So entsteht die Figur im Spiel');
+    if (made.length) { const ul = add(right, 'ul'); made.forEach((m) => add(ul, 'li', m, true)); }
+    else add(right, 'div', C.absent[picked] || 'Nicht gemessen.');
+  }
+  add(right, 'h4', 'Das macht der Care-Bot');
+  if (C.absent[picked]) {
+    add(right, 'div', 'Nichts: In unserer Fassung des Spiels kommt diese Figur nicht vor.');
+  } else if (steps) {
+    const ol = add(right, 'ol');
+    steps.forEach(([head, text]) => add(ol, 'li', '<b>' + esc(head) + ':</b> ' + esc(text), true));
+  } else {
+    add(right, 'div', 'Der Care-Bot steuert diese Figur nicht an. Als Ziel kennt er die zwölf Erwachsenen der sechs Paare und Bill; '
+        + 'auf dem Weg dorthin kommen nur Marutchi, Tamatchi und Kuchitamatchi vor.');
+  }
+  if (note) add(right, 'p', note).className = 'note';
+  right.lastChild.style.marginTop = note ? '10px' : '';
+}
+
+async function connect() {
+  C = await (await fetch('/api/gameboy/chart')).json();
+  if (!(picked in AT)) picked = null;
+  draw();
+  about();
+  const all = (await (await fetch('/api/pets')).json()).pets;
+  const mine = all.find((p) => p.id === pet) || all.find((p) => p.model === 'gameboy');
+  if (!mine) return;
+  pet = mine.id;
+  $('who').textContent = ' · ' + mine.name;
+  $('back').href = '/#' + pet;
+  $('back').textContent = '← zurück zu ' + mine.name;
+  const events = new EventSource('/events?pet=' + pet);
+  let told = '';
+  events.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    $('offline').classList.remove('show');
+    if (!msg.pets) return;
+    const now = JSON.stringify(msg.pets.map((p) => [p.stage, p.petName, p.dead, p.goal]));
+    if (now === told) return;
+    const first = !told;
+    told = now;
+    pets = msg.pets;
+    if (first && !picked) {             // to begin with, the goal of the pet on the screen
+      const shown = pets.find((p) => p.shown && p.stage && !p.dead);
+      if (shown && (shown.goal || shown.stage)) picked = String(shown.goal || shown.stage);
+    }
+    draw();
+    about();
+  };
+  events.onerror = () => $('offline').classList.add('show');
+}
+connect();
+</script>
+</body>
+</html>

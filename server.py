@@ -32,13 +32,15 @@ LIB = os.path.join(HERE, "libtama.so")
 if not os.path.exists(LIB):
     subprocess.check_call(["make", "-C", HERE])
 
+import growth_gameboy  # noqa: E402
 import engine  # noqa: E402
 from history import History  # noqa: E402
 import models  # noqa: E402
 from report import compose, deliver, smtp_from_env  # noqa: E402
 
 PAGES = {"/": "index.html", "/index.html": "index.html", "/bot": "bot.html", "/verlauf": "history.html",
-         "/settings": "settings.html", "/chronik": "chronik.html", "/pikachu": "pikachu.html"}
+         "/settings": "settings.html", "/chronik": "chronik.html", "/pikachu": "pikachu.html",
+         "/stammbaum": "gameboy.html"}
 # The drawings of the devices, from BrickEmuPy (CC0)
 SHELLS = ("p1.svg", "angel.svg", "morino.svg", "umino.svg", "mothra.svg", "genjin.svg",
           "tamaotch.svg", "digimon.svg", "digimon2.svg", "digimon3.svg", "yasashii.svg", "p1w.svg", "pikachu.svg",
@@ -585,6 +587,15 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path in ("/favicon.png", "/favicon-dark.png"):
             with open(os.path.join(HERE, "web", url.path[1:]), "rb") as f:
                 self.send_body(200, f.read(), "image/png")
+        elif re.fullmatch(r"/gameboy/(egg)?\d{1,2}\.png", url.path):
+            # the characters and the eggs of the Game Boy's game, for the page of its chart
+            path = os.path.join(HERE, "web", url.path[1:])
+            if not os.path.isfile(path):
+                return self.send_body(404, b"not found", "text/plain")
+            with open(path, "rb") as f:
+                self.send_body(200, f.read(), "image/png", [("Cache-Control", "max-age=86400")])
+        elif url.path == "/api/gameboy/chart":
+            self.send_json(growth_gameboy.chart())
         elif url.path == "/api/history/picture":
             if query.get("character"):  # the latest picture of this character of a tab
                 png = self.app.history.portrait(query.get("pet", [""])[0], int(query["character"][0] or 0))

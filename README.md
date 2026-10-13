@@ -647,7 +647,9 @@ das Sportspiel (Körper), je nachdem, welcher der beiden Erwachsenen eines Paare
 soll. Im Sportspiel hüpft das Tier mit „Richtung halten und A“ unter den Ball; im Lernspiel
 antwortet es von selbst, je klüger, desto besser. Im Zeitraffer hat der Bot so vom Ei an
 jeden der zwölf Erwachsenen und Bill erreicht. Ein Stress von 100 tötet das Tier; deshalb
-räumt er vor der Nacht immer auf und spielt mit einem gestressten Tier um das Lob.
+räumt er vor der Nacht immer auf und spielt mit einem gestressten Tier um das Lob. Der „Stammbaum“ des Tabs
+(`/stammbaum`) zeigt alle Figuren des Spiels mit ihren Abzweigungen; ein Klick auf eine Figur nennt die Regel des Spiels
+und Schritt für Schritt, was der Bot auf dem Weg dorthin tut.
 
 Das Spiel hat **drei Plätze** und acht Eier. Der Tab zeigt, wer auf welchem Platz lebt und
 wie viele Eier übrig sind; „Zeigen“ holt ein Tier ins Bild, „Neues Ei“ lässt den Bot eines

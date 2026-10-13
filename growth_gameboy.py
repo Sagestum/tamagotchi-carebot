@@ -134,6 +134,138 @@ def stage(number):
     return CHARACTERS[number][1] if number in CHARACTERS else 0
 
 
+# -- the chart, for the page ----------------------------------------------------------------
+# The eggs as they stand in the egg room, 1 to 8, and the baby in each (measured: forty
+# hatchings of every egg, none another way)
+EGGS = {2: (2, 4, 5, 8), 3: (1, 3, 6, 7)}
+# Two characters only the Japanese edition has (after the Wiki; ours is the international one,
+# in which Maskutchi and Zuccitchi become Bill at once)
+ABSENT = {
+    22: "Nur in der japanischen Fassung des Spiels (laut Wiki: aus Maskutchi mit Stress unter 20 oder aus "
+        "Zuccitchi mit Stress über 20). In unserer internationalen Fassung werden beide stattdessen zu Bill.",
+    23: "Nur in der japanischen Fassung des Spiels (laut Wiki: aus Maskutchi mit Stress über 20 oder aus "
+        "Zuccitchi mit Stress unter 20). In unserer internationalen Fassung werden beide stattdessen zu Bill.",
+}
+STUDY_FROM, STUDY_TO = 10, 17       # the hours of the game's day the study game does not stress in
+
+
+def span(low, high, most, what):
+    """A band of a value in words: "Egoismus 0 oder 1"; nothing if it is all of them."""
+    if low == 0 and high == most:
+        return ""
+    if low == high:
+        return "%s %d" % (what, low)
+    if high == most:
+        return "%s %d oder mehr" % (what, low)
+    if low == 0 and what == "Stress":
+        return "Stress unter %d" % (high + 1)
+    return "%s %d %s %d" % (what, low, "oder" if high == low + 1 else "bis", high)
+
+
+def branches(number):
+    """Where a character goes from here: [(the characters, the condition in words)], read off
+    the rules above by trying every stress and selfishness."""
+    kind = stage(number)
+    if kind == BABY:
+        then = lambda stress, selfish: (child(stress),)
+    elif kind == CHILD:
+        then = lambda stress, selfish: (teen(number, stress, selfish),)
+    elif kind == TEEN:
+        then = lambda stress, selfish: tuple(adult(number, stress, selfish, 0, 0))
+    else:
+        return [((BILL,), "ohne weitere Bedingung")] if number in (MASKUTCHI, ZUCCITCHI) else []
+    # bands of stress within which the selfishness alone decides
+    bands = []
+    for stress in range(100):
+        column = [then(stress, selfish) for selfish in range(MOST + 1)]
+        if bands and bands[-1][2] == column:
+            bands[-1][1] = stress
+        else:
+            bands.append([stress, stress, column])
+    out = []
+    for low, high, column in bands:
+        start = 0
+        for selfish in range(1, MOST + 2):
+            if selfish > MOST or column[selfish] != column[start]:
+                words = [span(low, high, 99, "Stress"), span(start, selfish - 1, MOST, "Egoismus")]
+                out.append((column[start], ", ".join(w for w in words if w)))
+                start = selfish
+    return out
+
+
+def steps(number):
+    """What the bot does to get to this character: a (heading, text) for every stage of the
+    way. None for a character it does not steer for."""
+    egg = ("Ei", "Der Bot wählt nicht aus: Er nimmt das Ei, auf dem die Hand steht. Das Ei entscheidet "
+           "über das Baby (Ei 1, 3, 6 und 7: ShiroBabytchi; Ei 2, 4, 5 und 8: Babytchi).")
+    baby = ("Baby", "Gut pflegen, damit der Stress unter 10 bleibt: mit Brot satt füttern (das Lieblingsessen "
+            "nimmt 2 Stress), Haufen gleich wegräumen, Krankheiten behandeln, bei zu wenig Glück spielen. "
+            "Nach 5 Spielstunden (ShiroBabytchi) oder 6 (Babytchi) wird es Marutchi.")
+    calm = ("Kind (Marutchi)", "Weiter gut pflegen: den Stress unter %d halten und jede Verweigerung schimpfen, "
+            "damit der Egoismus bei 0 oder 1 bleibt. Ab Stress 30 spielt er ein Spiel um das Lob (Lob nimmt "
+            "5 Stress). So wird es Tamatchi." % CALM)
+    stressed = ("Kind (Marutchi)", "Absichtlich stressen, bis der Stress bei %d oder mehr liegt: Er füttert "
+                "%s (mag Marutchi nicht), lobt nicht und lässt Haufen liegen – aber nur bis Stress 48 und nie "
+                "nach 18 Uhr, denn bei Stress 100 stirbt das Tier, und im Schlaf lässt sich nicht putzen. "
+                "Verweigerungen schimpft er weiter (Egoismus 0 oder 1). So wird es Kuchitamatchi."
+                % (CALM, FOODS[CHARACTERS[MARUTCHI][3]]))
+    if number in EGGS:
+        return [egg]
+    if number == MARUTCHI:
+        return [egg, baby]
+    if number in (TAMATCHI, KUCHITAMATCHI):
+        return [egg, baby, calm if number == TAMATCHI else stressed]
+    if number not in WAYS:
+        return None
+    wanted, low, high, more = WAYS[number]
+    selfish = span(low, high, MOST, "Egoismus") or "Egoismus beliebig"
+    text = ("Jede Verweigerung schimpfen" if low == 0 else
+            "Die erste Verweigerung ungeschimpft durchgehen lassen, jede weitere schimpfen" if low == 1 else
+            "Die ersten %d Verweigerungen ungeschimpft durchgehen lassen, jede weitere schimpfen" % low)
+    text += " (Ziel beim Erwachsenwerden: %s). " % selfish
+    text += ("Den Stress unter %d halten: gute Pflege und ab Stress 30 ein Spiel um das Lob. " % CALM
+             if wanted == TAMATCHI else "Der Stress entscheidet hier nichts mehr; er pflegt gut, damit es nicht stirbt. ")
+    pair = next(to for to, _ in branches(wanted) if (MASKUTCHI if number == BILL else number) in to)
+    if more == CLEVER:
+        text += ("Dazu das Lernspiel (nur zwischen %d und %d Uhr im Spiel, sonst stresst es), bis der IQ um 2 über "
+                 "dem Körper-Wert liegt: Der Klügere des Paars wird %s, der Stärkere %s."
+                 % (STUDY_FROM, STUDY_TO, NAMES[pair[0]], NAMES[pair[1]]))
+    else:
+        text += ("Dazu das Sportspiel, bis der Körper-Wert um 2 über dem IQ liegt: Der Stärkere des Paars wird "
+                 "%s, der Klügere %s." % (NAMES[pair[1]], NAMES[pair[0]]))
+    out = [egg, baby, calm if wanted == TAMATCHI else stressed, ("Teenager (%s)" % NAMES[wanted], text)]
+    if number == BILL:
+        out.append(("Erwachsener (Maskutchi)", "Nichts Besonderes mehr: In der internationalen Fassung des Spiels "
+                    "wird nach dem Wiki jeder Maskutchi (und jeder Zuccitchi) zu Bill. Im Testlauf geschah das am "
+                    "9. Spieltag."))
+    return out
+
+
+def way_to(number):
+    """The characters on the bot's way to this one, itself the last; empty if it has none."""
+    if steps(number) is None:
+        return []
+    if number in EGGS:
+        return [number]
+    if number == MARUTCHI:
+        return [number]
+    if number in (TAMATCHI, KUCHITAMATCHI):
+        return [MARUTCHI, number]
+    return [MARUTCHI, WAYS[number][0]] + ([MASKUTCHI] if number == BILL else []) + [number]
+
+
+def chart():
+    """All of it for the page of the chart."""
+    return {
+        "names": NAMES, "stageNames": STAGES, "foods": FOODS, "eggs": EGGS, "goals": list(GOALS),
+        "characters": {n: {"stage": c[1], "likes": c[2], "dislikes": c[3]} for n, c in CHARACTERS.items()},
+        "edges": [{"from": n, "to": list(to), "when": when} for n in CHARACTERS for to, when in branches(n)],
+        "steps": {n: steps(n) for n in CHARACTERS},
+        "way": {n: way_to(n) for n in CHARACTERS},
+        "absent": ABSENT,
+    }
+
+
 # What a meal does, measured: the pounds it adds and what it does to the stress by itself.
 # On top of that its favourite calms a pet by 2 and what it dislikes stresses it by 2 – and a
 # meal that brings the weight to a full ten stresses it by 10, every meal at 99 pounds by 20.

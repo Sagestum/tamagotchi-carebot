@@ -570,7 +570,7 @@
       </div>
       <div class="row" id="cycleRow">
         <span>Dieses Leben ist</span>
-        <span><b id="cycle">–</b> · <a href="/chronik" id="livesLink">Chronik</a> · <a href="/verlauf" id="historyLink">Verlauf</a></span>
+        <span><b id="cycle">–</b> · <a href="/chronik" id="livesLink">Chronik</a> · <a href="/verlauf" id="historyLink">Verlauf</a><span id="treeSpan" hidden> · <a href="/stammbaum" id="treeLink">Stammbaum</a></span></span>
       </div>
       <div class="row">
         <span>Diesen Tab schließen</span>
@@ -1202,6 +1202,7 @@ function render(msg) {
   $('keysHint').hidden = msg.model === 'yasashii' || pika || gb;     // a button for every action there
   $('keysPikachu').hidden = !pika;
   $('keysGb').hidden = !gb;
+  $('treeSpan').hidden = !gb;
   $('hungerRow').hidden = pika || gb;
   $('mailRow').hidden = $('soundRow').hidden = gb;   // its days are not ours, and no sound yet
   $('flipRow').hidden = gb;             // its clock is the game's own: a day in 48 minutes
@@ -1352,6 +1353,7 @@ function openPet(p) {
   $('botLink').href = '/bot?pet=' + p.id;
   $('livesLink').href = '/chronik?pet=' + p.id;
   $('historyLink').href = '/verlauf?pet=' + p.id;
+  $('treeLink').href = '/stammbaum?pet=' + p.id;
   [...held].forEach((name) => { held.delete(name); document.querySelectorAll(`[data-btn="${name}"]`).forEach((el) => el.classList.remove('down')); });
   if (events) events.close();
   $('offline').innerHTML = OFFLINE;
