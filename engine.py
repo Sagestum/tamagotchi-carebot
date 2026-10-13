@@ -149,6 +149,12 @@ class Engine:
             life["key"] = uuid.uuid4().hex
             life["awards"] = None
             self.outbox.append(("begin", life["key"], now, place, st.get("petName") or None, goal))
+            if st.get("egg") is not None:
+                # (Game Boy) the egg it was taken as comes first, with its picture from the egg room
+                self.outbox.append(("stage", life["key"], now, -1 - st["egg"], "Ei Nr. %d" % (st["egg"] + 1),
+                                    st.get("petName") or None, goal, None))
+                if self.bot.egg_pictures.get(st["egg"]):
+                    self.outbox.append(("picture", life["key"], -1 - st["egg"], self.bot.egg_pictures[st["egg"]]))
         life["stage"], life["since"], life["shot"] = stage, self.tama.seconds, False
         data = {k: st[k] for k in ("hunger", "happy", "weight", "age", "mistakes", "missed", "training",
                                    "fear", "mine", "iq", "body", "deed") if st.get(k) is not None}
@@ -475,6 +481,8 @@ class Engine:
             life = {"began": time.time(), "ended": None, "seconds": 0, "stages": [], "end": None,
                     "stats": dict.fromkeys(STATS, 0)}
             self.lives.append(life)
+            if status.get("egg") is not None:   # (Game Boy) the egg it was taken as
+                life["stages"].append([-1 - status["egg"], "Ei Nr. %d" % (status["egg"] + 1)])
             del self.lives[:-LIVES_KEPT]
             self.lives_id += 1
         life["seconds"] += 1

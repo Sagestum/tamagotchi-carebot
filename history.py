@@ -238,6 +238,7 @@ GB_SHADES = bytes((0xd3, 0xdd, 0xb0, 0x9d, 0xb0, 0x76, 0x55, 0x6b, 0x47, 0x1c, 0
 
 
 GB_FLOOR = range(80, 110)       # the lines of the room's floor, which is empty but for what stands on it
+GB_EGG = 20                     # dots a side of an egg's picture
 GB_ZOOM = 40                    # dots a side of the cut around the pet
 
 
@@ -268,11 +269,13 @@ def gameboy_pet(packed):
 def gameboy_png(packed, zoom=False):
     """A Game Boy picture as it is kept (two bits a dot, the first in the high bits: just how
     a PNG of four colours has them) as a PNG file; zoomed, only the pet in its room."""
-    if len(packed) != GB_W * GB_H // 4:
+    row, at = GB_W // 4, None
+    if len(packed) == GB_EGG * GB_EGG // 4:     # an egg, cut out of the egg room already
+        raw = b"".join(b"\0" + packed[y * GB_EGG // 4:(y + 1) * GB_EGG // 4] for y in range(GB_EGG))
+        size = (GB_EGG, GB_EGG)
+    elif len(packed) != GB_W * GB_H // 4:
         return None
-    row = GB_W // 4
-    at = gameboy_pet(packed) if zoom else None
-    if at:
+    elif zoom and (at := gameboy_pet(packed)):
         raw = b"".join(b"\0" + packed[y * row + at[0] // 4:y * row + (at[0] + GB_ZOOM) // 4]
                        for y in range(at[1], at[1] + GB_ZOOM))
         size = (GB_ZOOM, GB_ZOOM)
