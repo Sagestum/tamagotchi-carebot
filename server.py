@@ -623,6 +623,22 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_body(404, b"not found", "text/plain")
 
+    def named(self, pet, lives):
+        """The Game Boy's chronicle with each pet's own name. Lives from before it was kept
+        there take it from the history: the same life began there at the same moment."""
+        if pet.model.game != "gameboy" or all(life.get("name") for life in lives):
+            return lives
+        known = [(life["began"], life["name"]) for life in self.app.history.lives(pet.id, 500)
+                 if life["began"] and life["name"] and not life["place"]]
+        out = []
+        for life in lives:
+            if not life.get("name"):
+                near = min(known, key=lambda k: abs(k[0] - life["began"]), default=None)
+                if near and abs(near[0] - life["began"]) < 5:
+                    life = dict(life, name=near[1])
+            out.append(life)
+        return out
+
     def stream(self, pet):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -654,7 +670,7 @@ class Handler(BaseHTTPRequestHandler):
                     msg["log"] = log
                 if msg["livesId"] != lives_seen:
                     lives_seen = msg["livesId"]
-                    msg["lives"] = lives
+                    msg["lives"] = self.named(pet, lives)
                 self.wfile.write(b"data: " + json.dumps(msg).encode() + b"\n\n")
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):

@@ -174,7 +174,7 @@ function draw(lives, model) {
   lives.forEach((life, i) => {
     const box = document.createElement('section');
     box.className = 'life' + (life.ended ? '' : ' now');
-    add(box, 'h3', '', 'Leben Nr. ' + (i + 1));
+    add(box, 'h3', '', 'Leben Nr. ' + (i + 1) + (life.name ? ' – ' + life.name : ''));
     add(box, 'div', 'when', day(life.began) + (life.ended ? ' bis ' + day(life.ended) : ' bis heute') +
       ' · ' + String(life.days).replace('.', ',') + (life.days === 1 ? ' Tag' : ' Tage') + ' gelebt' +
       (life.age != null ? ' · ' + life.age + (life.age === 1 ? ' Spieltag' : ' Spieltage') + ' alt' : '') +
