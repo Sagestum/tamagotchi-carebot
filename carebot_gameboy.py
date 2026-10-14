@@ -102,7 +102,9 @@ MEM_PHASE = 0xD5B8              # race: 2 while they run, 3 and more once they a
 CONTEST_SCREENS = (31, 45, 30)
 HONOUR = 75                     # "Honorary member": the hall a pet with all three awards is shown in at its end
 LAB_TEST = 2                    # "Pick test" in the laboratory's menu
-CONTEST_HOURS = range(10, 18)
+CONTEST_HOURS = range(12, 18)          # the game turns a pet away before noon and from six on
+READY_HOURS = range(10, 18)            # the games to get ready for them start earlier
+TURNED_AWAY = 120                      # seconds (at medium pace, a game hour) before trying again
 SKILL = {RACE: "body", KNOWLEDGE: "iq"}
 SKILLED = 4                     # Body and IQ go from 0 to 4
 GAMES_A_DAY = 4                 # training games for each of the two a day (they do not always add)
@@ -174,6 +176,7 @@ class GameBoyBot(CareBot):
         self.trained = 0.0          # when the last game for IQ or Body was played
         self.no_egg = 0.0           # no new attempt to take an egg before this
         self.passed = None          # the refusal last let pass, so that it is logged once
+        self.no_contest = 0.0       # no new attempt at a contest before this
 
     def memo(self):
         return {"last_name": self.last_name, "used": self.used, "heirs": self.heirs, "keep": self.keep, "pace": self.pace, "contests": self.contests, "album_next": self.album_next,
@@ -532,16 +535,21 @@ class GameBoyBot(CareBot):
         if not (yield from self.icon(ICON_LAB)) or m(MEM_SCREEN) != LAB:
             yield from self.home()
             return
+        # Turned away (not at this hour, not today, not at its age): not again for a while,
+        # and said once, or the bot goes back in at once and over and over.
+        self.no_contest = self.tama.seconds + TURNED_AWAY * self.slower()
         if not (yield from self.entry(LAB_TEST, per_row=1)):
             yield from self.home()
             return
         yield from self.press(BTN_A, 1.5)               # "Which one?"
         if not (yield from self.entry(which, per_row=1)):
+            self.note("Wettbewerb %s: das Spiel lässt es jetzt nicht antreten" % name)
             yield from self.home()
             return
         yield from self.press(BTN_A, 1.5)               # "Go for it!"
         yield from self.press(BTN_A, 1.0)
-        if m(MEM_SCREEN) != CONTEST_SCREENS[which]:     # (not today, or not at its age)
+        if m(MEM_SCREEN) != CONTEST_SCREENS[which]:
+            self.note("Wettbewerb %s: das Spiel lässt es jetzt nicht antreten" % name)
             yield from self.home()
             return
         for _ in range(900):
@@ -891,13 +899,13 @@ class GameBoyBot(CareBot):
             clever = bool(way) and way[3] == rules.CLEVER
             return ("study",) if clever and st["hour"] in STUDY_HOURS else None if clever else ("sports",)
         if self.contests and kind == rules.ADULT and not all(st["awards"]) \
-                and st["hour"] in CONTEST_HOURS and st["hunger"] == FULL:
+                and st["hour"] in READY_HOURS and st["hunger"] == FULL:
             # A contest a day, one it has not won yet: happy into the beauty contest, and with
             # what Body or IQ the day's games have given it into the race or the test of
             # knowledge (those two by turns).
             open_ = [which for which in (RACE, KNOWLEDGE) if not st["awards"][which]]
             which = BEAUTY if not st["awards"][BEAUTY] else open_[st["age"] % len(open_)]
-            if not st["contested"]:
+            if not st["contested"] and st["hour"] in CONTEST_HOURS and self.tama.seconds >= self.no_contest:
                 if which == BEAUTY:
                     return ("contest", BEAUTY) if st["happy"] == FULL else ("play",)
                 if st[SKILL[which]] >= SKILLED or not self.trainable(st, which):
